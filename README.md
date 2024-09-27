@@ -28,7 +28,7 @@ The goal of this project is to implement a distributed and decentralized system 
 ## Communication Flow
 
 <!--
-@startuml CommunicationFlow
+@startuml ./assets/diagrams/CommunicationFlow
 
 participant Validator
 participant Miner
@@ -45,7 +45,7 @@ Validator -> Validator: Decrypt Miner Infos
 @enduml
 -->
 
-![](CommunicationFlow.svg)
+![](./assets/diagrams/CommunicationFlow.svg)
 
 
 ## Installation
