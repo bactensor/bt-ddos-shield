@@ -27,8 +27,7 @@ The goal of this project is to implement a distributed and decentralized system 
 
 ## Communication Flow
 
-<div hidden>
-```
+<!--
 @startuml CommunicationFlow
 
 participant Validator
@@ -44,8 +43,7 @@ ExternalStorage -> Validator: Fetch Miner Infos
 Validator -> Validator: Decrypt Miner Infos
 
 @enduml
-```
-</div>
+-->
 
 ![](CommunicationFlow.svg)
 
