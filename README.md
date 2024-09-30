@@ -35,7 +35,7 @@ participant Miner
 participant ExternalStorage
 participant CloudProvider
 
-Validator -> ExternalStorage: Publish Hotkey Private Key
+Validator -> ExternalStorage: Publish Hotkey Public Key
 ExternalStorage -> Miner: Fetch Validator Infos
 Miner -> Miner: Encrypt Miner info with Validator Public key
 Miner -> ExternalStorage: Publish Encrypted Miner Info
