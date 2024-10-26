@@ -25,6 +25,24 @@ The goal of this project is to implement a distributed and decentralized system 
 3. **Secure Message Exchange**:
    - Validators can request the connection information of miners from the subtensor network. This information is validated and decrypted locally using the validator's private key.
 
+## Communication Flow
+
+<!--
+@startuml ./assets/diagrams/CommunicationFlow
+participant Validator
+participant Miner
+participant ExternalStorage
+participant CloudProvider
+Validator -> ExternalStorage: Publish Hotkey Public Key
+ExternalStorage -> Miner: Fetch Validator Infos
+Miner -> Miner: Encrypt Miner info with Validator Public key
+Miner -> ExternalStorage: Publish Encrypted Miner Info
+ExternalStorage -> Validator: Fetch Miner Infos
+Validator -> Validator: Decrypt Miner Infos
+@enduml
+-->
+
+![](./assets/diagrams/CommunicationFlow.svg)
 
 ## Installation
 ```
