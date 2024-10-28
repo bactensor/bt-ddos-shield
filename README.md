@@ -2,7 +2,11 @@
 
 ## Overview
 
-`bt-ddos-shield` is a Python package designed to address the critical issue of Distributed Denial-of-Service (DDoS) attacks in bittensor ecosystem. The project leverages encryption to protect communication between miners and validators, ensuring the IPs and ports of these nodes remain secure and hidden from malicious actors. This decentralized solution aims to eliminate the financial burden caused by traditional DDoS protection methods like WAF and Cloudflare, which are often costly and impractical for subnets handling large volumes of data.
+`bt-ddos-shield` is a Python package designed to address the critical issue of Distributed Denial-of-Service (DDoS) attacks
+in bittensor ecosystem. The project leverages encryption to protect communication between miners and validators, ensuring
+the IPs and ports of these nodes remain secure and hidden from malicious actors. This decentralized solution aims to eliminate
+the financial burden caused by traditional DDoS protection methods like WAF and Cloudflare, which are often costly and
+impractical for subnets handling large volumes of data.
 
 ## Project Goals
 
@@ -23,7 +27,8 @@ The goal of this project is to implement a distributed and decentralized system 
    - Prevents IP address exposure by sharing encrypted connection data through a decentralized network of subtensors.
 
 3. **Secure Message Exchange**:
-   - Validators can request the connection information of miners from the subtensor network. This information is validated and decrypted locally using the validator's private key.
+   - Validators can request the connection information of miners from the subtensor network. This information is validated and
+     decrypted locally using the validator's private key.
 
 ## Communication Flow
 
@@ -31,14 +36,19 @@ The goal of this project is to implement a distributed and decentralized system 
 @startuml ./assets/diagrams/CommunicationFlow
 participant Validator
 participant Miner
-participant ExternalStorage
-participant CloudProvider
-Validator -> ExternalStorage: Publish Hotkey Public Key
-ExternalStorage -> Miner: Fetch Validator Infos
-Miner -> Miner: Encrypt Miner info with Validator Public key
-Miner -> ExternalStorage: Publish Encrypted Miner Info
-ExternalStorage -> Validator: Fetch Miner Infos
-Validator -> Validator: Decrypt Miner Infos
+participant GitHub
+participant Storage
+participant Bittensor
+Validator -> Validator: Generate Validator key-pair
+Validator -> GitHub: Publish public key along with HotKey
+GitHub -> Miner: Fetch Validator info
+Miner -> Miner: Encrypt Miner IP/Domain with Validator public key
+Miner -> Storage: Add/update file with encrypted IPs/Domains for Validators
+Miner -> Bittensor: Publish file location
+Bittensor -> Validator: Fetch file location
+Storage -> Validator: Fetch Miner file
+Validator -> Validator: Decrypt Miner file entry encrypted for given Validator
+Validator -> Miner: Send request using decrypted Miner IP/Domain
 @enduml
 -->
 
