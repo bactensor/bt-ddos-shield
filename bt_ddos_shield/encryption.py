@@ -11,11 +11,10 @@ class DecryptionError(Exception):
 
 
 class EncryptionManager:
-    def __init__(self):
-        pass
 
+    @staticmethod
     def encrypt_data(
-        self, public_key: str, data: dict, encoding: str = "utf-8"
+        public_key: str, data: dict, encoding: str = "utf-8"
     ) -> bytes:
         """
         Encrypts the given data as a dictionary using the provided public key.
@@ -23,7 +22,7 @@ class EncryptionManager:
         Args:
             public_key (str): The public key in string format that will be used to encrypt the data.
             data (dict): The data to be encrypted, represented as a dictionary.
-            encoding (str): Encoding format for the string representation of the data (default: 'utf-8).
+            encoding (str): Encoding format for the string representation of the data (default: 'utf-8').
 
         Returns:
             bytes: The encrypted data in bytes format.
@@ -41,16 +40,17 @@ class EncryptionManager:
         except Exception as e:
             raise EncryptionError(f"Encryption failed: {e}")
 
+    @staticmethod
     def decrypt_data(
-        self, private_key: str, encrypted_data: bytes, encoding: str = "utf-8"
+        private_key: str, encrypted_data: bytes, encoding: str = "utf-8"
     ) -> dict:
         """
         Decrypts the given encrypted data using the provided private key.
 
         Args:
-            private_key (str): The private key in string format used for decription.
+            private_key (str): The private key in string format used for decryption.
             encrypted_data (bytes): The encrypted data to be decrypted.
-            encoding (str): Encoding format for the string representation of the data (default: 'utf-8).
+            encoding (str): Encoding format for the string representation of the data (default: 'utf-8').
 
         Returns:
             dict: The decrypted data, converted back to a dictionary.
@@ -67,4 +67,4 @@ class EncryptionManager:
             decrypted_dict = json.loads(decrypted_str)
             return decrypted_dict
         except Exception as e:
-            raise DecryptionError(f"Decrption failed: {e}")
+            raise DecryptionError(f"Decryption failed: {e}")
