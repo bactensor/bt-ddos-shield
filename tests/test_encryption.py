@@ -25,7 +25,7 @@ invalid_key_type = 123
 invalid_string_data = "invalid_data"
 
 # Pre-encrypt valid data for decryption tests.
-pre_encrypted_data = EncryptionManager().encrypt_data(
+pre_encrypted_data = EncryptionManager.encrypt_data(
     public_key=public_key, data=valid_test_data
 )
 
@@ -40,7 +40,7 @@ class TestEncryptionManager:
         Test encryption with valid public key and data.
         Ensures the returned encrypted data is of bytes type.
         """
-        encrypted_data = EncryptionManager().encrypt_data(
+        encrypted_data = EncryptionManager.encrypt_data(
             public_key=public_key, data=valid_test_data
         )
         assert isinstance(
@@ -49,11 +49,11 @@ class TestEncryptionManager:
 
     def test_encrypt_data_invalid_public_key(self):
         """
-        Test encryption with an invalid public key (string that doens't represent a valid key).
+        Test encryption with an invalid public key (string that doesn't represent a valid key).
         Expects EncryptionError to be raised.
         """
         with pytest.raises(EncryptionError):
-            EncryptionManager().encrypt_data(
+            EncryptionManager.encrypt_data(
                 public_key=invalid_string_data, data=valid_test_data
             )
 
@@ -63,17 +63,17 @@ class TestEncryptionManager:
         Expects TypeError to be raised.
         """
         with pytest.raises(TypeError):
-            EncryptionManager().encrypt_data(
+            EncryptionManager.encrypt_data(
                 public_key=public_key, data=invalid_string_data
             )
 
     def test_encrypt_data_invalid_public_key_type(self):
         """
         Test encryption with a public key of invalid type (e.g., integer).
-        Exepcts TypeError to be raised.
+        Expects TypeError to be raised.
         """
         with pytest.raises(TypeError):
-            EncryptionManager().encrypt_data(
+            EncryptionManager.encrypt_data(
                 public_key=invalid_key_type, data=valid_test_data
             )
 
@@ -82,7 +82,7 @@ class TestEncryptionManager:
         Test encryption with an empty dictionary.
         Expects encryption to succeed and return data of type bytes.
         """
-        encrypted_empty_data = EncryptionManager().encrypt_data(
+        encrypted_empty_data = EncryptionManager.encrypt_data(
             public_key=public_key, data=empty_data_dict
         )
         assert isinstance(
@@ -94,7 +94,7 @@ class TestEncryptionManager:
         Test decryption with valid private key and encrypted data.
         Ensures that the decrypted data matches the original dictionary.
         """
-        decrypted_data = EncryptionManager().decrypt_data(
+        decrypted_data = EncryptionManager.decrypt_data(
             private_key=private_key, encrypted_data=pre_encrypted_data
         )
         assert isinstance(decrypted_data, dict), "Decrypted data should be of type dict"
@@ -107,10 +107,10 @@ class TestEncryptionManager:
         Test decryption with an empty dictionary.
         Expects that the decrypted data matches the original dictionary.
         """
-        encrypted_empty_data = EncryptionManager().encrypt_data(
+        encrypted_empty_data = EncryptionManager.encrypt_data(
             public_key=public_key, data=empty_data_dict
         )
-        decrypted_data = EncryptionManager().decrypt_data(
+        decrypted_data = EncryptionManager.decrypt_data(
             private_key=private_key, encrypted_data=encrypted_empty_data
         )
         assert isinstance(decrypted_data, dict), "Decrypted data should be of type dict"
@@ -120,11 +120,11 @@ class TestEncryptionManager:
 
     def test_decrypt_data_invalid_private_key(self):
         """
-        Test decryption with an invalid private key (string that doesn't represnet a valid key).
+        Test decryption with an invalid private key (string that doesn't represent a valid key).
         Expects DecryptionError to be raised.
         """
         with pytest.raises(DecryptionError):
-            EncryptionManager().decrypt_data(
+            EncryptionManager.decrypt_data(
                 private_key=invalid_string_data, encrypted_data=pre_encrypted_data
             )
 
@@ -134,7 +134,7 @@ class TestEncryptionManager:
         Expects DecryptionError to be raised.
         """
         with pytest.raises(DecryptionError):
-            EncryptionManager().decrypt_data(
+            EncryptionManager.decrypt_data(
                 private_key=private_key, encrypted_data=non_encrypted_bytes
             )
 
@@ -144,7 +144,7 @@ class TestEncryptionManager:
         Expects TypeError to be raised.
         """
         with pytest.raises(TypeError):
-            EncryptionManager().decrypt_data(
+            EncryptionManager.decrypt_data(
                 private_key=invalid_key_type, encrypted_data=pre_encrypted_data
             )
 
@@ -154,7 +154,7 @@ class TestEncryptionManager:
         Expects TypeError to be raised.
         """
         with pytest.raises(TypeError):
-            EncryptionManager().decrypt_data(
+            EncryptionManager.decrypt_data(
                 private_key=private_key, encrypted_data=invalid_key_type
             )
 
@@ -164,6 +164,6 @@ class TestEncryptionManager:
         Expects DecryptionError to be raised.
         """
         with pytest.raises(DecryptionError):
-            EncryptionManager().decrypt_data(
+            EncryptionManager.decrypt_data(
                 private_key=private_key, encrypted_data=empty_byte
             )
