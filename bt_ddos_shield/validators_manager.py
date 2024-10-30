@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 
-class ValidatorsManager(ABC):
+from bt_ddos_shield.miner_shield import Hotkey
+
+
+class AbstractValidatorsManager(ABC):
     """
     Abstract base class for manager of validators and their public keys used for encryption.
     """
 
-    def __init__(self):
-        pass
-
     @abstractmethod
-    def get_validators(self) -> dict[str, str]:
+    def get_validators(self) -> dict[Hotkey, str]:
         """
         Get cached dictionary of validators - maps HotKey of validator to public key.
         """
