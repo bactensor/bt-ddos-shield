@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from bt_ddos_shield.address import Address
-from bt_ddos_shield.miner_shield import Hotkey
+from bt_ddos_shield.utils import Hotkey
 
 
 class AbstractManifestManager(ABC):
