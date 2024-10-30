@@ -1,58 +1,53 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum
 
-from bt_ddos_shield.domain import Domain
+from bt_ddos_shield.address import Address
+from bt_ddos_shield.miner_shield import Hotkey
 
 
-class State:
+class MinerShieldPhase(Enum):
+    """
+    Possible phases of shield.
+    """
+    DISABLED = "disabled"                         # disabled - initial state
+    MANIFEST_PUBLISHED = "manifest_published"     # manifest is saved to storage
+    MANIFEST_BROADCASTED = "manifest_broadcasted" # info about manifest is published to blockchain
+    ENABLED = "enabled"                           # shield is enabled
+
+
+class MinerShieldState:
     """
     Class representing state of MinerShield.
     """
 
-    class ShieldPhase(Enum):
-        """
-        Possible phases of shield.
-        """
-        DISABLED = "disabled"                         # disabled - initial state
-        MANIFEST_PUBLISHED = "manifest_published"     # manifest is saved to storage
-        MANIFEST_BROADCASTED = "manifest_broadcasted" # info about manifest is published to blockchain
-        ENABLED = "enabled"                           # shield is enabled
-
-    phase: ShieldPhase                # current phase of the shield
-    banned_validators: dict[str, int] # banned validators with ban time (HotKey -> ban timestamp)
-    active_domains: dict[str, Domain] # active domains (validator HotKey -> Domain created for him)
+    phase: MinerShieldPhase                   # current phase of the shield
+    banned_validators: dict[Hotkey, datetime] # banned validators with ban time (HotKey -> time of ban)
+    active_addresses: dict[Hotkey, Address]   # active addresses (validator HotKey -> Address created for him)
 
     def __init__(self):
-        self.phase = self.ShieldPhase.DISABLED
+        self.phase = MinerShieldPhase.DISABLED
         self.banned_validators = {}
-        self.active_domains = {}
+        self.active_addresses = {}
 
-class StateManager(ABC):
+
+class AbstractMinerShieldStateManager(ABC):
     """
     Abstract base class for manager handling state of MinerShield.
     """
 
-    state: State # current state of MinerShield
-
-    def __init__(self):
-        pass
+    current_miner_shield_state: MinerShieldState
 
     @abstractmethod
     def load_state(self):
-        """
-        Load current state.
-        """
         pass
 
     @abstractmethod
     def save_state(self):
-        """
-        Save current state.
-        """
         pass
 
     @abstractmethod
-    def ban_validator(self, validator_hotkey: str):
+    def ban_validator(self, validator_hotkey: Hotkey):
         """
         Add validator to the list of banned validators.
 
@@ -62,9 +57,9 @@ class StateManager(ABC):
         pass
 
     @abstractmethod
-    def remove_validator(self, validator_hotkey: str):
+    def remove_validator(self, validator_hotkey: Hotkey):
         """
-        Remove validator from the lists of banned validators or active domains.
+        Remove validator from the lists of banned validators or active addresses.
 
         Args:
             validator_hotkey: The hotkey of the validator.
@@ -72,12 +67,12 @@ class StateManager(ABC):
         pass
 
     @abstractmethod
-    def add_domain(self, validator_hotkey: str, domain: Domain):
+    def add_address(self, validator_hotkey: Hotkey, address: Address):
         """
-        Add new domain to state.
+        Add new address to state.
 
         Args:
             validator_hotkey: The hotkey of the validator.
-            domain: Domain to add.
+            address: Address to add.
         """
         pass

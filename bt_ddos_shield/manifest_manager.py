@@ -1,31 +1,29 @@
 from abc import ABC, abstractmethod
 
-from bt_ddos_shield.dns_manager import Domain
+from bt_ddos_shield.address import Address
+from bt_ddos_shield.miner_shield import Hotkey
 
 
-class ManifestManager(ABC):
+class AbstractManifestManager(ABC):
     """
-    Abstract base class for manager handling publishing manifest file containing encrypted domains for validators.
+    Abstract base class for manager handling publishing manifest file containing encrypted addresses for validators.
     """
 
-    def __init__(self):
-        pass
-
-    def add_mapping_file(self, domain_mapping: dict[str, Domain]) -> Domain:
+    def add_mapping_file(self, address_mapping: dict[Hotkey, Address]) -> Address:
         """
-        Adds a mapping as file with encrypted domains to the storage.
+        Adds a mapping as file with encrypted addresses to the storage.
 
         Args:
-            domain_mapping: A dictionary containing the domain mapping (validator HotKey -> Domain).
+            address_mapping: A dictionary containing the address mapping (validator HotKey -> Address).
 
         Returns:
-            Domain: Domain where file is put.
+            Address: Address where file is put.
         """
         # TODO - add implementation (encrypt with EncryptionManager and call put_file)
         pass
 
     @abstractmethod
-    def put_file(self, data: str) -> Domain:
+    def _put_file(self, data: bytes) -> Address:
         """
         Puts a file into the storage.
 
@@ -33,6 +31,6 @@ class ManifestManager(ABC):
             data: File contents.
 
         Returns:
-            Domain: Domain where file is put.
+            Address: Address where file is put.
         """
         pass
