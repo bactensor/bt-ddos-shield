@@ -41,7 +41,7 @@ class Address(ABC):
 
     @classmethod
     @abstractmethod
-    def decrypt(cls, encrypted_data: bytes):
+    def decrypt(cls, encrypted_data: bytes) -> 'Address':
         """
         Create address from encrypted address data.
 

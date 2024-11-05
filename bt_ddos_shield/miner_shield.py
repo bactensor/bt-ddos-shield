@@ -1,4 +1,6 @@
+import re
 import threading
+from abc import ABC, abstractmethod
 from queue import Queue
 from dataclasses import dataclass
 from time import sleep
@@ -24,7 +26,21 @@ class MinerShieldOptions:
     auto_hide_delay_sec: int = 600          # Time in seconds after which the original server will be hidden if
                                             # auto_hide_original_server is set to True.
 
-    retry_delay: int = 5                    # Time in seconds to wait before retrying failed task.
+    retry_delay: int = 5   # Time in seconds to wait before retrying failed task.
+
+    max_retries: int = -1  # Maximum number of retries for failed task. If set to negative value, task will be retried
+                           # forever, until eventually shield gets disabled.
+
+
+class MinerShieldException(Exception):
+    pass
+
+
+class MinerShieldDisabledException(MinerShieldException):
+    """
+    Exception raised when shield is disabled and user want to schedule some action to it.
+    """
+    pass
 
 
 class MinerShield:
@@ -78,7 +94,8 @@ class MinerShield:
         When shield is running, user can schedule tasks to be processed by worker.
         """
         if self.worker_thread is not None:
-            raise Exception("Shield is already enabled")
+            # already started
+            return
 
         self.finishing = False
         self.run = True
@@ -105,16 +122,13 @@ class MinerShield:
             validator_hotkey: The hotkey of the validator.
         """
         self._add_task(MinerShieldBanValidatorTask(validator_hotkey))
-        pass
 
-    def _add_task(self, task):
+    def _add_task(self, task: 'AbstractMinerShieldTask'):
         """
         Add task to task queue. It will be handled by _worker_function.
         """
-        if not isinstance(task, MinerShieldTask):
-            raise Exception("Task is not instance of MinerShieldTask")
         if not self.run:
-            raise Exception("Shield is disabled")
+            raise MinerShieldDisabledException()
 
         self.task_queue.put(task)
 
@@ -123,40 +137,41 @@ class MinerShield:
         Function called in separate thread by enable() to start the shield. It is handling events put to task_queue.
         """
 
-        self.event_processor.add_event(MinerShieldEvent(f"Starting shield"))
+        self._event(f"Starting shield")
 
         while self.run:
             task = self.task_queue.get()
-            try_count = 1
+            try_count: int = 1
 
             while self.run:
-                self.event_processor.add_event(MinerShieldEvent(f"Handling task {task}, try {try_count}"))
+                self._event(f"Handling task {task}, try {try_count}")
 
                 try:
-                    task.handle(self)
-                    self.event_processor.add_event(MinerShieldEvent(f"Task {task} finished successfully"))
+                    task.run(self)
+                    self._event(f"Task {task} finished successfully")
                     break
                 except Exception as e:
-                    self.event_processor.add_event(MinerShieldEvent(f"Error during handling task {task}", e))
+                    self._event(f"Error during handling task {task}", e)
 
-                    if self.finishing:
+                    # for negative max_retries value, retry forever
+                    if self.finishing or (0 <= self.options.max_retries < try_count):
                         break
 
                     try_count += 1
                     sleep(self.options.retry_delay)
 
-        self.event_processor.add_event(MinerShieldEvent(f"Stopping shield"))
+        self._event(f"Stopping shield")
 
     def _handle_initialize(self):
         """
         Initialize shield. Load state and initial validators set.
         """
         self.state_manager.get_state()
-        self.event_processor.add_event(MinerShieldEvent("State loaded"))
+        self._event("State loaded")
 
         self.validators_manager.refresh_validators()
         validators: dict[Hotkey, str] = self.validators_manager.get_validators()
-        self.event_processor.add_event(MinerShieldEvent(f"Validators refreshed, got {len(validators)} validators"))
+        self._event(f"Validators refreshed, got {len(validators)} validators")
 
         self._add_task(MinerShieldValidatorsChangedTask())
 
@@ -186,13 +201,13 @@ class MinerShield:
 
         # handle changes in validators
 
-        self.event_processor.add_event(MinerShieldEvent(
+        self._event(
             f"Handling validators change, deprecated_validators count={len(deprecated_validators)}"
-            f", new_validators count={len(new_validators)}, changed_validators count={len(changed_validators)}")
+            f", new_validators count={len(new_validators)}, changed_validators count={len(changed_validators)}"
         )
 
         for validator in deprecated_validators:
-            self.event_processor.add_event(MinerShieldEvent(f"Removing validator {validator}"))
+            self._event(f"Removing validator {validator}")
 
             if validator in current_state.active_addresses:
                 self.address_manager.remove_address(current_state.active_addresses[validator])
@@ -213,24 +228,23 @@ class MinerShield:
         # TODO
         pass
 
+    def _event(self, description: str, *args, **kwargs):
+        """
+        Add event to event processor.
+        """
+        return self.event_processor.add_event(MinerShieldEvent(description, *args, **kwargs))
 
-class MinerShieldTask:
+class AbstractMinerShieldTask(ABC):
     """
     Task to be executed by shield worker.
     """
 
-    def __init__(self, task_name: str):
-        """
-        Initialize task.
+    NAME_DELETER = re.compile(r'^MinerShield(.*)Task$')
 
-        Args:
-            task_name: Short name of the task.
+    @abstractmethod
+    def run(self, miner_shield: MinerShield):
         """
-        self.task_name = task_name
-
-    def handle(self, miner_shield: MinerShield):
-        """
-        Run task logic.
+        Run task in miner_shield context.
 
         Args
             miner_shield: Instance of MinerShield in which task is executed.
@@ -238,33 +252,23 @@ class MinerShieldTask:
         pass
 
     def __repr__(self):
-        return self.task_name
+        return self.NAME_DELETER.sub(r'\1', self.__class__.__name__)
 
-class MinerShieldInitializeTask(MinerShieldTask):
-    def __init__(self):
-        super().__init__("INITIALIZE_SHIELD")
-
-    def handle(self, miner_shield: MinerShield):
+class MinerShieldInitializeTask(AbstractMinerShieldTask):
+    def run(self, miner_shield: MinerShield):
         miner_shield._handle_initialize()
 
-class MinerShieldDisableTask(MinerShieldTask):
-    def __init__(self):
-        super().__init__("DISABLE_SHIELD")
-
-    def handle(self, miner_shield: MinerShield):
+class MinerShieldDisableTask(AbstractMinerShieldTask):
+    def run(self, miner_shield: MinerShield):
         miner_shield._handle_disable()
 
-class MinerShieldValidatorsChangedTask(MinerShieldTask):
-    def __init__(self):
-        super().__init__("VALIDATORS_CHANGED")
-
-    def handle(self, miner_shield: MinerShield):
+class MinerShieldValidatorsChangedTask(AbstractMinerShieldTask):
+    def run(self, miner_shield: MinerShield):
         miner_shield._handle_validators_changed()
 
-class MinerShieldBanValidatorTask(MinerShieldTask):
+class MinerShieldBanValidatorTask(AbstractMinerShieldTask):
     def __init__(self, validator_hotkey: Hotkey):
-        super().__init__("BAN_VALIDATOR")
         self.validator_hotkey = validator_hotkey
 
-    def handle(self, miner_shield: MinerShield):
+    def run(self, miner_shield: MinerShield):
         miner_shield._handle_ban_validator(self.validator_hotkey)
