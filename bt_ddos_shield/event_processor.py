@@ -29,7 +29,7 @@ class AbstractMinerShieldEventProcessor(ABC):
         pass
 
 
-class LoggingMinerShieldEventProcessor(AbstractMinerShieldEventProcessor):
+class PrintingMinerShieldEventProcessor(AbstractMinerShieldEventProcessor):
     """
     Event processor which logs events to console.
     """
