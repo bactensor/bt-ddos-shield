@@ -1,1 +1,4 @@
-Hotkey = str # type of Hotkey
+from typing import TypeAlias
+
+Hotkey: TypeAlias = str
+PublicKey: TypeAlias = str

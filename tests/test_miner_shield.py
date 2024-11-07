@@ -14,7 +14,7 @@ class TestMinerShield:
         """
         Test if shield is properly starting and stopping.
         """
-        shield = MinerShield(None, None, None, None,
+        shield = MinerShield(None,None, None, None, None,
                              None, PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay=1))
         shield.enable()
         assert shield.run

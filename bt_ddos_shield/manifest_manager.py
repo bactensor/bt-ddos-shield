@@ -31,6 +31,6 @@ class AbstractManifestManager(ABC):
             data: File contents.
 
         Returns:
-            Address: Address where file is put.
+            Address: Address where file was put.
         """
         pass
