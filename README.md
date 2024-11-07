@@ -30,25 +30,27 @@ The goal of this project is to implement a distributed and decentralized system 
    - Validators can request the connection information of miners from the subtensor network. This information is validated and
      decrypted locally using the validator's private key.
 
-## Communication Flow
+## Basic Communication Flow
 
 <!--
 @startuml ./assets/diagrams/CommunicationFlow
 participant Validator
 participant Miner
 participant GitHub
+participant AddressManager
 participant Storage
 participant Bittensor
 Validator -> Validator: Generate Validator key-pair
 Validator -> GitHub: Publish public key along with HotKey
-GitHub -> Miner: Fetch Validator info
-Miner -> Miner: Encrypt Miner IP/Domain with Validator public key
-Miner -> Storage: Add/update file with encrypted IPs/Domains for Validators
+GitHub -> Miner: Fetch new Validator info
+Miner -> AddressManager: Generate new address
+Miner -> Miner: Encrypt generated address with Validator public key
+Miner -> Storage: Update file with encrypted addresses for Validators
 Miner -> Bittensor: Publish file location
 Bittensor -> Validator: Fetch file location
 Storage -> Validator: Fetch Miner file
 Validator -> Validator: Decrypt Miner file entry encrypted for given Validator
-Validator -> Miner: Send request using decrypted Miner IP/Domain
+Validator -> Miner: Send request using decrypted Miner address
 @enduml
 -->
 

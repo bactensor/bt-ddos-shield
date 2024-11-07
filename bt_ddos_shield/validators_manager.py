@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from bt_ddos_shield.utils import Hotkey
+from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 class AbstractValidatorsManager(ABC):
@@ -9,7 +9,7 @@ class AbstractValidatorsManager(ABC):
     """
 
     @abstractmethod
-    def get_validators(self) -> dict[Hotkey, str]:
+    def get_validators(self) -> dict[Hotkey, PublicKey]:
         """
         Get cached dictionary of validators - maps HotKey of validator to public key.
         """

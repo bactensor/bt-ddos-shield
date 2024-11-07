@@ -29,24 +29,27 @@ class Address(ABC):
         self.address = address
         self.port = port
 
+    def __repr__(self):
+        return f"Address(id={self.address_id}, type={self.address_type}, address={self.address}:{self.port})"
+
     @abstractmethod
-    def encrypt(self) -> bytes:
+    def serialize(self) -> bytes:
         """
-        Encrypts address data.
+        Serialize address data.
 
         Returns:
-            bytes: Encrypted address data.
+            bytes: Serialized address data.
         """
         pass
 
     @classmethod
     @abstractmethod
-    def decrypt(cls, encrypted_data: bytes) -> 'Address':
+    def deserialize(cls, serialized_data: bytes) -> 'Address':
         """
-        Create address from encrypted address data.
+        Deserialize address data.
 
         Args:
-            encrypted_data: Encrypted address data.
+            serialized_data: Data serialized before by serialize method.
 
         Returns:
             Address: Created address.
