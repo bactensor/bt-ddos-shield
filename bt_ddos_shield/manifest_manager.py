@@ -27,9 +27,6 @@ class AbstractManifestManager(ABC):
         """
         Puts a file into the storage.
 
-        Args:
-            data: File contents.
-
         Returns:
             Address: Address where file was put.
         """

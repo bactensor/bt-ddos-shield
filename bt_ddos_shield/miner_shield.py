@@ -29,9 +29,6 @@ class MinerShieldOptions:
 
     retry_delay: int = 5  # Time in seconds to wait before retrying failed task.
 
-    max_retries: int = -1  # Maximum number of retries for failed task. If set to negative value, task will be retried
-                           # forever, until eventually shield gets disabled.
-
 
 class MinerShieldException(Exception):
     pass
@@ -120,9 +117,6 @@ class MinerShield:
         """
         Ban a validator by its hotkey. Task will be executed by worker. It will update manifest file and publish info
         about new file version to blockchain.
-
-        Args:
-            validator_hotkey: The hotkey of the validator.
         """
         self._add_task(MinerShieldBanValidatorTask(validator_hotkey))
 
@@ -146,17 +140,16 @@ class MinerShield:
             try_count: int = 1
 
             while self.run:
-                self._event(f"Handling task {task}, try {try_count}")
+                self._event("Handling task {task}, try {try_count}", task=task, try_count=try_count)
 
                 try:
                     task.run(self)
-                    self._event(f"Task {task} finished successfully")
+                    self._event("Task {task} finished successfully", task=task)
                     break
                 except Exception as e:
-                    self._event(f"Error during handling task {task}", e)
+                    self._event("Error during handling task {task}", e, task=task)
 
-                    # for negative max_retries value, retry forever
-                    if self.finishing or (0 <= self.options.max_retries < try_count):
+                    if self.finishing:
                         break
 
                     try_count += 1
@@ -173,27 +166,19 @@ class MinerShield:
 
         self.validators_manager.refresh_validators()
         validators: dict[Hotkey, str] = self.validators_manager.get_validators()
-        self._event(f"Validators loaded, got {len(validators)} validators")
+        self._event("Validators loaded, got {validators_count} validators", validators_count=len(validators))
 
-        # Forcing update of manifest file, because we don't know if current content is valid. Earlier update
-        # may have failed, and we can't compare content, because addresses are encrypted there.
-        self._add_task(MinerShieldValidatorsChangedTask(force_update_manifest=True))
+        self._add_task(MinerShieldValidatorsChangedTask())
 
     def _handle_disable(self):
         self.run = False
 
-    def _handle_validators_changed(self, force_update_manifest: bool):
+    @classmethod
+    def _calculate_validators_diff(cls, current_state: MinerShieldState, fetched_validators: dict[Hotkey, PublicKey]):
         """
-        Calculates difference between newly fetched validators set and one saved in state and run logic for any changes.
-
-        Args:
-            force_update_manifest: If True, manifest file will be updated even if no changes in validators occurred.
+        Calculates difference between newly fetched validators set and one saved in state and returns validators
+        which should be removed, added or updated.
         """
-
-        # get current state and recently fetched validators
-        current_state: MinerShieldState = self.state_manager.get_state()
-        fetched_validators: dict[Hotkey, PublicKey] = self.validators_manager.get_validators()
-
         # remove banned validators from fetched validators
         for banned_validator in current_state.banned_validators.keys():
             fetched_validators.pop(banned_validator, None)
@@ -206,23 +191,20 @@ class MinerShield:
                 if fetched_validators[k] != current_state.known_validators[k]
         }
 
-        # handle changes in validators
+        return deprecated_validators, new_validators, changed_validators
 
-        self._event(
-            f"Handling validators change, deprecated_validators count={len(deprecated_validators)}"
-            f", new_validators count={len(new_validators)}, changed_validators count={len(changed_validators)}"
-        )
-
+    def _handle_deprecated_validators(self, current_state: MinerShieldState, deprecated_validators: set[Hotkey]):
         for validator in deprecated_validators:
-            self._event(f"Removing validator {validator}")
+            self._event("Removing validator {validator}", validator=validator)
 
             if validator in current_state.active_addresses:
                 self.address_manager.remove_address(current_state.active_addresses[validator])
 
             self.state_manager.remove_validator(validator)
 
+    def _handle_new_validators(self, fetched_validators: dict[Hotkey, PublicKey], new_validators: set[Hotkey]):
         for validator in new_validators:
-            self._event(f"Adding validator {validator}")
+            self._event("Adding validator {validator}", validator=validator)
 
             new_address = self.address_manager.create_address()
 
@@ -232,11 +214,30 @@ class MinerShield:
                 self.address_manager.remove_address(new_address.address_id)
                 raise e
 
+    def _handle_changed_validators(self, changed_validators: dict[Hotkey, PublicKey]):
         for validator, new_key in changed_validators:
-            self._event(f"Updating validator {validator}")
-            self.state_manager.update_validator(validator, new_key)
+            self._event("Updating validator {validator}", validator=validator)
+            self.state_manager.update_validator_public_key(validator, new_key)
 
-        if force_update_manifest or deprecated_validators or new_validators or changed_validators:
+    def _handle_validators_changed(self):
+        current_state: MinerShieldState = self.state_manager.get_state()
+        fetched_validators: dict[Hotkey, PublicKey] = self.validators_manager.get_validators()
+
+        deprecated_validators, new_validators, changed_validators = \
+            self._calculate_validators_diff(current_state, fetched_validators)
+
+        self._event(
+            "Handling validators change, deprecated_validators count={deprecated_validators_count}"
+            ", new_validators count={new_validators_count}, changed_validators count={changed_validators_count}",
+            deprecated_validators_count=len(deprecated_validators), new_validators_count=len(new_validators),
+            changed_validators_count=len(changed_validators)
+        )
+
+        self._handle_deprecated_validators(current_state, deprecated_validators)
+        self._handle_new_validators(fetched_validators, new_validators)
+        self._handle_changed_validators(changed_validators)
+
+        if deprecated_validators or new_validators or changed_validators:
             # if anything changed update manifest file and publish new version to blockchain
             self._add_task(MinerShieldUpdateManifestTask())
 
@@ -245,8 +246,8 @@ class MinerShield:
         Ban validator by its hotkey. If something changed, MinerShieldValidatorsChangedTask will apply asynchronously
         this change where needed.
         """
-        self.state_manager.ban_validator(validator_hotkey)
-        self._event(f"Validator {validator_hotkey} added to banned set")
+        self.state_manager.add_banned_validator(validator_hotkey)
+        self._event("Validator {validator_hotkey} added to banned set", validator_hotkey=validator_hotkey)
         self._add_task(MinerShieldValidatorsChangedTask())
 
     def _handle_update_manifest(self):
@@ -254,23 +255,28 @@ class MinerShield:
         Update manifest file and schedule publishing it to blockchain.
         """
         address = self.manifest_manager.add_mapping_file(self.state_manager.get_state().active_addresses)
-        self._event(f"Manifest updated, new address: {address}")
+        self._event("Manifest updated, new address: {address}", address=address)
         self._add_task(MinerShieldPublishManifestTask(address))
 
     def _handle_publish_manifest(self, address: Address):
         """
         Publish info about current manifest file to blockchain.
         """
-        current_address = Address.deserialize(self.blockchain_manager.get(self.miner_hotkey))
+        current_address = self.address_manager.deserialize_address(self.blockchain_manager.get(self.miner_hotkey))
         if current_address != address:
             self.blockchain_manager.put(self.miner_hotkey, address.serialize())
             self._event("Manifest published")
 
-    def _event(self, description: str, *args, **kwargs):
+    def _event(self, template: str, exception: Exception = None, **kwargs):
         """
         Add event to event processor.
+
+        Args:
+            template: Description template to be filled using kwargs.
+            exception: Exception to be attached to event.
+            kwargs: Event params. Used also to fill template.
         """
-        return self.event_processor.add_event(MinerShieldEvent(description, *args, **kwargs))
+        return self.event_processor.add_event(MinerShieldEvent(template, exception, **kwargs))
 
 
 class AbstractMinerShieldTask(ABC):
@@ -284,29 +290,27 @@ class AbstractMinerShieldTask(ABC):
     def run(self, miner_shield: MinerShield):
         """
         Run task in miner_shield context.
-
-        Args
-            miner_shield: Instance of MinerShield in which task is executed.
         """
         pass
 
     def __repr__(self):
         return self.NAME_DELETER.sub(r'\1', self.__class__.__name__)
 
+
 class MinerShieldInitializeTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
         miner_shield._handle_initialize()
+
 
 class MinerShieldDisableTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
         miner_shield._handle_disable()
 
-class MinerShieldValidatorsChangedTask(AbstractMinerShieldTask):
-    def __init__(self, force_update_manifest: bool = False):
-        self.force_update_manifest = force_update_manifest
 
+class MinerShieldValidatorsChangedTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
-        miner_shield._handle_validators_changed(self.force_update_manifest)
+        miner_shield._handle_validators_changed()
+
 
 class MinerShieldBanValidatorTask(AbstractMinerShieldTask):
     def __init__(self, validator_hotkey: Hotkey):
@@ -315,9 +319,11 @@ class MinerShieldBanValidatorTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
         miner_shield._handle_ban_validator(self.validator_hotkey)
 
+
 class MinerShieldUpdateManifestTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
         miner_shield._handle_update_manifest()
+
 
 class MinerShieldPublishManifestTask(AbstractMinerShieldTask):
     def __init__(self, address: Address):
