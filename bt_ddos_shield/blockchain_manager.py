@@ -11,21 +11,14 @@ class AbstractBlockchainManager(ABC):
     @abstractmethod
     def put(self, hotkey: Hotkey, data: bytes):
         """
-        Puts data to blockchain.
-
-        Args:
-            hotkey: Hotkey of user for whom we are putting data.
-            data: Data.
+        Puts data to blockchain for given user identified by hotkey.
         """
         pass
 
     @abstractmethod
     def get(self, hotkey: Hotkey) -> bytes:
         """
-        Gets data from blockchain.
-
-        Args:
-            hotkey: Hotkey of user to get data from.
+        Gets data from blockchain for given user identified by hotkey.
 
         Returns:
             data: Last block of data put by user.

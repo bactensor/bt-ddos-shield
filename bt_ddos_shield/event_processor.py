@@ -1,16 +1,29 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import traceback
+from typing import Any
 
 
-@dataclass
 class MinerShieldEvent:
     """
     Class describing event, which happened in the shield.
     """
 
-    event_description: str       # Description of the event.
-    exception: Exception = None  # Exception which caused the event.
+    template: str             # Template of the event.
+    exception: Exception      # Exception which caused the event.
+    metadata: dict[str, Any]  # Additional metadata.
+    description: str          # Description of the event (template filled with metadata).
+
+    def __init__(self, template: str, exception: Exception = None, **metadata):
+        """
+        Args:
+            template: Template of the event (used to generate description).
+            exception: Exception which caused the event.
+            metadata: Additional metadata (used also to generate description).
+        """
+        self.template = template
+        self.exception = exception
+        self.metadata = metadata
+        self.description = template.format(**metadata)
 
 
 class AbstractMinerShieldEventProcessor(ABC):
@@ -20,12 +33,6 @@ class AbstractMinerShieldEventProcessor(ABC):
 
     @abstractmethod
     def add_event(self, event: MinerShieldEvent):
-        """
-        Add new event to be handled by processor.
-
-        Args:
-            event: Event to add.
-        """
         pass
 
 
@@ -36,7 +43,7 @@ class PrintingMinerShieldEventProcessor(AbstractMinerShieldEventProcessor):
 
     def add_event(self, event: MinerShieldEvent):
         if event.exception is not None:
-            print(f"MinerShieldEvent: {event.event_description}\nException happened:")
-            print(traceback.format_exc())
+            print(f"MinerShieldEvent: {event.description}\nMetadata: {event.metadata}\nException happened:")
+            print("".join(traceback.format_exception(event.exception)))
         else:
-            print(f"MinerShieldEvent: {event.event_description}")
+            print(f"MinerShieldEvent: {event.description}\nMetadata: {event.metadata}")

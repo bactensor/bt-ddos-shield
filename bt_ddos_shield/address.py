@@ -30,7 +30,7 @@ class Address(ABC):
         self.port = port
 
     def __repr__(self):
-        return f"Address(id={self.address_id}, type={self.address_type}, address={self.address}:{self.port})"
+        return f"Address(id={self.address_id}, address={self.address}:{self.port})"
 
     @abstractmethod
     def serialize(self) -> bytes:

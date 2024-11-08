@@ -36,13 +36,12 @@ The goal of this project is to implement a distributed and decentralized system 
 @startuml ./assets/diagrams/CommunicationFlow
 participant Validator
 participant Miner
-participant GitHub
 participant AddressManager
-participant Storage
-participant Bittensor
+database Storage
+database Bittensor
 Validator -> Validator: Generate Validator key-pair
-Validator -> GitHub: Publish public key along with HotKey
-GitHub -> Miner: Fetch new Validator info
+Validator -> Bittensor: Publish public key along with HotKey
+Bittensor -> Miner: Fetch new Validator info
 Miner -> AddressManager: Generate new address
 Miner -> Miner: Encrypt generated address with Validator public key
 Miner -> Storage: Update file with encrypted addresses for Validators
