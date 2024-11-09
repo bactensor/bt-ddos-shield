@@ -254,7 +254,9 @@ class MinerShield:
         """
         Update manifest file and schedule publishing it to blockchain.
         """
-        address = self.manifest_manager.add_mapping_file(self.state_manager.get_state().active_addresses)
+        current_state: MinerShieldState = self.state_manager.get_state()
+        address = self.manifest_manager.create_and_upload_manifest_file(current_state.active_addresses,
+                                                                        current_state.known_validators)
         self._event("Manifest updated, new address: {address}", address=address)
         self._add_task(MinerShieldPublishManifestTask(address))
 
@@ -262,9 +264,9 @@ class MinerShield:
         """
         Publish info about current manifest file to blockchain.
         """
-        current_address = self.address_manager.deserialize_address(self.blockchain_manager.get(self.miner_hotkey))
+        current_address = self.blockchain_manager.get_address(self.miner_hotkey)
         if current_address != address:
-            self.blockchain_manager.put(self.miner_hotkey, address.serialize())
+            self.blockchain_manager.put_address(self.miner_hotkey, address)
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):

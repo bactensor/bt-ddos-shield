@@ -11,9 +11,9 @@ class AddressType(Enum):
     DOMAIN = "domain" # domain name
 
 
-class Address(ABC):
+class Address:
     """
-    Class describing address, which redirects to original miner's server.
+    Class describing some address - domain or IP.
     """
 
     def __init__(self, address_id, address_type: AddressType, address: str, port: int):
@@ -32,26 +32,36 @@ class Address(ABC):
     def __repr__(self):
         return f"Address(id={self.address_id}, address={self.address}:{self.port})"
 
-    @abstractmethod
-    def serialize(self) -> bytes:
-        """
-        Serialize address data.
 
-        Returns:
-            bytes: Serialized address data.
+class AddressSerializerException(Exception):
+    pass
+
+
+class AddressDeserializationException(AddressSerializerException):
+    """
+    Exception thrown when deserialization of address data fails.
+    """
+    pass
+
+
+class AddressSerializer(ABC):
+    """
+    Class used to serialize and deserialize addresses.
+    """
+
+    @abstractmethod
+    def serialize(self, address: Address) -> bytes:
+        """
+        Serialize address data. Output format depends on the implementation.
         """
         pass
 
-    @classmethod
     @abstractmethod
-    def deserialize(cls, serialized_data: bytes) -> 'Address':
+    def deserialize(self, serialized_data: bytes) -> Address:
         """
-        Deserialize address data.
+        Deserialize address data. Throws AddressDeserializationException if data format is not recognized.
 
         Args:
             serialized_data: Data serialized before by serialize method.
-
-        Returns:
-            Address: Created address.
         """
         pass
