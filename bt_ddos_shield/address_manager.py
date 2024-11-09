@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Type
 
 from bt_ddos_shield.address import Address
 
@@ -9,27 +8,13 @@ class AbstractAddressManager(ABC):
     Abstract base class for manager handling public IP/domain addresses assigned to validators.
     """
 
-    def __init__(self, address_class: Type[Address], miner_address_id):
+    def __init__(self, miner_address_id):
         """
         Args:
-            address_class: Class of the address used by manager.
             miner_address_id: Identifier of the address of original miner's server. All created addresses for validators
                               should redirect to this address.
         """
-        self.address_class = address_class
         self.miner_address_id = miner_address_id
-
-    def deserialize_address(self, serialized_data: bytes) -> Address:
-        """
-        Deserialize address data and create instance of Address class.
-
-        Args:
-            serialized_data: Data serialized before by Address.serialize method.
-
-        Returns:
-            Address: Created address.
-        """
-        return self.address_class.deserialize(serialized_data)
 
     def hide_original_server(self):
         """
