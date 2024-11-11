@@ -53,7 +53,7 @@ class TestEncryptionManager:
         decrypted_data = self.encryption_manager.decrypt(
             private_key=private_key, data=encrypted_data
         )
-        assert (
+        assert(
             decrypted_data == valid_test_data
         ), "Decrypted data should match the original data"
 

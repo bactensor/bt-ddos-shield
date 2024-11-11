@@ -25,3 +25,20 @@ class AbstractValidatorsManager(ABC):
         Reload validators dictionary. Blocks code execution until new validators set is fetched.
         """
         pass
+
+
+class MemoryValidatorsManager(AbstractValidatorsManager):
+    """
+    Validators manager implementation which stores fixed validators in memory.
+    """
+
+    validators: dict[Hotkey, PublicKey]
+
+    def __init__(self, validators: dict[Hotkey, PublicKey]):
+        self.validators = validators
+
+    def get_validators(self) -> MappingProxyType[Hotkey, PublicKey]:
+        return MappingProxyType(self.validators)
+
+    def reload_validators(self):
+        pass

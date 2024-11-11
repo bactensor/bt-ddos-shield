@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from bt_ddos_shield.address import Address, AddressSerializer
+from bt_ddos_shield.address import Address, AbstractAddressSerializer
 from bt_ddos_shield.utils import Hotkey
 
 
@@ -13,9 +13,9 @@ class AbstractBlockchainManager(ABC):
     Abstract base class for manager handling publishing address to blockchain.
     """
 
-    address_serializer: AddressSerializer
+    address_serializer: AbstractAddressSerializer
 
-    def __init__(self, address_serializer: AddressSerializer):
+    def __init__(self, address_serializer: AbstractAddressSerializer):
         self.address_serializer = address_serializer
 
     def put_address(self, hotkey: Hotkey, address: Address):
