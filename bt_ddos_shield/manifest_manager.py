@@ -1,7 +1,11 @@
+import base64
+import json
 from abc import ABC, abstractmethod
 from types import MappingProxyType
+from typing import Any
 
-from bt_ddos_shield.address import Address, AddressSerializer
+from bt_ddos_shield.address import Address, AbstractAddressSerializer
+from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
@@ -23,15 +27,87 @@ class ManifestNotFoundException(ManifestManagerException):
     pass
 
 
+class AbstractManifestSerializer(ABC):
+    """
+    Class used to serialize and deserialize manifest file.
+    """
+
+    @abstractmethod
+    def serialize(self, encrypted_address_mapping: dict[Hotkey, bytes]) -> bytes:
+        """
+        Serialize manifest. Output format depends on the implementation.
+        """
+        pass
+
+    @abstractmethod
+    def deserialize(self, serialized_data: bytes) -> dict[Hotkey, bytes]:
+        """
+        Deserialize manifest. Throws ManifestDeserializationException if data format is not recognized.
+
+        Args:
+            serialized_data: Data serialized before by serialize_manifest method.
+
+        Returns:
+            dict[Hotkey, bytes]: Mapping with addresses for validators (validator HotKey -> encrypted address).
+        """
+        pass
+
+
+class JsonManifestSerializer(AbstractManifestSerializer):
+    """
+    Manifest serializer implementation which serialize manifest to Json.
+    """
+
+    encoding: str
+
+    def __init__(self, encoding: str = "utf-8"):
+        """
+        Args:
+            encoding: Encoding used for transforming Json string to bytes.
+        """
+        self.encoding = encoding
+
+    def serialize(self, encrypted_address_mapping: dict[Hotkey, bytes]) -> bytes:
+        json_str: str = json.dumps(encrypted_address_mapping, default=self._custom_encoder)
+        return json_str.encode(encoding=self.encoding)
+
+    def deserialize(self, serialized_data: bytes) -> dict[Hotkey, bytes]:
+        try:
+            json_str: str = serialized_data.decode(encoding=self.encoding)
+            return json.loads(json_str, object_hook=self._custom_decoder)
+        except Exception as e:
+            raise ManifestDeserializationException(f"Failed to deserialize manifest data: {e}")
+
+    @staticmethod
+    def _custom_encoder(obj: Any) -> Any:
+        if isinstance(obj, Hotkey):
+            return str(obj)
+
+        if isinstance(obj, bytes):
+            return base64.b64encode(obj).decode()
+
+    @staticmethod
+    def _custom_decoder(json_mapping: dict[str, str]) -> dict[Hotkey, bytes]:
+        decoded_mapping: dict[Hotkey, bytes] = {}
+        for hotkey, encoded_address in json_mapping.items():
+            decoded_mapping[Hotkey(hotkey)] = base64.b64decode(encoded_address.encode())
+        return decoded_mapping
+
+
 class AbstractManifestManager(ABC):
     """
     Abstract base class for manager handling publishing manifest file containing encrypted addresses for validators.
     """
 
-    address_serializer: AddressSerializer
+    address_serializer: AbstractAddressSerializer
+    manifest_serializer: AbstractManifestSerializer
+    encryption_manager: AbstractEncryptionManager
 
-    def __init__(self, address_serializer: AddressSerializer):
+    def __init__(self, address_serializer: AbstractAddressSerializer, manifest_serializer: AbstractManifestSerializer,
+                 encryption_manager: AbstractEncryptionManager):
         self.address_serializer = address_serializer
+        self.manifest_serializer = manifest_serializer
+        self.encryption_manager = encryption_manager
 
     def create_and_put_manifest_file(self, address_mapping: MappingProxyType[Hotkey, Address],
                                      validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> Address:
@@ -50,8 +126,14 @@ class AbstractManifestManager(ABC):
         Returns:
             bytes: Encrypted and serialized manifest data.
         """
-        # TODO - add implementation (encrypt with EncryptionManager and serialize)
-        pass
+        encrypted_address_mapping: dict[Hotkey, bytes] = {}
+
+        for hotkey, address in address_mapping.items():
+            public_key: PublicKey = validators_public_keys[hotkey]
+            serialized_address: bytes = self.address_serializer.serialize(address)
+            encrypted_address_mapping[hotkey] = self.encryption_manager.encrypt(public_key, serialized_address)
+
+        return self.manifest_serializer.serialize(encrypted_address_mapping)
 
     def get_manifest_mapping(self, address: Address) -> dict[Hotkey, bytes]:
         """
@@ -62,12 +144,12 @@ class AbstractManifestManager(ABC):
             dict[Hotkey, bytes]: Mapping with addresses for validators (validator HotKey -> encrypted address).
         """
         raw_data: bytes = self.get_manifest_file(address)
-        return self._deserialize_manifest(raw_data)
+        return self.manifest_serializer.deserialize(raw_data)
 
     @abstractmethod
     def put_manifest_file(self, data: bytes) -> Address:
         """
-        Put manifest file into the storage.
+        Put manifest file into the storage. Should remove old manifest file if it exists.
 
         Returns:
             Address: Address for accessing file.
@@ -78,25 +160,5 @@ class AbstractManifestManager(ABC):
     def get_manifest_file(self, address: Address) -> bytes:
         """
         Get manifest file from given address. Should throw ManifestNotFoundException if file is not found.
-        """
-        pass
-
-    @abstractmethod
-    def _serialize_manifest(self, encrypted_address_mapping: dict[Hotkey, bytes]) -> bytes:
-        """
-        Serialize manifest. Output format depends on the implementation.
-        """
-        pass
-
-    @abstractmethod
-    def _deserialize_manifest(self, serialized_data: bytes) -> dict[Hotkey, bytes]:
-        """
-        Deserialize manifest. Throws ManifestDeserializationException if data format is not recognized.
-
-        Args:
-            serialized_data: Data serialized before by _serialize_manifest method.
-
-        Returns:
-            dict[Hotkey, bytes]: Mapping with addresses for validators (validator HotKey -> encrypted address).
         """
         pass

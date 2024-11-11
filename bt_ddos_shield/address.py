@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 
 class AddressType(Enum):
@@ -12,28 +12,16 @@ class AddressType(Enum):
     DOMAIN = "domain"  # domain name
 
 
+@dataclass
 class Address:
     """
     Class describing some address - domain or IP.
     """
 
-    address_id: Any
+    address_id: str  # address_id: Identifier (used by AbstractAddressManager implementation) of the address.
     address_type: AddressType
     address: str
     port: int
-
-    def __init__(self, address_id, address_type: AddressType, address: str, port: int):
-        """
-        Args:
-            address_id: Identifier (used by AddressManager) of the address. Type depends on the implementation.
-            address_type: Type of the address.
-            address: Address.
-            port: Port of the address.
-        """
-        self.address_id = address_id
-        self.address_type = address_type
-        self.address = address
-        self.port = port
 
     def __repr__(self):
         return f"Address(id={self.address_id}, address={self.address}:{self.port})"
@@ -50,7 +38,7 @@ class AddressDeserializationException(AddressSerializerException):
     pass
 
 
-class AddressSerializer(ABC):
+class AbstractAddressSerializer(ABC):
     """
     Class used to serialize and deserialize addresses.
     """
@@ -71,3 +59,36 @@ class AddressSerializer(ABC):
             serialized_data: Data serialized before by serialize method.
         """
         pass
+
+
+class DefaultAddressSerializer(AbstractAddressSerializer):
+    """
+    Address serializer implementation which serialize address to string.
+    """
+
+    encoding: str
+
+    def __init__(self, encoding: str = "utf-8"):
+        """
+        Args:
+            encoding: Encoding used for transforming generated address string to bytes.
+        """
+        self.encoding = encoding
+
+    def serialize(self, address: Address) -> bytes:
+        address_str: str = f"{address.address_id}:{address.address_type.value}:{address.address}:{address.port}"
+        return address_str.encode(self.encoding)
+
+    def deserialize(self, serialized_data: bytes) -> Address:
+        try:
+            address_str: str = serialized_data.decode(self.encoding)
+            parts = address_str.split(":")
+            if len(parts) != 4:
+                raise AddressDeserializationException(f"Invalid number of parts, address_str='{address_str}'")
+            address_id: str = parts[0]
+            address_type: AddressType = AddressType(parts[1])
+            address: str = parts[2]
+            port: int = int(parts[3])
+            return Address(address_id=address_id, address_type=address_type, address=address, port=port)
+        except Exception as e:
+            raise AddressDeserializationException(f"Failed to deserialize address, error='{e}'")

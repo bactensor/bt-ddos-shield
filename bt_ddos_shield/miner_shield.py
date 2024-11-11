@@ -436,21 +436,25 @@ class AbstractMinerShieldTask(ABC):
 
 class MinerShieldInitializeTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_initialize()
 
 
 class MinerShieldDisableTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_disable()
 
 
 class MinerShieldValidateStateTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_validate_state()
 
 
 class MinerShieldValidatorsChangedTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_validators_change()
 
 
@@ -459,14 +463,17 @@ class MinerShieldBanValidatorTask(AbstractMinerShieldTask):
         self.validator_hotkey = validator_hotkey
 
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_ban_validator(self.validator_hotkey)
 
 
 class MinerShieldUpdateManifestTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_update_manifest()
 
 
 class MinerShieldPublishManifestTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
         miner_shield._handle_publish_manifest()
