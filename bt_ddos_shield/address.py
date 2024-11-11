@@ -1,20 +1,26 @@
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Any
 
 
 class AddressType(Enum):
     """
     Possible types of address.
     """
-    IP = "ip"         # IPv4 address
-    IPV6 = "ipv6"     # IPv6 address
-    DOMAIN = "domain" # domain name
+    IP = "ip"          # IPv4 address
+    IPV6 = "ipv6"      # IPv6 address
+    DOMAIN = "domain"  # domain name
 
 
 class Address:
     """
     Class describing some address - domain or IP.
     """
+
+    address_id: Any
+    address_type: AddressType
+    address: str
+    port: int
 
     def __init__(self, address_id, address_type: AddressType, address: str, port: int):
         """
