@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+from types import MappingProxyType
+from typing import Any
 
 from bt_ddos_shield.address import Address
+from bt_ddos_shield.utils import Hotkey
 
 
 class AbstractAddressManager(ABC):
@@ -8,7 +11,9 @@ class AbstractAddressManager(ABC):
     Abstract base class for manager handling public IP/domain addresses assigned to validators.
     """
 
-    def __init__(self, miner_address_id):
+    miner_address_id: Any
+
+    def __init__(self, miner_address_id: Any):
         """
         Args:
             miner_address_id: Identifier of the address of original miner's server. All created addresses for validators
@@ -31,15 +36,18 @@ class AbstractAddressManager(ABC):
         pass
 
     @abstractmethod
-    def remove_address(self, address_id):
-        """
-        Remove address with given ID redirecting to Miner server.
-        """
+    def remove_address(self, address: Address):
         pass
 
     @abstractmethod
-    def address_exists(self, address_id) -> bool:
+    def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
         """
-        Returns if address with given ID exists and is working.
+        Validate if given addresses exist and are working properly.
+
+        Args:
+            addresses: Dictionary of addresses to validate (validator HotKey -> Address).
+
+        Returns:
+            set[Hotkey]: Set of HotKeys of validators with invalid addresses.
         """
         pass

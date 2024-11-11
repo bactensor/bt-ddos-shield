@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from types import MappingProxyType
 
 from bt_ddos_shield.address import Address, AddressSerializer
 from bt_ddos_shield.utils import Hotkey, PublicKey
@@ -15,6 +16,13 @@ class ManifestDeserializationException(ManifestManagerException):
     pass
 
 
+class ManifestNotFoundException(ManifestManagerException):
+    """
+    Exception thrown when manifest file is not found under given address.
+    """
+    pass
+
+
 class AbstractManifestManager(ABC):
     """
     Abstract base class for manager handling publishing manifest file containing encrypted addresses for validators.
@@ -25,13 +33,13 @@ class AbstractManifestManager(ABC):
     def __init__(self, address_serializer: AddressSerializer):
         self.address_serializer = address_serializer
 
-    def create_and_upload_manifest_file(self, address_mapping: dict[Hotkey, Address],
-                                        validators_public_keys: dict[Hotkey, PublicKey]) -> Address:
+    def create_and_put_manifest_file(self, address_mapping: MappingProxyType[Hotkey, Address],
+                                     validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> Address:
         data: bytes = self.create_manifest_file(address_mapping, validators_public_keys)
         return self.put_manifest_file(data)
 
-    def create_manifest_file(self, address_mapping: dict[Hotkey, Address],
-                             validators_public_keys: dict[Hotkey, PublicKey]) -> bytes:
+    def create_manifest_file(self, address_mapping: MappingProxyType[Hotkey, Address],
+                             validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> bytes:
         """
         Create manifest with encrypted addresses for validators.
 
@@ -69,7 +77,7 @@ class AbstractManifestManager(ABC):
     @abstractmethod
     def get_manifest_file(self, address: Address) -> bytes:
         """
-        Get manifest file from given address.
+        Get manifest file from given address. Should throw ManifestNotFoundException if file is not found.
         """
         pass
 
