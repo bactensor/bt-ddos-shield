@@ -7,21 +7,21 @@ from bt_ddos_shield.utils import Hotkey
 
 
 class MemoryManifestManager(AbstractManifestManager):
-    address: Address
+    default_address: Address
     stored_file: Optional[bytes]
 
     def __init__(self):
         super().__init__(DefaultAddressSerializer(), JsonManifestSerializer(), ECIESEncryptionManager())
-        self.address = Address(address_id='default_id', address_type=AddressType.DOMAIN,
-                               address=f'manifest.com', port=80)
+        self.default_address = Address(address_id='default_id', address_type=AddressType.DOMAIN,
+                                       address='manifest.com', port=80)
         self.stored_file = None
 
     def put_manifest_file(self, data: bytes) -> Address:
         self.stored_file = data
-        return self.address
+        return self.default_address
 
     def get_manifest_file(self, address: Address) -> bytes:
-        if self.stored_file is None or address != self.address:
+        if self.stored_file is None or address != self.default_address:
             raise ManifestNotFoundException(f"Manifest file not found under address: {address}")
         return self.stored_file
 

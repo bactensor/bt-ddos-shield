@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from bt_ddos_shield.address import Address, AbstractAddressSerializer
 from bt_ddos_shield.utils import Hotkey
@@ -24,11 +25,14 @@ class AbstractBlockchainManager(ABC):
         """
         self.put(hotkey, self.address_serializer.serialize(address))
 
-    def get_address(self, hotkey: Hotkey) -> Address:
+    def get_address(self, hotkey: Hotkey) -> Optional[Address]:
         """
-        Get address from blockchain for given user identified by hotkey.
+        Get address from blockchain for given user identified by hotkey or None if not found.
         """
-        return self.address_serializer.deserialize(self.get(hotkey))
+        serialized_address: Optional[bytes] = self.get(hotkey)
+        if serialized_address is None:
+            return None
+        return self.address_serializer.deserialize(serialized_address)
 
     @abstractmethod
     def put(self, hotkey: Hotkey, data: bytes):
@@ -38,8 +42,8 @@ class AbstractBlockchainManager(ABC):
         pass
 
     @abstractmethod
-    def get(self, hotkey: Hotkey) -> bytes:
+    def get(self, hotkey: Hotkey) -> Optional[bytes]:
         """
-        Get data from blockchain for given user identified by hotkey.
+        Get data from blockchain for given user identified by hotkey or None if not found.
         """
         pass

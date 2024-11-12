@@ -10,14 +10,14 @@ from bt_ddos_shield.utils import Hotkey, PublicKey
 class MinerShieldState:
     _known_validators: dict[Hotkey, PublicKey]
     _banned_validators: dict[Hotkey, datetime]
-    _active_validators_addresses: dict[Hotkey, Address]
+    _validators_addresses: dict[Hotkey, Address]
     _manifest_address: Optional[Address]
 
     def __init__(self, known_validators: dict[Hotkey, PublicKey], banned_validators: dict[Hotkey, datetime],
-                 active_validators_addresses: dict[Hotkey, Address], manifest_address: Optional[Address]):
+                 validators_addresses: dict[Hotkey, Address], manifest_address: Optional[Address]):
         super().__setattr__('_known_validators', known_validators)
         super().__setattr__('_banned_validators', banned_validators)
-        super().__setattr__('_active_validators_addresses', active_validators_addresses)
+        super().__setattr__('_validators_addresses', validators_addresses)
         super().__setattr__('_manifest_address', manifest_address)
 
     @property
@@ -35,11 +35,11 @@ class MinerShieldState:
         return MappingProxyType(self._banned_validators)
 
     @property
-    def active_validators_addresses(self) -> MappingProxyType[Hotkey, Address]:
+    def validators_addresses(self) -> MappingProxyType[Hotkey, Address]:
         """
         Get dictionary of active addresses (validator HotKey -> Address created for him)
         """
-        return MappingProxyType(self._active_validators_addresses)
+        return MappingProxyType(self._validators_addresses)
 
     @property
     def manifest_address(self) -> Optional[Address]:
@@ -60,7 +60,10 @@ class AbstractMinerShieldStateManager(ABC):
     Abstract base class for manager handling state of MinerShield. Each change in state should be instantly
     saved to storage.
     """
-    current_miner_shield_state: MinerShieldState
+    current_miner_shield_state: Optional[MinerShieldState]
+
+    def __init__(self):
+        self.current_miner_shield_state = None
 
     def get_state(self, reload: bool = False) -> MinerShieldState:
         """
@@ -98,5 +101,5 @@ class AbstractMinerShieldStateManager(ABC):
         pass
 
     @abstractmethod
-    def _load_state_from_storage(self):
+    def _load_state_from_storage(self) -> MinerShieldState:
         pass
