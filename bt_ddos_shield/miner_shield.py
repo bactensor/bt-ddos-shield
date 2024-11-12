@@ -265,7 +265,10 @@ class MinerShield:
             new_content: bytes = self.manifest_manager.create_manifest_file(current_state.validators_addresses,
                                                                             current_state.known_validators)
             current_content: bytes = self.manifest_manager.get_manifest_file(current_state.manifest_address)
-            return new_content == current_content
+            same_content: bool = new_content == current_content
+            self._event("Manifest file validation finished, same content={same_content}",
+                        same_content=same_content)
+            return same_content
         except ManifestNotFoundException:
             return False
         except Exception as e:
@@ -347,7 +350,7 @@ class MinerShield:
                 raise e
 
     def _handle_changed_validators(self, changed_validators: dict[Hotkey, PublicKey]):
-        for validator, new_key in changed_validators:
+        for validator, new_key in changed_validators.items():
             self._event("Updating validator {validator}", validator=validator)
             self.state_manager.update_validator_public_key(validator, new_key)
 
