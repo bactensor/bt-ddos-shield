@@ -3,6 +3,7 @@ from typing import Optional
 
 from ecies.utils import generate_eth_key
 
+from bt_ddos_shield.address import Address
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState
@@ -10,6 +11,7 @@ from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import MemoryValidatorsManager
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
+from tests.test_encryption_manager import generate_key_pair
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager
 
@@ -21,11 +23,16 @@ class TestMinerShield:
 
     MINER_HOTKEY = Hotkey('miner')
     VALIDATOR_1_HOTKEY = Hotkey('validator1')
-    VALIDATOR_1_PUBLICKEY = PublicKey(generate_eth_key().public_key.to_hex())
+    #VALIDATOR_1_PUBLICKEY = PublicKey(generate_eth_key().public_key.to_hex())
+    VALIDATOR_1_PUBLICKEY = PublicKey(generate_key_pair()[1])
     VALIDATOR_2_HOTKEY = Hotkey('validator2')
-    VALIDATOR_2_PUBLICKEY = PublicKey(generate_eth_key().public_key.to_hex())
+    VALIDATOR_2_PUBLICKEY = PublicKey(generate_key_pair()[1])
     VALIDATOR_3_HOTKEY = Hotkey('validator3')
-    VALIDATOR_3_PUBLICKEY = PublicKey(generate_eth_key().public_key.to_hex())
+    VALIDATOR_3_PUBLICKEY = PublicKey(generate_key_pair()[1])
+    VALIDATOR_3_OTHER_PUBLICKEY = PublicKey(generate_key_pair()[1])
+    VALIDATOR_4_HOTKEY = Hotkey('validator4')
+    VALIDATOR_4_PUBLICKEY = PublicKey(generate_key_pair()[1])
+    OTHER_VALIDATOR_HOTKEY = Hotkey('other_validator')
     DEFAULT_VALIDATORS = {VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY, VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
                           VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY}
 
@@ -34,9 +41,9 @@ class TestMinerShield:
             -> MemoryValidatorsManager:
         if validators is None:
             validators = cls.DEFAULT_VALIDATORS
-        return MemoryValidatorsManager(validators)
+        return MemoryValidatorsManager(dict(validators))
 
-    def create_default_shield(self):
+    def create_default_shield(self, validate_interval_sec: int = 2):
         self.validators_manager: MemoryValidatorsManager = self.create_memory_validators_manager()
         self.address_manager: MemoryAddressManager = MemoryAddressManager()
         self.manifest_manager: MemoryManifestManager = MemoryManifestManager()
@@ -44,7 +51,8 @@ class TestMinerShield:
         self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
         self.shield = MinerShield(self.MINER_HOTKEY, self.validators_manager, self.address_manager,
                                   self.manifest_manager, self.blockchain_manager, self.state_manager,
-                                  PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay_sec=1))
+                                  PrintingMinerShieldEventProcessor(),
+                                  MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec))
         self.shield.enable()
         assert self.shield.run
 
@@ -69,17 +77,151 @@ class TestMinerShield:
         Test if shield is properly starting from scratch and fully enabling protection.
         """
         self.create_default_shield()
-
-        sleep(2)
+        sleep(2 + 2*self.shield.options.validate_interval_sec)  # give some time to make sure validate is called
 
         state: MinerShieldState = self.state_manager.get_state()
+        assert self.validators_manager.get_validators() == self.DEFAULT_VALIDATORS
         assert state.known_validators == self.validators_manager.get_validators()
         assert state.banned_validators == {}
         assert state.validators_addresses.keys() == self.validators_manager.get_validators().keys()
         assert state.manifest_address == self.manifest_manager.default_address
         assert list(state.validators_addresses.values()) == list(self.address_manager.known_addresses.values())
+        assert self.address_manager.id_counter == len(state.validators_addresses)
         assert self.manifest_manager.stored_file is not None
-        assert self.blockchain_manager.get(self.MINER_HOTKEY) is not None
+        assert self.manifest_manager.put_counter == 1
+        manifest_address: Address = self.manifest_manager.default_address
+        manifest_mapping: dict[Hotkey, bytes] = self.manifest_manager.get_manifest_mapping(manifest_address)
+        assert manifest_mapping.keys() == state.validators_addresses.keys()
+        assert self.blockchain_manager.get_address(self.MINER_HOTKEY) == manifest_address
+        assert self.blockchain_manager.put_counter == 1
 
         self.shield.disable()
         assert not self.shield.run
+
+    def test_ban_validator(self):
+        """
+        Test if shield is properly banning validators.
+        """
+        # Use long validate_interval_sec to avoid race conditions between manipulating data due to validation
+        # and accessing state in tests.
+        self.create_default_shield(validate_interval_sec=600)
+        sleep(2)
+
+        state: MinerShieldState = self.state_manager.get_state()
+        assert state.known_validators == self.validators_manager.get_validators()
+        assert state.banned_validators == {}
+
+        # shield is working, ban single validator
+
+        self.shield.ban_validator(self.VALIDATOR_1_HOTKEY)
+        expected_validators: dict[Hotkey, PublicKey] = dict(self.validators_manager.get_validators())
+        expected_validators.pop(self.VALIDATOR_1_HOTKEY)
+        banned_validators: set[Hotkey] = {self.VALIDATOR_1_HOTKEY}
+        sleep(2)
+
+        state = self.state_manager.get_state()
+        assert state.known_validators == expected_validators
+        assert state.banned_validators.keys() == banned_validators
+        assert self.manifest_manager.put_counter == 2
+        assert self.blockchain_manager.put_counter == 1  # file is put under same address
+
+        # check banning non-existing validator
+
+        self.shield.ban_validator(self.OTHER_VALIDATOR_HOTKEY)
+        banned_validators.add(self.OTHER_VALIDATOR_HOTKEY)
+        sleep(2)
+
+        state = self.state_manager.get_state()
+        assert state.known_validators == expected_validators
+        assert state.banned_validators.keys() == banned_validators
+        assert self.manifest_manager.put_counter == 2  # known validators haven't changed
+
+        self.shield.disable()
+
+    def test_reloading_validators(self):
+        """
+        Test if shield is properly handling changing validators set during runtime.
+        """
+        self.create_default_shield(validate_interval_sec=5)
+        sleep(2)
+
+        # add VALIDATOR_4 and remove VALIDATOR_2 - changes should be reflected in the state after validation runs
+        self.validators_manager.validators.pop(self.VALIDATOR_2_HOTKEY)
+        self.validators_manager.validators[self.VALIDATOR_4_HOTKEY] = self.VALIDATOR_4_PUBLICKEY
+        expected_validators: dict[Hotkey, PublicKey] = dict(self.DEFAULT_VALIDATORS)
+        expected_validators.pop(self.VALIDATOR_2_HOTKEY)
+        expected_validators[self.VALIDATOR_4_HOTKEY] = self.VALIDATOR_4_PUBLICKEY
+        state: MinerShieldState = self.state_manager.get_state()
+        expected_address_id_counter: int = len(state.validators_addresses)
+        assert self.address_manager.id_counter == expected_address_id_counter
+        assert state.known_validators != expected_validators  # need to wait
+        assert self.manifest_manager.put_counter == 1
+
+        # wait for validation and check results
+        sleep(self.shield.options.validate_interval_sec)
+        state = self.state_manager.get_state()
+        assert state.known_validators == expected_validators
+        assert state.validators_addresses.keys() == state.known_validators.keys()
+        assert list(state.validators_addresses.values()) == list(self.address_manager.known_addresses.values())
+        expected_address_id_counter += 1  # +1 for new validator
+        assert self.address_manager.id_counter == expected_address_id_counter
+        assert self.manifest_manager.put_counter == 2
+
+        # change public key of single validator - changes should be reflected in the state after validation runs
+        self.validators_manager.validators[self.VALIDATOR_3_HOTKEY] = self.VALIDATOR_3_OTHER_PUBLICKEY
+        expected_validators[self.VALIDATOR_3_HOTKEY] = self.VALIDATOR_3_OTHER_PUBLICKEY
+        state = self.state_manager.get_state()
+        assert state.known_validators != expected_validators  # need to wait
+
+        # wait for validation and check results
+        sleep(self.shield.options.validate_interval_sec)
+        state = self.state_manager.get_state()
+        assert state.known_validators == expected_validators
+        assert self.address_manager.id_counter == expected_address_id_counter
+        assert self.manifest_manager.put_counter == 3
+
+        self.shield.disable()
+
+    def test_validate_addresses(self):
+        """
+        Test if shield is properly handling validating addresses during runtime.
+        """
+        self.create_default_shield(validate_interval_sec=5)
+        sleep(2)
+
+        expected_address_id_counter: int = len(self.DEFAULT_VALIDATORS)
+
+        # set invalid address manually - new address should be created after validation runs
+        self.address_manager.invalid_addresses = {self.VALIDATOR_1_HOTKEY}
+        state: MinerShieldState = self.state_manager.get_state()
+        assert self.address_manager.id_counter == expected_address_id_counter
+        old_address = state.validators_addresses.get(self.VALIDATOR_1_HOTKEY)
+        assert self.address_manager.known_addresses.get(old_address.address_id) == old_address
+
+        # wait for validation and check results
+        expected_address_id_counter += 1  # +1 for regenerating address
+        sleep(self.shield.options.validate_interval_sec)
+        state = self.state_manager.get_state()
+        assert self.address_manager.id_counter == expected_address_id_counter
+        assert self.manifest_manager.put_counter == 2
+        new_address = state.validators_addresses.get(self.VALIDATOR_1_HOTKEY)
+        assert old_address != new_address
+        assert self.address_manager.known_addresses.get(new_address.address_id) == new_address
+        assert self.address_manager.known_addresses.get(old_address.address_id, None) is None
+
+        self.shield.disable()
+
+    def test_validate_manifest_file(self):
+        """
+        Test if shield is properly handling validating manifest file during runtime.
+        """
+        self.create_default_shield(validate_interval_sec=5)
+        sleep(2)
+
+        # change file contents manually - file should be overwritten after validation runs
+        assert self.manifest_manager.put_counter == 1
+        self.manifest_manager.stored_file = b'xxx'
+        sleep(self.shield.options.validate_interval_sec)
+        assert self.manifest_manager.put_counter == 2
+
+        self.shield.disable()

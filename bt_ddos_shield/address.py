@@ -88,7 +88,7 @@ class DefaultAddressSerializer(AbstractAddressSerializer):
             address_type: AddressType = AddressType(parts[0])
             address: str = parts[1]
             port: int = int(parts[2])
-            address_id: str = "".join(parts[3:])  # there can possibly be some colons in address_id
+            address_id: str = ":".join(parts[3:])  # there can possibly be some colons in address_id
             return Address(address_id=address_id, address_type=address_type, address=address, port=port)
         except Exception as e:
             raise AddressDeserializationException(f"Failed to deserialize address, error='{e}'")
