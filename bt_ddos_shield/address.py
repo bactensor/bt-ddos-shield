@@ -18,7 +18,7 @@ class Address:
     Class describing some address - domain or IP.
     """
 
-    address_id: str  # address_id: Identifier (used by AbstractAddressManager implementation) of the address.
+    address_id: str  # identifier (used by AbstractAddressManager implementation) of the address
     address_type: AddressType
     address: str
     port: int
@@ -76,19 +76,19 @@ class DefaultAddressSerializer(AbstractAddressSerializer):
         self.encoding = encoding
 
     def serialize(self, address: Address) -> bytes:
-        address_str: str = f"{address.address_id}:{address.address_type.value}:{address.address}:{address.port}"
+        address_str: str = f"{address.address_type.value}:{address.address}:{address.port}:{address.address_id}"
         return address_str.encode(self.encoding)
 
     def deserialize(self, serialized_data: bytes) -> Address:
         try:
             address_str: str = serialized_data.decode(self.encoding)
             parts = address_str.split(":")
-            if len(parts) != 4:
+            if len(parts) < 4:
                 raise AddressDeserializationException(f"Invalid number of parts, address_str='{address_str}'")
-            address_id: str = parts[0]
-            address_type: AddressType = AddressType(parts[1])
-            address: str = parts[2]
-            port: int = int(parts[3])
+            address_type: AddressType = AddressType(parts[0])
+            address: str = parts[1]
+            port: int = int(parts[2])
+            address_id: str = "".join(parts[3:])  # there can possibly be some colons in address_id
             return Address(address_id=address_id, address_type=address_type, address=address, port=port)
         except Exception as e:
             raise AddressDeserializationException(f"Failed to deserialize address, error='{e}'")

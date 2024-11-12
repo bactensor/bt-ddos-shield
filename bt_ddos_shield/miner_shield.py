@@ -241,8 +241,7 @@ class MinerShield:
         validators_changed: bool = False
         try:
             current_state: MinerShieldState = self.state_manager.get_state()
-            invalid_addresses: set[Hotkey] = self.address_manager.validate_addresses(
-                current_state.active_validators_addresses)
+            invalid_addresses: set[Hotkey] = self.address_manager.validate_addresses(current_state.validators_addresses)
             if invalid_addresses:
                 self._event("Removing invalid addresses for given validators: {invalid_addresses}",
                             invalid_addresses=invalid_addresses)
@@ -263,7 +262,7 @@ class MinerShield:
             current_state: MinerShieldState = self.state_manager.get_state()
             if current_state.manifest_address is None:
                 return False
-            new_content: bytes = self.manifest_manager.create_manifest_file(current_state.active_validators_addresses,
+            new_content: bytes = self.manifest_manager.create_manifest_file(current_state.validators_addresses,
                                                                             current_state.known_validators)
             current_content: bytes = self.manifest_manager.get_manifest_file(current_state.manifest_address)
             return new_content == current_content
@@ -328,7 +327,7 @@ class MinerShield:
         for validator in deprecated_validators:
             self._event("Removing validator {validator}", validator=validator)
 
-            active_validator_addresses = current_state.active_validators_addresses
+            active_validator_addresses = current_state.validators_addresses
             if validator in active_validator_addresses:
                 self.address_manager.remove_address(active_validator_addresses[validator])
 
@@ -388,7 +387,7 @@ class MinerShield:
         Update manifest file and schedule publishing it to blockchain.
         """
         current_state: MinerShieldState = self.state_manager.get_state()
-        address: Address = self.manifest_manager.create_and_put_manifest_file(current_state.active_validators_addresses,
+        address: Address = self.manifest_manager.create_and_put_manifest_file(current_state.validators_addresses,
                                                                               current_state.known_validators)
         self.state_manager.set_manifest_address(address)
         self._event("Manifest updated, new address: {address}", address=address)
