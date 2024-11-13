@@ -1,7 +1,7 @@
 from typing import Optional
 
 from bt_ddos_shield.address import DefaultAddressSerializer, Address, AddressType
-from bt_ddos_shield.encryption_manager import AesRsaEncryptionManager
+from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import JsonManifestSerializer, AbstractManifestManager, ManifestNotFoundException
 from bt_ddos_shield.utils import Hotkey
 
@@ -12,7 +12,7 @@ class MemoryManifestManager(AbstractManifestManager):
     put_counter: int
 
     def __init__(self):
-        super().__init__(DefaultAddressSerializer(), JsonManifestSerializer(), AesRsaEncryptionManager())
+        super().__init__(DefaultAddressSerializer(), JsonManifestSerializer(), ECIESEncryptionManager())
         self.default_address = Address(address_id='default_id', address_type=AddressType.DOMAIN,
                                        address='manifest.com', port=80)
         self.stored_file = None
