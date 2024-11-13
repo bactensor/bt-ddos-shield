@@ -1,6 +1,8 @@
 import base64
+import hashlib
 import json
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
@@ -27,28 +29,34 @@ class ManifestNotFoundException(ManifestManagerException):
     pass
 
 
+@dataclass
+class Manifest:
+    """
+    Class representing manifest file containing encrypted addresses for validators.
+    """
+
+    encrypted_address_mapping: dict[Hotkey, bytes]
+    """ Mapping with addresses for validators (validator HotKey -> encrypted address) """
+    md5_hash: str
+    """ MD5 hash of the manifest data """
+
+
 class AbstractManifestSerializer(ABC):
     """
     Class used to serialize and deserialize manifest file.
     """
 
     @abstractmethod
-    def serialize(self, encrypted_address_mapping: dict[Hotkey, bytes]) -> bytes:
+    def serialize(self, manifest: Manifest) -> bytes:
         """
         Serialize manifest. Output format depends on the implementation.
         """
         pass
 
     @abstractmethod
-    def deserialize(self, serialized_data: bytes) -> dict[Hotkey, bytes]:
+    def deserialize(self, serialized_data: bytes) -> Manifest:
         """
         Deserialize manifest. Throws ManifestDeserializationException if data format is not recognized.
-
-        Args:
-            serialized_data: Data serialized before by serialize_manifest method.
-
-        Returns:
-            dict[Hotkey, bytes]: Mapping with addresses for validators (validator HotKey -> encrypted address).
         """
         pass
 
@@ -67,14 +75,19 @@ class JsonManifestSerializer(AbstractManifestSerializer):
         """
         self.encoding = encoding
 
-    def serialize(self, encrypted_address_mapping: dict[Hotkey, bytes]) -> bytes:
-        json_str: str = json.dumps(encrypted_address_mapping, default=self._custom_encoder)
+    def serialize(self, manifest: Manifest) -> bytes:
+        data: dict = {
+            "encrypted_address_mapping": manifest.encrypted_address_mapping,
+            "md5_hash": manifest.md5_hash
+        }
+        json_str: str = json.dumps(data, default=self._custom_encoder)
         return json_str.encode(encoding=self.encoding)
 
-    def deserialize(self, serialized_data: bytes) -> dict[Hotkey, bytes]:
+    def deserialize(self, serialized_data: bytes) -> Manifest:
         try:
             json_str: str = serialized_data.decode(encoding=self.encoding)
-            return json.loads(json_str, object_hook=self._custom_decoder)
+            data = json.loads(json_str, object_hook=self._custom_decoder)
+            return Manifest(data["encrypted_address_mapping"], data["md5_hash"])
         except Exception as e:
             raise ManifestDeserializationException(f"Failed to deserialize manifest data: {e}")
 
@@ -87,11 +100,13 @@ class JsonManifestSerializer(AbstractManifestSerializer):
             return base64.b64encode(obj).decode()
 
     @staticmethod
-    def _custom_decoder(json_mapping: dict[str, str]) -> dict[Hotkey, bytes]:
-        decoded_mapping: dict[Hotkey, bytes] = {}
-        for hotkey, encoded_address in json_mapping.items():
-            decoded_mapping[Hotkey(hotkey)] = base64.b64decode(encoded_address.encode())
-        return decoded_mapping
+    def _custom_decoder(json_mapping: dict[str, Any]) -> Any:
+        if "encrypted_address_mapping" in json_mapping:
+            decoded_mapping: dict[Hotkey, bytes] = {}
+            for hotkey, encoded_address in json_mapping["encrypted_address_mapping"].items():
+                decoded_mapping[Hotkey(hotkey)] = base64.b64decode(encoded_address.encode())
+            json_mapping["encrypted_address_mapping"] = decoded_mapping
+        return json_mapping
 
 
 class AbstractManifestManager(ABC):
@@ -109,45 +124,44 @@ class AbstractManifestManager(ABC):
         self.manifest_serializer = manifest_serializer
         self.encryption_manager = encryption_manager
 
-    def create_and_put_manifest_file(self, address_mapping: MappingProxyType[Hotkey, Address],
-                                     validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> Address:
-        data: bytes = self.create_manifest_file(address_mapping, validators_public_keys)
-        return self.put_manifest_file(data)
+    def upload_manifest(self, manifest: Manifest) -> Address:
+        data: bytes = self.manifest_serializer.serialize(manifest)
+        return self._put_manifest_file(data)
 
-    def create_manifest_file(self, address_mapping: MappingProxyType[Hotkey, Address],
-                             validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> bytes:
+    def create_manifest(self, address_mapping: MappingProxyType[Hotkey, Address],
+                        validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> Manifest:
         """
         Create manifest with encrypted addresses for validators.
 
         Args:
             address_mapping: Dictionary containing address mapping (validator HotKey -> Address).
             validators_public_keys: Dictionary containing public keys of validators (validator HotKey -> PublicKey).
-
-        Returns:
-            bytes: Encrypted and serialized manifest data.
         """
         encrypted_address_mapping: dict[Hotkey, bytes] = {}
+        md5_hash = hashlib.md5()
 
         for hotkey, address in address_mapping.items():
             public_key: PublicKey = validators_public_keys[hotkey]
             serialized_address: bytes = self.address_serializer.serialize(address)
             encrypted_address_mapping[hotkey] = self.encryption_manager.encrypt(public_key, serialized_address)
 
-        return self.manifest_serializer.serialize(encrypted_address_mapping)
+            md5_hash.update(hotkey.encode())
+            public_key_bytes: bytes = public_key.encode() if isinstance(public_key, str) else public_key
+            md5_hash.update(public_key_bytes)
+            md5_hash.update(serialized_address)
 
-    def get_manifest_mapping(self, address: Address) -> dict[Hotkey, bytes]:
+        return Manifest(encrypted_address_mapping, md5_hash.hexdigest())
+
+    def get_manifest(self, address: Address) -> Manifest:
         """
-        Get manifest file from given address and deserialize it. Throws ManifestDeserializationError if data format
+        Get manifest file from given address and deserialize it. Throws ManifestDeserializationException if data format
         is not recognized.
-
-        Returns:
-            dict[Hotkey, bytes]: Mapping with addresses for validators (validator HotKey -> encrypted address).
         """
-        raw_data: bytes = self.get_manifest_file(address)
+        raw_data: bytes = self._get_manifest_file(address)
         return self.manifest_serializer.deserialize(raw_data)
 
     @abstractmethod
-    def put_manifest_file(self, data: bytes) -> Address:
+    def _put_manifest_file(self, data: bytes) -> Address:
         """
         Put manifest file into the storage. Should remove old manifest file if it exists.
 
@@ -157,7 +171,7 @@ class AbstractManifestManager(ABC):
         pass
 
     @abstractmethod
-    def get_manifest_file(self, address: Address) -> bytes:
+    def _get_manifest_file(self, address: Address) -> bytes:
         """
         Get manifest file from given address. Should throw ManifestNotFoundException if file is not found.
         """
