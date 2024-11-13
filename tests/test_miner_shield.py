@@ -1,8 +1,6 @@
 from time import sleep
 from typing import Optional
 
-from ecies.utils import generate_eth_key
-
 from bt_ddos_shield.address import Address
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldOptions
@@ -21,18 +19,17 @@ class TestMinerShield:
     Test suite for the MinerShield class.
     """
 
-    MINER_HOTKEY = Hotkey('miner')
-    VALIDATOR_1_HOTKEY = Hotkey('validator1')
-    #VALIDATOR_1_PUBLICKEY = PublicKey(generate_eth_key().public_key.to_hex())
-    VALIDATOR_1_PUBLICKEY = PublicKey(generate_key_pair()[1])
-    VALIDATOR_2_HOTKEY = Hotkey('validator2')
-    VALIDATOR_2_PUBLICKEY = PublicKey(generate_key_pair()[1])
-    VALIDATOR_3_HOTKEY = Hotkey('validator3')
-    VALIDATOR_3_PUBLICKEY = PublicKey(generate_key_pair()[1])
-    VALIDATOR_3_OTHER_PUBLICKEY = PublicKey(generate_key_pair()[1])
-    VALIDATOR_4_HOTKEY = Hotkey('validator4')
-    VALIDATOR_4_PUBLICKEY = PublicKey(generate_key_pair()[1])
-    OTHER_VALIDATOR_HOTKEY = Hotkey('other_validator')
+    MINER_HOTKEY: Hotkey = "miner"
+    VALIDATOR_1_HOTKEY: Hotkey = "validator1"
+    VALIDATOR_1_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_2_HOTKEY: Hotkey = "validator2"
+    VALIDATOR_2_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_3_HOTKEY: Hotkey = "validator3"
+    VALIDATOR_3_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_3_OTHER_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_4_HOTKEY: Hotkey = "validator4"
+    VALIDATOR_4_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    OTHER_VALIDATOR_HOTKEY: Hotkey = "other_validator"
     DEFAULT_VALIDATORS = {VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY, VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
                           VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY}
 
