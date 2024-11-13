@@ -3,6 +3,7 @@ from typing import Optional
 
 from bt_ddos_shield.address import Address
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
+from bt_ddos_shield.manifest_manager import Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState
 from bt_ddos_shield.utils import Hotkey, PublicKey
@@ -87,8 +88,8 @@ class TestMinerShield:
         assert self.manifest_manager.stored_file is not None
         assert self.manifest_manager.put_counter == 1
         manifest_address: Address = self.manifest_manager.default_address
-        manifest_mapping: dict[Hotkey, bytes] = self.manifest_manager.get_manifest_mapping(manifest_address)
-        assert manifest_mapping.keys() == state.validators_addresses.keys()
+        manifest: Manifest = self.manifest_manager.get_manifest(manifest_address)
+        assert manifest.encrypted_address_mapping.keys() == state.validators_addresses.keys()
         assert self.blockchain_manager.get_address(self.MINER_HOTKEY) == manifest_address
         assert self.blockchain_manager.put_counter == 1
 

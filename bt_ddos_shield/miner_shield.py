@@ -13,7 +13,8 @@ from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, Mi
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager
-from bt_ddos_shield.manifest_manager import AbstractManifestManager, ManifestNotFoundException
+from bt_ddos_shield.manifest_manager import AbstractManifestManager, ManifestNotFoundException, Manifest, \
+    ManifestDeserializationException
 from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
 
 
@@ -262,14 +263,14 @@ class MinerShield:
             current_state: MinerShieldState = self.state_manager.get_state()
             if current_state.manifest_address is None:
                 return False
-            new_content: bytes = self.manifest_manager.create_manifest_file(current_state.validators_addresses,
-                                                                            current_state.known_validators)
-            current_content: bytes = self.manifest_manager.get_manifest_file(current_state.manifest_address)
-            same_content: bool = new_content == current_content
+            new_manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
+                                                                           current_state.known_validators)
+            current_manifest: Manifest = self.manifest_manager.get_manifest(current_state.manifest_address)
+            same_content: bool = new_manifest.md5_hash == current_manifest.md5_hash
             self._event("Manifest file validation finished, same content={same_content}",
                         same_content=same_content)
             return same_content
-        except ManifestNotFoundException:
+        except (ManifestNotFoundException, ManifestDeserializationException):
             return False
         except Exception as e:
             self._event("Error during validating manifest file", e)
@@ -390,8 +391,9 @@ class MinerShield:
         Update manifest file and schedule publishing it to blockchain.
         """
         current_state: MinerShieldState = self.state_manager.get_state()
-        address: Address = self.manifest_manager.create_and_put_manifest_file(current_state.validators_addresses,
-                                                                              current_state.known_validators)
+        manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
+                                                                   current_state.known_validators)
+        address: Address = self.manifest_manager.upload_manifest(manifest)
         self.state_manager.set_manifest_address(address)
         self._event("Manifest updated, new address: {address}", address=address)
         self._add_task(MinerShieldPublishManifestTask())
