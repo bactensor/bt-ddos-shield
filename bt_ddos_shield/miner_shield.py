@@ -342,7 +342,7 @@ class MinerShield:
         for validator in new_validators:
             self._event("Adding validator {validator}", validator=validator)
 
-            new_address: Address = self.address_manager.create_address()
+            new_address: Address = self.address_manager.create_address(validator)
 
             try:
                 self.state_manager.add_validator(validator, fetched_validators[validator], new_address)
