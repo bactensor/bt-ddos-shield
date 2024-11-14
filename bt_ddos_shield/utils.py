@@ -1,5 +1,5 @@
-from typing import TypeAlias, Union
+from typing import TypeAlias
 
 Hotkey: TypeAlias = str
-PublicKey: TypeAlias = Union[str, bytes]
-PrivateKey: TypeAlias = Union[str, bytes]
+PublicKey: TypeAlias = str
+PrivateKey: TypeAlias = str

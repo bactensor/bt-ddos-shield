@@ -39,7 +39,7 @@ class AbstractEncryptionManager(ABC):
 class ECIESEncryptionManager(AbstractEncryptionManager):
     """
     Encryption manager implementation using ECIES algorithm. Public and private keys are Ethereum (secp256k1) keys
-    in hex or raw format.
+    in hex format.
     """
 
     def encrypt(self, public_key: PublicKey, data: bytes) -> bytes:
