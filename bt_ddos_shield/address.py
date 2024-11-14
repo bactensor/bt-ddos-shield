@@ -18,7 +18,8 @@ class Address:
     Class describing some address - domain or IP.
     """
 
-    address_id: str  # identifier (used by AbstractAddressManager implementation) of the address
+    address_id: str
+    """ identifier (used by AbstractAddressManager implementation) of the address """
     address_type: AddressType
     address: str
     port: int
