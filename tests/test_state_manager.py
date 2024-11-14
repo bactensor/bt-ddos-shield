@@ -1,8 +1,12 @@
 from datetime import datetime
-from typing import Optional
+from time import sleep
 
-from bt_ddos_shield.address import Address
-from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
+import pytest
+from sqlalchemy.exc import IntegrityError, NoResultFound
+
+from bt_ddos_shield.address import Address, AddressType
+from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState, \
+    SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
@@ -13,55 +17,107 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
                                                            validators_addresses={}, manifest_address=None)
 
     def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address):
-        known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
-        known_validators[validator_hotkey] = validator_public_key
-        validators_addresses: dict[Hotkey, Address] = dict(self.current_miner_shield_state.validators_addresses)
-        validators_addresses[validator_hotkey] = redirect_address
-        self._update_state(known_validators, None, validators_addresses, None)
+        self._state_add_validator(validator_hotkey, validator_public_key, redirect_address)
 
     def update_validator_public_key(self, validator_hotkey: Hotkey, validator_public_key: PublicKey):
-        known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
-        known_validators[validator_hotkey] = validator_public_key
-        self._update_state(known_validators, None, None, None)
+        self._state_update_validator_public_key(validator_hotkey, validator_public_key)
 
     def add_banned_validator(self, validator_hotkey: Hotkey):
-        banned_validators: dict[Hotkey, datetime] = dict(self.current_miner_shield_state.banned_validators)
-        if validator_hotkey in banned_validators:
+        if validator_hotkey in self.current_miner_shield_state.banned_validators:
             return
-        banned_validators[validator_hotkey] = datetime.now()
-        self._update_state(None, banned_validators, None, None)
+        self._state_add_banned_validator(validator_hotkey, datetime.now())
 
     def remove_validator(self, validator_hotkey: Hotkey):
-        known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
-        known_validators.pop(validator_hotkey, None)
-        validators_addresses: dict[Hotkey, Address] = dict(self.current_miner_shield_state.validators_addresses)
-        validators_addresses.pop(validator_hotkey, None)
-        self._update_state(known_validators, None, validators_addresses, None)
+        self._state_remove_validator(validator_hotkey)
 
     def set_manifest_address(self, manifest_address: Address):
-        self._update_state(None, None, None, manifest_address)
+        self._state_set_manifest_address(manifest_address)
 
     def _load_state_from_storage(self) -> MinerShieldState:
         return self.current_miner_shield_state
-
-    def _update_state(self,
-                      known_validators: Optional[dict[Hotkey, PublicKey]],
-                      banned_validators: Optional[dict[Hotkey, datetime]],
-                      validators_addresses: Optional[dict[Hotkey, Address]],
-                      manifest_address: Optional[Address]):
-        self.current_miner_shield_state = \
-            MinerShieldState(dict(self.current_miner_shield_state.known_validators)
-                             if known_validators is None else known_validators,
-                             dict(self.current_miner_shield_state.banned_validators)
-                             if banned_validators is None else banned_validators,
-                             dict(self.current_miner_shield_state.validators_addresses)
-                             if validators_addresses is None else validators_addresses,
-                             self.current_miner_shield_state.manifest_address
-                             if manifest_address is None else manifest_address)
 
 
 class TestMinerShieldStateManager:
     """
     Test suite for the state manager.
     """
-    pass
+
+    db_url: str = "postgresql+psycopg2://test:test@localhost/ddos_test"
+
+    def create_db_state_manager(self) -> SQLAlchemyMinerShieldStateManager:
+        state_manager = SQLAlchemyMinerShieldStateManager(self.db_url)
+        state_manager.clear_tables()
+        state_manager.get_state()
+        return state_manager
+
+    def test_active_validators(self):
+        validator1_hotkey = "validator1"
+        validator1_publickey = "publickey1"
+        validator1_address = Address(address_id="validator1_id", address_type=AddressType.IP,
+                                     address="1.2.3.4", port=80)
+
+        validator2_hotkey = "validator2"
+        validator2_publickey = "publickey2"
+        validator2_new_publickey = "new_publickey2"
+        validator2_address = Address(address_id="validator2_id", address_type=AddressType.IP,
+                                     address="2.3.4.5", port=81)
+
+        state_manager = self.create_db_state_manager()
+
+        state_manager.add_validator(validator1_hotkey, validator1_publickey, validator1_address)
+        # can't add again same address
+        with pytest.raises(IntegrityError):
+            state_manager.add_validator(validator2_hotkey, validator2_publickey, validator1_address)
+        state_manager.add_validator(validator2_hotkey, validator2_publickey, validator2_address)
+        # can't add again same validator
+        with pytest.raises(IntegrityError):
+            state_manager.add_validator(validator1_hotkey, validator1_publickey, validator1_address)
+
+        state_manager.update_validator_public_key(validator2_hotkey, validator2_new_publickey)
+
+        state_manager.remove_validator(validator1_hotkey)
+        with pytest.raises(NoResultFound):
+            state_manager.remove_validator(validator1_hotkey)
+
+        with pytest.raises(NoResultFound):
+            state_manager.update_validator_public_key(validator1_hotkey, validator2_new_publickey)
+
+        state: MinerShieldState = state_manager.get_state()
+        assert state.known_validators == {validator2_hotkey: validator2_new_publickey}
+        assert state.validators_addresses == {validator2_hotkey: validator2_address}
+
+        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+        assert state == reloaded_state
+
+    def test_banned_validators(self):
+        banned_validator_hotkey = "banned_validator"
+
+        state_manager = self.create_db_state_manager()
+
+        state_manager.add_banned_validator(banned_validator_hotkey)
+        ban_time: datetime = state_manager.get_state().banned_validators[banned_validator_hotkey]
+        sleep(2)
+        state_manager.add_banned_validator(banned_validator_hotkey)
+        assert ban_time == state_manager.get_state().banned_validators[banned_validator_hotkey], \
+            "first ban time should not change"
+
+        state: MinerShieldState = state_manager.get_state()
+        assert state.banned_validators == {banned_validator_hotkey: ban_time}
+
+        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+        assert state == reloaded_state
+
+    def test_manifest_address(self):
+        manifest_address1 = Address(address_id="manifest", address_type=AddressType.IP,
+                                    address="1.2.3.4", port=80)
+        manifest_address2 = Address(address_id="manifest", address_type=AddressType.IP,
+                                    address="2.3.4.5", port=81)
+
+        state_manager = self.create_db_state_manager()
+        state_manager.set_manifest_address(manifest_address1)
+        state_manager.set_manifest_address(manifest_address2)
+        state: MinerShieldState = state_manager.get_state()
+        assert state.manifest_address == manifest_address2
+
+        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+        assert state == reloaded_state
