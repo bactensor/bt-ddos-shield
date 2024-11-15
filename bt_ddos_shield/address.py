@@ -10,6 +10,7 @@ class AddressType(Enum):
     IP = "ip"          # IPv4 address
     IPV6 = "ipv6"      # IPv6 address
     DOMAIN = "domain"  # domain name
+    S3 = "s3"          # address pointing to S3 object
 
 
 @dataclass
@@ -25,7 +26,7 @@ class Address:
     port: int
 
     def __repr__(self):
-        return f"Address(id={self.address_id}, address={self.address}:{self.port})"
+        return f"Address(id={self.address_id}, type={self.address_type}, address={self.address}:{self.port})"
 
 
 class AddressSerializerException(Exception):
@@ -77,6 +78,7 @@ class DefaultAddressSerializer(AbstractAddressSerializer):
         self.encoding = encoding
 
     def serialize(self, address: Address) -> bytes:
+        assert address.address.find(":") == -1, "Address should not contain colon character"
         address_str: str = f"{address.address_type.value}:{address.address}:{address.port}:{address.address_id}"
         return address_str.encode(self.encoding)
 

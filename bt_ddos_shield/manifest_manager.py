@@ -1,12 +1,15 @@
 import base64
 import hashlib
 import json
+import boto3
+from botocore.client import BaseClient
+from botocore.exceptions import ClientError
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Optional
 
-from bt_ddos_shield.address import Address, AbstractAddressSerializer
+from bt_ddos_shield.address import Address, AbstractAddressSerializer, AddressType, AddressDeserializationException
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
 
@@ -176,3 +179,76 @@ class AbstractManifestManager(ABC):
         Get manifest file from given address. Should throw ManifestNotFoundException if file is not found.
         """
         pass
+
+
+class S3ManifestManager(AbstractManifestManager):
+    """
+    Manifest manager using AWS S3 service to manage file.
+    """
+
+    MANIFEST_FILE_NAME: str = "miner_manifest.json"
+
+    bucket_name: Optional[str]
+    region_name: Optional[str]
+    s3_client: Optional[BaseClient]
+
+    def __init__(self, address_serializer: AbstractAddressSerializer, manifest_serializer: AbstractManifestSerializer,
+                 encryption_manager: AbstractEncryptionManager,
+                 aws_access_key_id: Optional[str] = None, aws_secret_access_key: Optional[str] = None,
+                 region_name: Optional[str] = None, bucket_name: Optional[str] = None):
+        """
+        Creates S3ManifestManager instance. Credentials, region_name or bucket_name can be None when used on Validator
+        side and in such case S3 client is created after manifest file address is deserialized - use
+        create_client_from_address method for it.
+
+        Args:
+            aws_access_key_id: AWS access key ID.
+            aws_secret_access_key: AWS secret access key.
+            region_name: AWS region name.
+            bucket_name: Name of the bucket where manifest file is stored.
+        """
+        super().__init__(address_serializer, manifest_serializer, encryption_manager)
+        self.region_name = region_name
+        self.bucket_name = bucket_name
+        if region_name is not None:
+            self.s3_client = boto3.client("s3", aws_access_key_id=aws_access_key_id,
+                                          aws_secret_access_key=aws_secret_access_key, region_name=region_name)
+
+    def create_client_from_address(self, address: Address, aws_access_key_id: str, aws_secret_access_key: str):
+        region_name, bucket_name, _ = self._deserialize_manifest_address(address)
+        self.s3_client = boto3.client("s3", aws_access_key_id=aws_access_key_id,
+                                      aws_secret_access_key=aws_secret_access_key, region_name=region_name)
+        self.region_name = region_name
+        self.bucket_name = bucket_name
+
+    def _put_manifest_file(self, data: bytes) -> Address:
+        file_key: str = self.MANIFEST_FILE_NAME
+        self.s3_client.put_object(Bucket=self.bucket_name, Key=file_key, Body=data)
+        return Address(address_id=file_key, address_type=AddressType.S3,
+                       address=self._serialize_manifest_address(self.region_name, self.bucket_name, file_key), port=0)
+
+    def _get_manifest_file(self, address: Address) -> bytes:
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=address.address_id)
+            return response['Body'].read()
+        except ClientError as e:
+            if e.response['Error']['Code'] == "NoSuchKey":
+                raise ManifestNotFoundException(f"File {address.address_id} not found")
+            raise e
+
+    @classmethod
+    def _serialize_manifest_address(cls, region_name: str, bucket_name: str, file_key: str) -> str:
+        return f"{region_name}/{bucket_name}/{file_key}"
+
+    @classmethod
+    def _deserialize_manifest_address(cls, address: Address) -> tuple[str, str, str]:
+        if address.address_type != AddressType.S3:
+            raise AddressDeserializationException(f"Invalid address type, address='{address}'")
+        parts = address.address.split("/")
+        if len(parts) != 3:
+            raise AddressDeserializationException(f"Invalid number of parts, address='{address}'")
+
+        region_name = parts[0]
+        bucket_name = parts[1]
+        file_key = parts[2]
+        return region_name, bucket_name, file_key
