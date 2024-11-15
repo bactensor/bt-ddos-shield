@@ -8,6 +8,7 @@ from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState, \
     SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
+from tests.test_credentials import sql_alchemy_db_url
 
 
 class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
@@ -42,10 +43,9 @@ class TestMinerShieldStateManager:
     Test suite for the state manager.
     """
 
-    db_url: str = "postgresql+psycopg2://test:test@localhost/ddos_test"
-
-    def create_db_state_manager(self) -> SQLAlchemyMinerShieldStateManager:
-        state_manager = SQLAlchemyMinerShieldStateManager(self.db_url)
+    @classmethod
+    def create_db_state_manager(cls) -> SQLAlchemyMinerShieldStateManager:
+        state_manager = SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
         state_manager.clear_tables()
         state_manager.get_state()
         return state_manager

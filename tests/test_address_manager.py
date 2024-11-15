@@ -3,6 +3,7 @@ from types import MappingProxyType
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, Route53AddressManager
 from bt_ddos_shield.utils import Hotkey
+from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_route53_hosted_zone_id
 
 
 class MemoryAddressManager(AbstractAddressManager):
@@ -38,16 +39,13 @@ class TestAddressManager:
     Test suite for the address manager.
     """
 
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    hosted_zone_id: str = "Z07475802PJEQKQZI12TT"
     miner_new_address: Address = Address(address_id="miner", address_type=AddressType.IPV6,
                                          address="2001:0db8:85a3:0000:0000:8a2e:0370:7334", port=80)
 
     def test_route53_address_manager(self):
         """ Test Route53AddressManager class. Create address, validate it and remove created address. """
-        address_manager = Route53AddressManager(self.aws_access_key_id, self.aws_secret_access_key,
-                                                hosted_zone_id=self.hosted_zone_id,
+        address_manager = Route53AddressManager(aws_access_key_id, aws_secret_access_key,
+                                                hosted_zone_id=aws_route53_hosted_zone_id,
                                                 miner_new_address=self.miner_new_address)
         address: Address = address_manager.create_address("validator1")
         invalid_address: Address = Address(address_id="invalid", address_type=AddressType.DOMAIN, address="invalid.com",

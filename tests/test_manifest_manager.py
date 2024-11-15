@@ -7,6 +7,7 @@ from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import JsonManifestSerializer, AbstractManifestManager, \
     ManifestNotFoundException, Manifest, S3ManifestManager
 from bt_ddos_shield.utils import Hotkey
+from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_s3_region_name, aws_s3_bucket_name
 
 
 class MemoryManifestManager(AbstractManifestManager):
@@ -37,11 +38,6 @@ class TestManifestManager:
     Test suite for the manifest manager.
     """
 
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    region_name: str = "eu-north-1"
-    bucket_name: str = "test-bucket-ddos"
-
     def test_json_serializer(self):
         manifest_serializer = JsonManifestSerializer()
         mapping: dict[Hotkey, bytes] = {Hotkey('validator1'): b'address1', Hotkey('validator2'): b'address2'}
@@ -54,9 +50,9 @@ class TestManifestManager:
 
     def test_s3_put_get(self):
         """ Test S3ManifestManager class. Put manifest file, get it and check if it was stored correctly. """
-        manifest_manager = S3ManifestManager(aws_access_key_id=self.aws_access_key_id,
-                                             aws_secret_access_key=self.aws_secret_access_key,
-                                             region_name=self.region_name, bucket_name=self.bucket_name,
+        manifest_manager = S3ManifestManager(aws_access_key_id=aws_access_key_id,
+                                             aws_secret_access_key=aws_secret_access_key,
+                                             region_name=aws_s3_region_name, bucket_name=aws_s3_bucket_name,
                                              address_serializer=DefaultAddressSerializer(),
                                              manifest_serializer=JsonManifestSerializer(),
                                              encryption_manager=ECIESEncryptionManager())
@@ -74,8 +70,8 @@ class TestManifestManager:
         validator_manifest_manager = S3ManifestManager(address_serializer=DefaultAddressSerializer(),
                                                        manifest_serializer=JsonManifestSerializer(),
                                                        encryption_manager=ECIESEncryptionManager())
-        validator_manifest_manager.create_client_from_address(address, self.aws_access_key_id,
-                                                              self.aws_secret_access_key)
+        validator_manifest_manager.create_client_from_address(address, aws_access_key_id,
+                                                              aws_secret_access_key)
         retrieved_data: bytes = validator_manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 
