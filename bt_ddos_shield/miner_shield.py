@@ -404,7 +404,9 @@ class MinerShield:
         """
         expected_address: Address = self.state_manager.get_state().manifest_address
         current_address: Address = self.blockchain_manager.get_address(self.miner_hotkey)
-        if current_address != expected_address:
+        if current_address == expected_address:
+            self._event("Manifest address already published")
+        else:
             self.blockchain_manager.put_address(self.miner_hotkey, expected_address)
             self._event("Manifest published")
 
