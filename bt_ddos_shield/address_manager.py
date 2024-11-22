@@ -1,5 +1,6 @@
 import ipaddress
 import secrets
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -9,6 +10,7 @@ from typing import Any, Union
 
 import boto3
 import route53
+from botocore.exceptions import ClientError
 from route53.connection import Route53Connection
 from route53.hosted_zone import HostedZone
 from route53.resource_record_set import NSResourceRecordSet
@@ -73,7 +75,7 @@ class AwsEC2InstanceData:
     vpc_id: str
     subnet_id: str
     private_ip: str
-    security_groups: list[str]
+    security_groups: list[dict[str, str]]
 
 
 @dataclass
@@ -94,6 +96,8 @@ class AwsObjectTypes(Enum):
     ELB = 'ELB'
     SUBNET = 'SUBNET'
     DNS_ENTRY = 'DNS_ENTRY'
+    TARGET_GROUP = 'TARGET_GROUP'
+    SECURITY_GROUP = 'SECURITY_GROUP'
 
 
 class AwsAddressManager(AbstractAddressManager):
@@ -108,6 +112,7 @@ class AwsAddressManager(AbstractAddressManager):
     miner_instance: AwsEC2InstanceData
     miner_instance_port: int
     """ Port where miner server is working. """
+    elb_client: Any
     ec2_client: Any
     route53_client: Route53Connection
     hosted_zone_id: str
@@ -134,6 +139,9 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor = event_processor
         self.state_manager = state_manager
 
+        self.elb_client = boto3.client('elbv2', aws_access_key_id=aws_access_key_id,
+                                       aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
+
         self.route53_client = route53.connect(aws_access_key_id, aws_secret_access_key)
         self.hosted_zone_id = hosted_zone_id
         self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
@@ -147,6 +155,9 @@ class AwsAddressManager(AbstractAddressManager):
         if miner_address.address_type == AddressType.EC2:
             self.miner_instance_id = miner_address.address
         elif miner_address.address_type in (AddressType.IP, AddressType.IPV6):
+            if miner_address.address_type == AddressType.IPV6:
+                # TODO implement IPv6 support
+                raise AddressManagerException('IPv6 is not yet supported')
             self.miner_instance_id = self._find_ec2_instance_id_by_ip(miner_address.address)
         else:
             raise AddressManagerException('Miner address should be of type EC2 or IP')
@@ -175,13 +186,35 @@ class AwsAddressManager(AbstractAddressManager):
         created_objects: MappingProxyType[str, frozenset[str]] = \
             self.state_manager.get_state().address_manager_created_objects
 
-        for object_type, created_objects_ids in created_objects.items():
-            if object_type == AwsObjectTypes.SUBNET.value:
-                for subnet_id in created_objects_ids:
-                    self._remove_subnet(subnet_id)
-            else:
-                # DNS_ENTRY should be cleaned by clean_route53_addresses
-                assert False, "Deletion of some object is not handled"
+        # Order of removal is important
+        self._clean_elbs(created_objects)
+        self._clean_security_groups(created_objects)
+        self._clean_target_groups(created_objects)
+        self._clean_subnets(created_objects)
+
+    def _clean_elbs(self, created_objects: MappingProxyType[str, frozenset[str]]):
+        if AwsObjectTypes.ELB.value not in created_objects:
+            return
+        for elb_id in created_objects[AwsObjectTypes.ELB.value]:
+            self._remove_elb(elb_id)
+
+    def _clean_target_groups(self, created_objects: MappingProxyType[str, frozenset[str]]):
+        if AwsObjectTypes.TARGET_GROUP.value not in created_objects:
+            return
+        for target_group_id in created_objects[AwsObjectTypes.TARGET_GROUP.value]:
+            self._remove_target_group(target_group_id)
+
+    def _clean_subnets(self, created_objects: MappingProxyType[str, frozenset[str]]):
+        if AwsObjectTypes.SUBNET.value not in created_objects:
+            return
+        for subnet_id in created_objects[AwsObjectTypes.SUBNET.value]:
+            self._remove_subnet(subnet_id)
+
+    def _clean_security_groups(self, created_objects: MappingProxyType[str, frozenset[str]]):
+        if AwsObjectTypes.SECURITY_GROUP.value not in created_objects:
+            return
+        for security_group_id in created_objects[AwsObjectTypes.SECURITY_GROUP.value]:
+            self._remove_security_group(security_group_id)
 
     def clean_route53_addresses(self):
         state: MinerShieldState = self.state_manager.get_state()
@@ -340,6 +373,115 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor.event('Deleted AWS subnet {id}', id=subnet_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.SUBNET.value, subnet_id)
 
+    def _create_target_group(self, miner_vpc: AwsVpcData, miner_instance_id: str, miner_instance_port: int) -> str:
+        # Health check can't be disabled, when targeting instance - as for now we use traffic-port
+        response: dict[str, Any] = self.elb_client.create_target_group(Name='miner-target-group', Protocol='HTTP',
+                                                                       Port=miner_instance_port, VpcId=miner_vpc.vpc_id,
+                                                                       HealthCheckPort='traffic-port',
+                                                                       TargetType='instance')
+        target_group_id: str = response['TargetGroups'][0]['TargetGroupArn']
+        self.event_processor.event('Created AWS TargetGroup {id}', id=target_group_id)
+
+        try:
+            self.elb_client.register_targets(TargetGroupArn=target_group_id, Targets=[{'Id': miner_instance_id,
+                                                                                       'Port': miner_instance_port}])
+            self.state_manager.add_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
+        except Exception as e:
+            self._remove_target_group(target_group_id)
+            raise e
+
+        return target_group_id
+
+    def _remove_target_group(self, target_group_id: str):
+        retries_count: int = 3
+        error_code: str = ''
+        for _ in range(retries_count):
+            try:
+                self.elb_client.delete_target_group(TargetGroupArn=target_group_id)
+                break
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                if error_code == 'ResourceInUse':
+                    time.sleep(3)  # wait for ELB to be removed
+                else:
+                    raise e
+        else:
+            self.event_processor.event('Failed to remove AWS TargetGroup {id}, error={error_code}',
+                                       id=target_group_id, error_code=error_code)
+            return
+
+        self.event_processor.event('Deleted AWS TargetGroup {id}', id=target_group_id)
+        self.state_manager.del_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
+
+    def _create_elb(self, miner_instance: AwsEC2InstanceData, bonus_subnet: AwsSubnetData, target_group_id: str,
+                    security_group_id: str):
+        subnets: list[str] = [miner_instance.subnet_id, bonus_subnet.subnet_id]
+        response: dict[str, Any] = self.elb_client.create_load_balancer(Name='miner-elb', Subnets=subnets,
+                                                                        SecurityGroups=[security_group_id],
+                                                                        Scheme='internet-facing', Type='application')
+        elb_id: str = response['LoadBalancers'][0]['LoadBalancerArn']
+        self.event_processor.event('Created AWS ELB {id}', id=elb_id)
+
+        try:
+            self.elb_client.create_listener(LoadBalancerArn=elb_id, Protocol='HTTP', Port=80,
+                                            DefaultActions=[{'Type': 'forward', 'TargetGroupArn': target_group_id}])
+            self.state_manager.add_address_manager_created_object(AwsObjectTypes.ELB.value, elb_id)
+        except Exception as e:
+            self._remove_elb(elb_id)
+            raise e
+
+    def _remove_elb(self, elb_id: str):
+        self.elb_client.delete_load_balancer(LoadBalancerArn=elb_id)
+        self.event_processor.event('Deleted AWS ELB {id}', id=elb_id)
+        self.state_manager.del_address_manager_created_object(AwsObjectTypes.ELB.value, elb_id)
+
+    def _create_security_group(self, miner_vpc: AwsVpcData, miner_instance_port: int) -> str:
+        response: dict[str, Any] = \
+            self.ec2_client.create_security_group(GroupName='miner-security-group',
+                                                  Description='Security group for miner instance',
+                                                  VpcId=miner_vpc.vpc_id)
+        security_group_id: str = response['GroupId']
+        self.event_processor.event('Created AWS SecurityGroup {id}', id=security_group_id)
+
+        # TODO allow incoming traffic only from created domains
+
+        try:
+            self.ec2_client.authorize_security_group_ingress(
+                GroupId=security_group_id,
+                IpPermissions=[{
+                    'FromPort': 80, 'ToPort': miner_instance_port, 'IpProtocol': 'tcp',
+                    'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
+                }]
+            )
+            self.state_manager.add_address_manager_created_object(AwsObjectTypes.SECURITY_GROUP.value,
+                                                                  security_group_id)
+        except Exception as e:
+            self._remove_security_group(security_group_id)
+            raise e
+
+        return security_group_id
+
+    def _remove_security_group(self, security_group_id: str):
+        retries_count: int = 3
+        error_code: str = ''
+        for _ in range(retries_count):
+            try:
+                self.ec2_client.delete_security_group(GroupId=security_group_id)
+                break
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                if error_code == 'DependencyViolation':
+                    time.sleep(3)  # wait for ELB to be removed
+                else:
+                    raise e
+        else:
+            self.event_processor.event('Failed to remove AWS SecurityGroup {id}, error={error_code}',
+                                       id=security_group_id, error_code=error_code)
+            return
+
+        self.event_processor.event('Deleted AWS SecurityGroup {id}', id=security_group_id)
+        self.state_manager.del_address_manager_created_object(AwsObjectTypes.SECURITY_GROUP.value, security_group_id)
+
     @classmethod
     def _get_available_cidr(cls, vpc: AwsVpcData, subnet_mask: int) -> str:
         vpc_network: Union[IPv4Network, IPv6Network] = ipaddress.ip_network(vpc.cidr_block)
@@ -356,13 +498,12 @@ class AwsAddressManager(AbstractAddressManager):
                                        created_objects: MappingProxyType[str, frozenset[str]]) -> AwsSubnetData:
         if AwsObjectTypes.SUBNET.value in created_objects:
             assert len(created_objects[AwsObjectTypes.SUBNET.value]) == 1, "only one subnet should be created"
-            bonus_subnet_id = next(iter(created_objects[AwsObjectTypes.SUBNET.value]))
+            bonus_subnet_id: str = next(iter(created_objects[AwsObjectTypes.SUBNET.value]))
             return self._get_subnet_data(bonus_subnet_id)
 
-        bonus_subnet_availability_zone: str
         for subnet in miner_vpc.subnets:
             if subnet.availability_zone != miner_subnet.availability_zone:
-                bonus_subnet_availability_zone = subnet.availability_zone
+                bonus_subnet_availability_zone: str = subnet.availability_zone
                 break
         else:
             raise AddressManagerException("Miner instance VPC doesn't have subnet in different availability zone")
@@ -374,13 +515,37 @@ class AwsAddressManager(AbstractAddressManager):
                                                           bonus_subnet_availability_zone)
         return bonus_subnet
 
+    def _create_target_group_if_needed(self, miner_vpc: AwsVpcData, miner_instance_id: str, miner_instance_port: int,
+                                       created_objects: MappingProxyType[str, frozenset[str]]) -> str:
+        if AwsObjectTypes.TARGET_GROUP.value in created_objects:
+            assert len(created_objects[AwsObjectTypes.TARGET_GROUP.value]) == 1, "only one group should be created"
+            target_group_id: str = next(iter(created_objects[AwsObjectTypes.TARGET_GROUP.value]))
+            return target_group_id
+
+        return self._create_target_group(miner_vpc, miner_instance_id, miner_instance_port)
+
+    def _create_security_group_if_needed(self, miner_vpc, miner_instance_port: int,
+                                         created_objects: MappingProxyType[str, frozenset[str]]) -> str:
+        if AwsObjectTypes.SECURITY_GROUP.value in created_objects:
+            assert len(created_objects[AwsObjectTypes.SECURITY_GROUP.value]) == 1, "only one group should be created"
+            security_group_id: str = next(iter(created_objects[AwsObjectTypes.SECURITY_GROUP.value]))
+            return security_group_id
+
+        return self._create_security_group(miner_vpc, miner_instance_port)
+
     def _create_elb_if_needed(self, miner_instance: AwsEC2InstanceData, miner_port: int):
-        miner_vpc: AwsVpcData = self._get_vpc_data(miner_instance.vpc_id)
-        miner_subnet: AwsSubnetData = self._get_subnet_data(miner_instance.subnet_id)
         created_objects: MappingProxyType[str, frozenset[str]] = \
             self.state_manager.get_state().address_manager_created_objects
 
-        bonus_subnet: AwsSubnetData = self._create_bonus_subnet_if_needed(miner_vpc, miner_subnet, created_objects)
+        if AwsObjectTypes.ELB.value in created_objects:
+            assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "only one ELB should be created"
+            return
 
-        # TODO create ELB
-        pass
+        miner_vpc: AwsVpcData = self._get_vpc_data(miner_instance.vpc_id)
+        miner_subnet: AwsSubnetData = self._get_subnet_data(miner_instance.subnet_id)
+        bonus_subnet: AwsSubnetData = self._create_bonus_subnet_if_needed(miner_vpc, miner_subnet, created_objects)
+        target_group_id: str = self._create_target_group_if_needed(miner_vpc, miner_instance.instance_id,
+                                                                   miner_port, created_objects)
+        security_group_id: str = self._create_security_group_if_needed(miner_vpc, miner_port,
+                                                                       created_objects)
+        self._create_elb(miner_instance, bonus_subnet, target_group_id, security_group_id)
