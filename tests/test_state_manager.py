@@ -1,5 +1,6 @@
 from datetime import datetime
 from time import sleep
+from typing import Optional
 
 import pytest
 from sqlalchemy.exc import IntegrityError, NoResultFound
@@ -15,7 +16,9 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
     def __init__(self):
         super().__init__()
         self.current_miner_shield_state = MinerShieldState(known_validators={}, banned_validators={},
-                                                           validators_addresses={}, manifest_address=None)
+                                                           validators_addresses={}, manifest_address=None,
+                                                           address_manager_state={},
+                                                           address_manager_created_objects={})
 
     def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address):
         self._state_add_validator(validator_hotkey, validator_public_key, redirect_address)
@@ -33,6 +36,15 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
 
     def set_manifest_address(self, manifest_address: Address):
         self._state_set_manifest_address(manifest_address)
+
+    def update_address_manager_state(self, key: str, value: Optional[str]):
+        self._state_update_address_manager_state(key, value)
+
+    def add_address_manager_created_object(self, obj_type: str, obj_id: str):
+        self._state_add_address_manager_created_object(obj_type, obj_id)
+
+    def del_address_manager_created_object(self, obj_type: str, obj_id: str):
+        self._state_del_address_manager_created_object(obj_type, obj_id)
 
     def _load_state_from_storage(self) -> MinerShieldState:
         return self.current_miner_shield_state
@@ -118,6 +130,84 @@ class TestMinerShieldStateManager:
         state_manager.set_manifest_address(manifest_address2)
         state: MinerShieldState = state_manager.get_state()
         assert state.manifest_address == manifest_address2
+
+        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+        assert state == reloaded_state
+
+    def test_address_manager_state(self):
+        key1 = "key1"
+        value1 = "value1"
+        key2 = "key2"
+        value2 = "value2"
+        key3 = "key3"
+
+        state_manager = self.create_db_state_manager()
+
+        # Add key-value pairs to the address manager state
+        state_manager.update_address_manager_state(key1, value1)
+        state_manager.update_address_manager_state(key2, value2)
+
+        state: MinerShieldState = state_manager.get_state()
+        assert state.address_manager_state == {key1: value1, key2: value2}
+
+        # Update an existing key
+        new_value1 = "new_value1"
+        state_manager.update_address_manager_state(key1, new_value1)
+        state = state_manager.get_state()
+        assert state.address_manager_state == {key1: new_value1, key2: value2}
+
+        # Remove a key
+        state_manager.update_address_manager_state(key2, None)
+        state = state_manager.get_state()
+        assert state.address_manager_state == {key1: new_value1}
+
+        # Ensure a non-existent key is not present
+        state_manager.update_address_manager_state(key3, None)
+        state = state_manager.get_state()
+        assert key3 not in state.address_manager_state
+
+        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+        assert state == reloaded_state
+
+    def test_address_manager_created_objects(self):
+        object_type1 = "type1"
+        object_id1 = "id1"
+        object_type2 = "type2"
+        object_id2 = "id2"
+        object_id3 = "id3"
+
+        state_manager = self.create_db_state_manager()
+
+        # Add objects to the address manager created objects
+        state_manager.add_address_manager_created_object(object_type1, object_id1)
+        state_manager.add_address_manager_created_object(object_type2, object_id2)
+
+        state: MinerShieldState = state_manager.get_state()
+        assert state.address_manager_created_objects == {object_type1: {object_id1}, object_type2: {object_id2}}
+
+        # Add another object to an existing type
+        state_manager.add_address_manager_created_object(object_type2, object_id3)
+        state = state_manager.get_state()
+        assert state.address_manager_created_objects == {object_type1: {object_id1},
+                                                         object_type2: {object_id2, object_id3}}
+
+        reloaded_state = state_manager.get_state(reload=True)
+        assert state == reloaded_state
+
+        # Remove an object
+        state_manager.del_address_manager_created_object(object_type2, object_id2)
+        state = state_manager.get_state()
+        assert state.address_manager_created_objects == {object_type1: {object_id1}, object_type2: {object_id3}}
+
+        # Ensure a non-existent object is not present
+        state_manager.del_address_manager_created_object(object_type2, "non_existent_id")
+        state = state_manager.get_state()
+        assert state.address_manager_created_objects == {object_type1: {object_id1}, object_type2: {object_id3}}
+
+        # Remove last object of given type
+        state_manager.del_address_manager_created_object(object_type2, object_id3)
+        state = state_manager.get_state()
+        assert state.address_manager_created_objects == {object_type1: {object_id1}}
 
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state

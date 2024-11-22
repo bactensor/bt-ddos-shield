@@ -1,9 +1,13 @@
 from types import MappingProxyType
 
 from bt_ddos_shield.address import Address, AddressType
-from bt_ddos_shield.address_manager import AbstractAddressManager, Route53AddressManager
+from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, AwsObjectTypes
+from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
+from bt_ddos_shield.state_manager import MinerShieldState
 from bt_ddos_shield.utils import Hotkey
-from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_route53_hosted_zone_id
+from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_route53_hosted_zone_id, \
+    miner_instance_id, miner_instance_port, miner_region_name
+from tests.test_state_manager import MemoryMinerShieldStateManager
 
 
 class MemoryAddressManager(AbstractAddressManager):
@@ -12,10 +16,14 @@ class MemoryAddressManager(AbstractAddressManager):
     invalid_addresses: set[Hotkey]
 
     def __init__(self):
-        super().__init__(Address(address_id="miner", address_type=AddressType.IP, address="1.2.3.4", port=80))
         self.id_counter = 0
         self.known_addresses = {}
         self.invalid_addresses = set()
+
+    def clean_all(self):
+        self.id_counter = 0
+        self.known_addresses.clear()
+        self.invalid_addresses.clear()
 
     def create_address(self, hotkey: Hotkey) -> Address:
         address = Address(address_id=str(self.id_counter), address_type=AddressType.DOMAIN,
@@ -39,19 +47,79 @@ class TestAddressManager:
     Test suite for the address manager.
     """
 
-    miner_new_address: Address = Address(address_id="miner", address_type=AddressType.IPV6,
-                                         address="2001:0db8:85a3:0000:0000:8a2e:0370:7334", port=80)
+    def create_aws_address_manager(self):
+        self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
+        self.address_manager: AwsAddressManager = \
+            AwsAddressManager(aws_access_key_id, aws_secret_access_key, hosted_zone_id=aws_route53_hosted_zone_id,
+                              miner_region_name=miner_region_name, miner_instance_id=miner_instance_id,
+                              miner_instance_port=miner_instance_port,
+                              event_processor=PrintingMinerShieldEventProcessor(), state_manager=self.state_manager)
 
-    def test_route53_address_manager(self):
-        """ Test Route53AddressManager class. Create address, validate it and remove created address. """
-        address_manager = Route53AddressManager(aws_access_key_id, aws_secret_access_key,
-                                                hosted_zone_id=aws_route53_hosted_zone_id,
-                                                miner_new_address=self.miner_new_address)
-        address: Address = address_manager.create_address("validator1")
-        invalid_address: Address = Address(address_id="invalid", address_type=AddressType.DOMAIN, address="invalid.com",
-                                           port=80)
-        mapping: dict[Hotkey, Address] = {Hotkey("hotkey"): address, Hotkey("invalid"): invalid_address}
-        invalid_addresses: set[Hotkey] = address_manager.validate_addresses(MappingProxyType(mapping))
-        address_manager.remove_address(address)
+    def test_create_elb(self):
+        """ Test creating ELB by AwsAddressManager class. """
+        self.create_aws_address_manager()
 
-        assert invalid_addresses == {Hotkey("invalid")}
+        try:
+            # This triggers creation of ELB
+            self.address_manager.validate_addresses(MappingProxyType({}))
+
+            state: MinerShieldState = self.state_manager.get_state()
+            address_manager_state: MappingProxyType[str, str] = state.address_manager_state
+            assert address_manager_state[self.address_manager.HOSTED_ZONE_ID_KEY] == aws_route53_hosted_zone_id
+            assert address_manager_state[self.address_manager.INSTANCE_ID_KEY] == miner_instance_id
+            created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+            assert AwsObjectTypes.ELB.value not in created_objects
+            assert len(created_objects[AwsObjectTypes.SUBNET.value]) == 1
+            assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
+
+            reloaded_state: MinerShieldState = self.state_manager.get_state(reload=True)
+            assert reloaded_state == state
+
+            # Call clean_all and check if everything was removed
+            self.address_manager.clean_all()
+            state = self.state_manager.get_state()
+            created_objects = state.address_manager_created_objects
+            assert AwsObjectTypes.ELB.value not in created_objects
+            assert AwsObjectTypes.SUBNET.value not in created_objects
+            assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
+        finally:
+            self.address_manager.clean_all()
+
+    def test_handle_address(self):
+        """ Create address, validate it and remove created address. """
+        self.create_aws_address_manager()
+
+        try:
+            address: Address = self.address_manager.create_address("validator1")
+            invalid_address: Address = Address(address_id="invalid", address_type=AddressType.DOMAIN,
+                                               address="invalid.com", port=80)
+            mapping: dict[Hotkey, Address] = {Hotkey("hotkey"): address, Hotkey("invalid"): invalid_address}
+            invalid_addresses: set[Hotkey] = self.address_manager.validate_addresses(MappingProxyType(mapping))
+            assert invalid_addresses == {Hotkey("invalid")}
+
+            state: MinerShieldState = self.state_manager.get_state()
+            created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+            # assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
+            assert AwsObjectTypes.ELB.value not in created_objects
+            assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
+
+            self.address_manager.remove_address(address)
+            state = self.state_manager.get_state()
+            created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+            # assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
+            assert AwsObjectTypes.ELB.value not in created_objects
+            assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
+        finally:
+            self.address_manager.clean_all()
+
+    def test_hosted_zone_id_change(self):
+        """ Test changing hosted zone id. """
+        # TODO create some address in AwsAddressManager and then create new instance of AwsAddressManager with
+        # different hosted_zone_id
+        pass
+
+    def test_miner_instance_id_change(self):
+        """ Test changing Miner instance id. """
+        # TODO create some address in AwsAddressManager and then create new instance of AwsAddressManager with
+        # different miner_instance_id
+        pass
