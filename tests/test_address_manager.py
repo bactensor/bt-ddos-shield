@@ -79,8 +79,10 @@ class TestAddressManager:
             assert address_manager_state[self.address_manager.HOSTED_ZONE_ID_KEY] == aws_route53_hosted_zone_id
             assert address_manager_state[self.address_manager.INSTANCE_ID_KEY] == miner_instance_id
             created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
-            assert AwsObjectTypes.ELB.value not in created_objects
+            assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
             assert len(created_objects[AwsObjectTypes.SUBNET.value]) == 1
+            assert len(created_objects[AwsObjectTypes.TARGET_GROUP.value]) == 1
+            assert len(created_objects[AwsObjectTypes.SECURITY_GROUP.value]) == 1
             assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
 
             reloaded_state: MinerShieldState = self.state_manager.get_state(reload=True)
@@ -92,6 +94,8 @@ class TestAddressManager:
             created_objects = state.address_manager_created_objects
             assert AwsObjectTypes.ELB.value not in created_objects
             assert AwsObjectTypes.SUBNET.value not in created_objects
+            assert AwsObjectTypes.TARGET_GROUP.value not in created_objects
+            assert AwsObjectTypes.SECURITY_GROUP.value not in created_objects
             assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
         finally:
             self.address_manager.clean_all()
@@ -110,15 +114,13 @@ class TestAddressManager:
 
             state: MinerShieldState = self.state_manager.get_state()
             created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
-            # assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
-            assert AwsObjectTypes.ELB.value not in created_objects
+            assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
             assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
 
             self.address_manager.remove_address(address)
             state = self.state_manager.get_state()
             created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
-            # assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
-            assert AwsObjectTypes.ELB.value not in created_objects
+            assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
             assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
         finally:
             self.address_manager.clean_all()
