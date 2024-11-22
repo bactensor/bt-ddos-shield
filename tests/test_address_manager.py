@@ -6,8 +6,19 @@ from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import MinerShieldState
 from bt_ddos_shield.utils import Hotkey
 from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_route53_hosted_zone_id, \
-    miner_instance_id, miner_instance_port, miner_region_name
+    miner_instance_id, miner_instance_port, miner_region_name, miner_instance_ip
 from tests.test_state_manager import MemoryMinerShieldStateManager
+
+
+def get_miner_address_from_credentials(address_type: AddressType) -> Address:
+    if address_type == AddressType.EC2:
+        return Address(address_id="miner", address_type=AddressType.EC2, address=miner_instance_id,
+                       port=miner_instance_port)
+    elif address_type == AddressType.IP:
+        return Address(address_id="miner", address_type=AddressType.IP, address=miner_instance_ip,
+                       port=miner_instance_port)
+    else:
+        raise ValueError("Invalid address type")
 
 
 class MemoryAddressManager(AbstractAddressManager):
@@ -48,11 +59,11 @@ class TestAddressManager:
     """
 
     def create_aws_address_manager(self):
+        miner_address: Address = get_miner_address_from_credentials(AddressType.IP)
         self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
         self.address_manager: AwsAddressManager = \
             AwsAddressManager(aws_access_key_id, aws_secret_access_key, hosted_zone_id=aws_route53_hosted_zone_id,
-                              miner_region_name=miner_region_name, miner_instance_id=miner_instance_id,
-                              miner_instance_port=miner_instance_port,
+                              miner_region_name=miner_region_name, miner_address=miner_address,
                               event_processor=PrintingMinerShieldEventProcessor(), state_manager=self.state_manager)
 
     def test_create_elb(self):

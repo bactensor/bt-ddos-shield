@@ -123,11 +123,14 @@ class AwsAddressManager(AbstractAddressManager):
     INSTANCE_ID_KEY: str = 'ec2_instance_id'
 
     def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, hosted_zone_id: str,
-                 miner_region_name: str, miner_instance_id: str, miner_instance_port: int,
-                 event_processor: AbstractMinerShieldEventProcessor, state_manager: AbstractMinerShieldStateManager):
+                 miner_region_name: str, miner_address: Address, event_processor: AbstractMinerShieldEventProcessor,
+                 state_manager: AbstractMinerShieldStateManager):
+        """
+        Initialize AWS address manager. miner_address can be passed as EC2 type (then AWS instance_id should be set in
+        address field) or as IP/IPV6 (then we try to find EC2 instance with this IP, which should be private IP
+        address of EC2 instance) - where port means destination port and address_id is ignored.
+        """
         self.miner_region_name = miner_region_name
-        self.miner_instance_id = miner_instance_id
-        self.miner_instance_port = miner_instance_port
         self.event_processor = event_processor
         self.state_manager = state_manager
 
@@ -138,7 +141,24 @@ class AwsAddressManager(AbstractAddressManager):
 
         self.ec2_client = boto3.client('ec2', aws_access_key_id=aws_access_key_id,
                                        aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
-        self.miner_instance = self._get_ec2_instance_data(miner_instance_id)
+        self._initialize_miner_instance(miner_address)
+
+    def _initialize_miner_instance(self, miner_address: Address):
+        if miner_address.address_type == AddressType.EC2:
+            self.miner_instance_id = miner_address.address
+        elif miner_address.address_type in (AddressType.IP, AddressType.IPV6):
+            self.miner_instance_id = self._find_ec2_instance_id_by_ip(miner_address.address)
+        else:
+            raise AddressManagerException('Miner address should be of type EC2 or IP')
+        self.miner_instance = self._get_ec2_instance_data(self.miner_instance_id)
+        self.miner_instance_port = miner_address.port
+
+    def _find_ec2_instance_id_by_ip(self, ip_address: str) -> str:
+        response: dict[str, Any] = self.ec2_client.describe_instances(Filters=[{'Name': 'private-ip-address',
+                                                                                'Values': [ip_address]}])
+        if not response['Reservations']:
+            raise AddressManagerException(f'No EC2 instance found with private IP address {ip_address}')
+        return response['Reservations'][0]['Instances'][0]['InstanceId']
 
     @classmethod
     def _get_hosted_zone_domain(cls, hosted_zone: HostedZone):
