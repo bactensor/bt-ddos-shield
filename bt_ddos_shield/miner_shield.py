@@ -9,7 +9,7 @@ from typing import Optional
 
 from bt_ddos_shield.address import Address
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
-from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, MinerShieldEvent
+from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager
@@ -231,7 +231,7 @@ class MinerShield:
 
         return False
 
-    def _validate_addresses(self) -> bool:
+    def _validate_addresses(self, first_run: bool) -> bool:
         """
         Validate addresses used by validators. Remove validators with invalid addresses from shield state - they will
         be added again with new addresses in a moment.
@@ -251,7 +251,11 @@ class MinerShield:
                     validators_changed = True
         except Exception as e:
             self._event("Error during validating addresses", e)
-            # if error happened, just proceed - it is only validation, and it will be called again by _ticker_function
+            if first_run:
+                # we cannot continue without initializing address_manager
+                raise e
+            # If error happens later, just proceed. It is only validation, and it will be called again
+            # by _ticker_function.
 
         return validators_changed
 
@@ -285,7 +289,7 @@ class MinerShield:
         """
         self._reload_state(first_run)
         validators_changed: bool = self._reload_validators(first_run)
-        if self._validate_addresses():
+        if self._validate_addresses(first_run):
             validators_changed = True
 
         if validators_changed:
@@ -411,15 +415,7 @@ class MinerShield:
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):
-        """
-        Add event to event processor.
-
-        Args:
-            template: Description template to be filled using kwargs.
-            exception: Exception to be attached to event.
-            kwargs: Event params. Used also to fill template.
-        """
-        return self.event_processor.add_event(MinerShieldEvent(template, exception, **kwargs))
+        return self.event_processor.event(template, exception, **kwargs)
 
 
 class AbstractMinerShieldTask(ABC):

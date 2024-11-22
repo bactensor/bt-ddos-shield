@@ -1,8 +1,8 @@
 from time import sleep
 from typing import Optional
 
-from bt_ddos_shield.address import Address, AddressType, DefaultAddressSerializer
-from bt_ddos_shield.address_manager import Route53AddressManager
+from bt_ddos_shield.address import Address, DefaultAddressSerializer
+from bt_ddos_shield.address_manager import AwsAddressManager
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import Manifest, S3ManifestManager, JsonManifestSerializer
@@ -13,7 +13,8 @@ from bt_ddos_shield.validators_manager import MemoryValidatorsManager
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
 from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_route53_hosted_zone_id, \
-    aws_s3_region_name, aws_s3_bucket_name, sql_alchemy_db_url
+    aws_s3_region_name, aws_s3_bucket_name, sql_alchemy_db_url, miner_region_name, miner_instance_id, \
+    miner_instance_port
 from tests.test_encryption_manager import generate_key_pair
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager
@@ -105,13 +106,14 @@ class TestMinerShield:
         """
         Test if shield is properly starting from scratch and fully enabling protection using real managers.
         """
-        miner_new_address: Address = Address(address_id="miner", address_type=AddressType.IPV6,
-                                             address="2001:0db8:85a3:0000:0000:8a2e:0370:7334", port=80)
-
         validators_manager: MemoryValidatorsManager = self.create_memory_validators_manager()
-        address_manager: Route53AddressManager = Route53AddressManager(aws_access_key_id, aws_secret_access_key,
-                                                                       hosted_zone_id=aws_route53_hosted_zone_id,
-                                                                       miner_new_address=miner_new_address)
+        state_manager: SQLAlchemyMinerShieldStateManager = SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
+        state_manager.clear_tables()
+        address_manager: AwsAddressManager = \
+            AwsAddressManager(aws_access_key_id, aws_secret_access_key, hosted_zone_id=aws_route53_hosted_zone_id,
+                              miner_region_name=miner_region_name, miner_instance_id=miner_instance_id,
+                              miner_instance_port=miner_instance_port,
+                              event_processor=PrintingMinerShieldEventProcessor(), state_manager=state_manager)
         manifest_manager: S3ManifestManager = \
             S3ManifestManager(aws_access_key_id=aws_access_key_id,
                               aws_secret_access_key=aws_secret_access_key,
@@ -120,8 +122,6 @@ class TestMinerShield:
                               manifest_serializer=JsonManifestSerializer(),
                               encryption_manager=ECIESEncryptionManager())
         blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager()
-        state_manager: SQLAlchemyMinerShieldStateManager = SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
-        state_manager.clear_tables()
 
         validate_interval_sec = 10
         shield = MinerShield(self.MINER_HOTKEY, validators_manager, address_manager, manifest_manager,
@@ -163,6 +163,7 @@ class TestMinerShield:
         finally:
             shield.disable()
             assert not shield.run
+            address_manager.clean_all()
 
     def test_ban_validator(self):
         """
