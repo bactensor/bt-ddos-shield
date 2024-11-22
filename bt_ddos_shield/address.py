@@ -10,7 +10,8 @@ class AddressType(Enum):
     IP = "ip"          # IPv4 address
     IPV6 = "ipv6"      # IPv6 address
     DOMAIN = "domain"  # domain name
-    S3 = "s3"          # address pointing to S3 object
+    S3 = "s3"          # address identifies S3 object (id is object name)
+    EC2 = "ec2"        # address identifies EC2 instance (id is instance id)
 
 
 @dataclass
