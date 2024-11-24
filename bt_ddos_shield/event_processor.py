@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import traceback
+from datetime import datetime
 from typing import Any
 
 
@@ -8,6 +9,7 @@ class MinerShieldEvent:
     Class describing event, which happened in the shield.
     """
 
+    date: datetime            # Date of the event.
     template: str             # Template of the event.
     exception: Exception      # Exception which caused the event.
     metadata: dict[str, Any]  # Additional metadata.
@@ -20,6 +22,7 @@ class MinerShieldEvent:
             exception: Exception which caused the event.
             metadata: Additional metadata (used also to generate description).
         """
+        self.date = datetime.now()
         self.template = template
         self.exception = exception
         self.metadata = metadata
@@ -53,8 +56,7 @@ class PrintingMinerShieldEventProcessor(AbstractMinerShieldEventProcessor):
     """
 
     def _add_event(self, event: MinerShieldEvent):
+        print(f"{event.date}: MinerShieldEvent: {event.description}\nMetadata: {event.metadata}")
         if event.exception is not None:
-            print(f"MinerShieldEvent: {event.description}\nMetadata: {event.metadata}\nException happened:")
+            print("Exception happened:")
             print("".join(traceback.format_exception(event.exception)))
-        else:
-            print(f"MinerShieldEvent: {event.description}\nMetadata: {event.metadata}")
