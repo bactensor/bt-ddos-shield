@@ -14,6 +14,7 @@ import route53
 from botocore.exceptions import ClientError
 from route53.connection import Route53Connection
 from route53.hosted_zone import HostedZone
+from route53.resource_record_set import ResourceRecordSet
 
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
@@ -92,6 +93,13 @@ class AwsVpcData:
     subnets: list[AwsSubnetData]
 
 
+@dataclass
+class AwsELBData:
+    id: str
+    dns_name: str
+    hosted_zone_id: str
+
+
 class AwsObjectTypes(Enum):
     ELB = 'ELB'
     SUBNET = 'SUBNET'
@@ -114,8 +122,11 @@ class AwsAddressManager(AbstractAddressManager):
     miner_instance_port: int
     """ Port where miner server is working. """
     elb_client: Any
+    elb_data: Optional[AwsELBData]
     ec2_client: Any
+    hosted_zone: Optional[HostedZone]
     route53_client: Route53Connection
+    route53_boto_client: Any
     event_processor: AbstractMinerShieldEventProcessor
     state_manager: AbstractMinerShieldStateManager
 
@@ -136,7 +147,11 @@ class AwsAddressManager(AbstractAddressManager):
 
         self.elb_client = boto3.client('elbv2', aws_access_key_id=aws_access_key_id,
                                        aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
+        self.elb_data = None
         self.route53_client = route53.connect(aws_access_key_id, aws_secret_access_key)
+        self.route53_boto_client = boto3.client('route53', aws_access_key_id=aws_access_key_id,
+                                                aws_secret_access_key=aws_secret_access_key)
+        self.hosted_zone = None
         self.ec2_client = boto3.client('ec2', aws_access_key_id=aws_access_key_id,
                                        aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
         self._initialize_miner_instance(miner_address)
@@ -205,10 +220,8 @@ class AwsAddressManager(AbstractAddressManager):
     def create_address(self, hotkey: Hotkey) -> Address:
         self._validate_manager_state()
 
-        # TODO below is old implementation pointing to IP - new one should create address pointing to ELB
-        hosted_zone: HostedZone = self.route53_client.get_hosted_zone_by_id(self._get_hosted_zone_id())
-        new_address_domain: str = f'{self._generate_subdomain(hotkey)}.{hosted_zone.name}'
-        self._add_route53_record(new_address_domain, hosted_zone)
+        new_address_domain: str = f'{self._generate_subdomain(hotkey)}.{self.hosted_zone.name}'
+        self._add_route53_record(new_address_domain, self.hosted_zone)
         # There is no ID for Route53 addresses, so we use domain name as an ID.
         # Cut '.' from the end for working address.
         return Address(address_id=new_address_domain, address_type=AddressType.DOMAIN,
@@ -227,8 +240,7 @@ class AwsAddressManager(AbstractAddressManager):
         self._validate_manager_state()
 
         # TODO handle removing in ELB
-        hosted_zone: HostedZone = self.route53_client.get_hosted_zone_by_id(self._get_hosted_zone_id())
-        self._delete_route53_record_by_id(address.address_id, hosted_zone)
+        self._delete_route53_record_by_id(address.address_id, self.hosted_zone)
 
     def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
         if self._validate_manager_state():
@@ -238,8 +250,7 @@ class AwsAddressManager(AbstractAddressManager):
             return set()
 
         # TODO validate addresses also in ELB
-        hosted_zone: HostedZone = self.route53_client.get_hosted_zone_by_id(self._get_hosted_zone_id())
-        zone_addresses_ids: set[str] = {record_set.name for record_set in hosted_zone.record_sets}
+        zone_addresses_ids: set[str] = {record_set.name for record_set in self.hosted_zone.record_sets}
         invalid_hotkeys: set[Hotkey] = {hotkey for hotkey, address in addresses.items()
                                         if address.address_id not in zone_addresses_ids}
         return invalid_hotkeys
@@ -247,8 +258,8 @@ class AwsAddressManager(AbstractAddressManager):
     def _validate_manager_state(self) -> bool:
         """ Returns if we should invalidate all addresses created before. """
         ret: bool = self._handle_shielded_instance_change()
-        ret = self._create_elb_if_needed(self.miner_instance, self.miner_instance_port) or ret
-        ret = self._create_hosted_zone_if_needed() or ret
+        self.elb_data = self._create_elb_if_needed(self.miner_instance, self.miner_instance_port)
+        self.hosted_zone = self._create_hosted_zone_if_needed()
         return ret
 
     def _handle_shielded_instance_change(self) -> bool:
@@ -310,7 +321,26 @@ class AwsAddressManager(AbstractAddressManager):
                              cidr_block=subnet_data['CidrBlock'])
 
     def _add_route53_record(self, record_id: str, hosted_zone: HostedZone):
-        hosted_zone.create_a_record(name=record_id, values=[self.miner_instance.private_ip])
+        # Route53Connection doesn't handle alias records properly, so we use boto3 client directly
+        self.route53_boto_client.change_resource_record_sets(
+            HostedZoneId=hosted_zone.id,
+            ChangeBatch={
+                'Changes': [
+                    {
+                        'Action': 'CREATE',
+                        'ResourceRecordSet': {
+                            'Name': record_id,
+                            'Type': 'A',
+                            'AliasTarget': {
+                                'HostedZoneId': self.elb_data.hosted_zone_id,
+                                'DNSName': self.elb_data.dns_name,
+                                'EvaluateTargetHealth': False
+                            }
+                        }
+                    }
+                ]
+            }
+        )
         self.event_processor.event('Added Route53 record {name} to hosted zone {zone_id}',
                                    name=record_id, zone_id=hosted_zone.id)
         try:
@@ -325,8 +355,27 @@ class AwsAddressManager(AbstractAddressManager):
                 self._delete_route53_record(record_set, hosted_zone)
                 return
 
-    def _delete_route53_record(self, record_set, hosted_zone):
-        record_set.delete()
+    def _delete_route53_record(self, record_set: ResourceRecordSet, hosted_zone: HostedZone):
+        # Route53Connection doesn't handle alias records properly, so we use boto3 client directly
+        response: dict[str, Any] = self.route53_boto_client.list_resource_record_sets(
+            HostedZoneId=hosted_zone.id,
+            StartRecordName=record_set.name,
+            StartRecordType=record_set.rrset_type,
+            MaxItems='1'
+        )
+        record_set_data: dict[str, Any] = response['ResourceRecordSets'][0]
+
+        self.route53_boto_client.change_resource_record_sets(
+            HostedZoneId=hosted_zone.id,
+            ChangeBatch={
+                'Changes': [
+                    {
+                        'Action': 'DELETE',
+                        'ResourceRecordSet': record_set_data
+                    }
+                ]
+            }
+        )
         self.event_processor.event('Deleted Route53 record {name} from hosted zone {zone_id}',
                                    name=record_set.name, zone_id=hosted_zone.id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.DNS_ENTRY.value, record_set.name)
@@ -377,7 +426,7 @@ class AwsAddressManager(AbstractAddressManager):
         return target_group_id
 
     def _remove_target_group(self, target_group_id: str):
-        retries_count: int = 3
+        retries_count: int = 5
         error_code: str = ''
         for _ in range(retries_count):
             try:
@@ -386,7 +435,7 @@ class AwsAddressManager(AbstractAddressManager):
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceInUse':
-                    time.sleep(3)  # wait for ELB to be removed
+                    time.sleep(5)  # wait for ELB to be removed
                 else:
                     raise e
         else:
@@ -398,13 +447,14 @@ class AwsAddressManager(AbstractAddressManager):
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
 
     def _create_elb(self, miner_instance: AwsEC2InstanceData, bonus_subnet: AwsSubnetData, target_group_id: str,
-                    security_group_id: str):
+                    security_group_id: str) -> str:
         elb_name: str = f'miner-elb-{self._generate_random_alnum_string(8)}'
         subnets: list[str] = [miner_instance.subnet_id, bonus_subnet.subnet_id]
         response: dict[str, Any] = self.elb_client.create_load_balancer(Name=elb_name, Subnets=subnets,
                                                                         SecurityGroups=[security_group_id],
                                                                         Scheme='internet-facing', Type='application')
-        elb_id: str = response['LoadBalancers'][0]['LoadBalancerArn']
+        elb_info: dict[str, Any] = response['LoadBalancers'][0]
+        elb_id: str = elb_info['LoadBalancerArn']
         self.event_processor.event('Created AWS ELB, name={name}, id={id}', name=elb_name, id=elb_id)
 
         try:
@@ -415,10 +465,18 @@ class AwsAddressManager(AbstractAddressManager):
             self._remove_elb(elb_id)
             raise e
 
+        return elb_id
+
     def _remove_elb(self, elb_id: str):
         self.elb_client.delete_load_balancer(LoadBalancerArn=elb_id)
         self.event_processor.event('Deleted AWS ELB {id}', id=elb_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.ELB.value, elb_id)
+
+    def _get_elb_info(self, elb_id: str) -> AwsELBData:
+        response: dict[str, Any] = self.elb_client.describe_load_balancers(LoadBalancerArns=[elb_id])
+        elb_info: dict[str, Any] = response['LoadBalancers'][0]
+        return AwsELBData(id=elb_info['LoadBalancerArn'], dns_name=elb_info['DNSName'],
+                          hosted_zone_id=elb_info['CanonicalHostedZoneId'])
 
     def _create_security_group(self, miner_vpc: AwsVpcData, miner_instance_port: int) -> str:
         group_name: str = f'miner-security-group-{self._generate_random_alnum_string(8)}'
@@ -449,7 +507,7 @@ class AwsAddressManager(AbstractAddressManager):
         return security_group_id
 
     def _remove_security_group(self, security_group_id: str):
-        retries_count: int = 3
+        retries_count: int = 5
         error_code: str = ''
         for _ in range(retries_count):
             try:
@@ -458,7 +516,7 @@ class AwsAddressManager(AbstractAddressManager):
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'DependencyViolation':
-                    time.sleep(3)  # wait for ELB to be removed
+                    time.sleep(5)  # wait for ELB to be removed
                 else:
                     raise e
         else:
@@ -469,7 +527,7 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor.event('Deleted AWS SecurityGroup {id}', id=security_group_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.SECURITY_GROUP.value, security_group_id)
 
-    def _create_hosted_zone(self):
+    def _create_hosted_zone(self) -> HostedZone:
         zone_name: str = f'miner-shield-{self._generate_random_alnum_string(8)}.com'
         hosted_zone: HostedZone
         hosted_zone, _ = self.route53_client.create_hosted_zone(name=zone_name,
@@ -483,21 +541,35 @@ class AwsAddressManager(AbstractAddressManager):
             self._remove_hosted_zone(hosted_zone_id)
             raise e
 
+        return hosted_zone
+
     def _remove_hosted_zone(self, hosted_zone_id: str):
         if AwsObjectTypes.HOSTED_ZONE.value not in self.state_manager.get_state().address_manager_created_objects:
             return
 
-        self._delete_route53_records()
+        self._delete_route53_records(hosted_zone_id)
         self.route53_client.delete_hosted_zone_by_id(hosted_zone_id)
         self.event_processor.event('Deleted AWS HostedZone {id}', id=hosted_zone_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.HOSTED_ZONE.value, hosted_zone_id)
 
-    def _delete_route53_records(self):
-        if AwsObjectTypes.DNS_ENTRY.value not in self.state_manager.get_state().address_manager_created_objects:
+    def _delete_route53_records(self, hosted_zone_id: str):
+        address_manager_created_objects: MappingProxyType[str, frozenset[str]] = \
+            self.state_manager.get_state().address_manager_created_objects
+        if AwsObjectTypes.DNS_ENTRY.value not in address_manager_created_objects:
             return
 
-        state: MinerShieldState = self.state_manager.get_state()
-        for created_entry in state.address_manager_created_objects[AwsObjectTypes.DNS_ENTRY.value]:
+        created_entries: frozenset[str] = \
+            self.state_manager.get_state().address_manager_created_objects[AwsObjectTypes.DNS_ENTRY.value]
+        hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
+        for record_set in hosted_zone.record_sets:
+            if record_set.name in created_entries:
+                self._delete_route53_record(record_set, hosted_zone)
+
+        # Clean from state entries without working address
+        address_manager_created_objects = self.state_manager.get_state().address_manager_created_objects
+        if AwsObjectTypes.DNS_ENTRY.value not in address_manager_created_objects:
+            return
+        for created_entry in address_manager_created_objects[AwsObjectTypes.DNS_ENTRY.value]:
             self.state_manager.del_address_manager_created_object(AwsObjectTypes.DNS_ENTRY.value, created_entry)
 
     @classmethod
@@ -551,13 +623,13 @@ class AwsAddressManager(AbstractAddressManager):
 
         return self._create_security_group(miner_vpc, miner_instance_port)
 
-    def _create_elb_if_needed(self, miner_instance: AwsEC2InstanceData, miner_port: int) -> bool:
+    def _create_elb_if_needed(self, miner_instance: AwsEC2InstanceData, miner_port: int) -> AwsELBData:
         created_objects: MappingProxyType[str, frozenset[str]] = \
             self.state_manager.get_state().address_manager_created_objects
 
         if AwsObjectTypes.ELB.value in created_objects:
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "only one ELB should be created"
-            return False
+            return self._get_elb_info(next(iter(created_objects[AwsObjectTypes.ELB.value])))
 
         miner_vpc: AwsVpcData = self._get_vpc_data(miner_instance.vpc_id)
         miner_subnet: AwsSubnetData = self._get_subnet_data(miner_instance.subnet_id)
@@ -566,15 +638,14 @@ class AwsAddressManager(AbstractAddressManager):
                                                                    miner_port, created_objects)
         security_group_id: str = self._create_security_group_if_needed(miner_vpc, miner_port,
                                                                        created_objects)
-        self._create_elb(miner_instance, bonus_subnet, target_group_id, security_group_id)
-        return True
+        elb_id: str = self._create_elb(miner_instance, bonus_subnet, target_group_id, security_group_id)
+        return self._get_elb_info(elb_id)
 
-    def _create_hosted_zone_if_needed(self) -> bool:
+    def _create_hosted_zone_if_needed(self) -> HostedZone:
         state: MinerShieldState = self.state_manager.get_state()
         if AwsObjectTypes.HOSTED_ZONE.value in state.address_manager_created_objects:
             assert len(state.address_manager_created_objects[AwsObjectTypes.HOSTED_ZONE.value]) == 1, \
                 "only one hosted zone should be created"
-            return False
+            return self.route53_client.get_hosted_zone_by_id(self._get_hosted_zone_id())
 
-        self._create_hosted_zone()
-        return True
+        return self._create_hosted_zone()
