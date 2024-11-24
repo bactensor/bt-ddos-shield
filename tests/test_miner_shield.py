@@ -12,7 +12,7 @@ from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import MemoryValidatorsManager
 from tests.test_address_manager import MemoryAddressManager, get_miner_address_from_credentials
 from tests.test_blockchain_manager import MemoryBlockchainManager
-from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_route53_hosted_zone_id, \
+from tests.test_credentials import aws_access_key_id, aws_secret_access_key, \
     aws_s3_region_name, aws_s3_bucket_name, sql_alchemy_db_url, miner_region_name
 from tests.test_encryption_manager import generate_key_pair
 from tests.test_manifest_manager import MemoryManifestManager
@@ -110,7 +110,7 @@ class TestMinerShield:
         state_manager.clear_tables()
         miner_address: Address = get_miner_address_from_credentials(AddressType.IP)
         address_manager: AwsAddressManager = \
-            AwsAddressManager(aws_access_key_id, aws_secret_access_key, hosted_zone_id=aws_route53_hosted_zone_id,
+            AwsAddressManager(aws_access_key_id, aws_secret_access_key,
                               miner_region_name=miner_region_name, miner_address=miner_address,
                               event_processor=PrintingMinerShieldEventProcessor(), state_manager=state_manager)
         manifest_manager: S3ManifestManager = \
