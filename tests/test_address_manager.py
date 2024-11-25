@@ -81,6 +81,7 @@ class TestAddressManager:
             assert address_manager_state[self.address_manager.INSTANCE_ID_KEY] == miner_instance_id
             assert int(address_manager_state[self.address_manager.INSTANCE_PORT_KEY]) == miner_instance_port
             created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+            assert len(created_objects[AwsObjectTypes.WAF.value]) == 1
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
             assert len(created_objects[AwsObjectTypes.SUBNET.value]) == 1
             assert len(created_objects[AwsObjectTypes.TARGET_GROUP.value]) == 1
@@ -95,6 +96,7 @@ class TestAddressManager:
             self.address_manager.clean_all()
             state = self.state_manager.get_state()
             created_objects = state.address_manager_created_objects
+            assert AwsObjectTypes.WAF.value not in created_objects
             assert AwsObjectTypes.ELB.value not in created_objects
             assert AwsObjectTypes.SUBNET.value not in created_objects
             assert AwsObjectTypes.TARGET_GROUP.value not in created_objects
@@ -109,23 +111,28 @@ class TestAddressManager:
         self.create_aws_address_manager()
 
         try:
-            address: Address = self.address_manager.create_address("validator1")
+            address1: Address = self.address_manager.create_address("validator1")
+            address2: Address = self.address_manager.create_address("validator2")
             invalid_address: Address = Address(address_id="invalid", address_type=AddressType.DOMAIN,
                                                address="invalid.com", port=80)
-            mapping: dict[Hotkey, Address] = {Hotkey("hotkey"): address, Hotkey("invalid"): invalid_address}
+            mapping: dict[Hotkey, Address] = {Hotkey("hotkey1"): address1,
+                                              Hotkey("hotkey2"): address2,
+                                              Hotkey("invalid"): invalid_address}
             invalid_addresses: set[Hotkey] = self.address_manager.validate_addresses(MappingProxyType(mapping))
             assert invalid_addresses == {Hotkey("invalid")}
 
             state: MinerShieldState = self.state_manager.get_state()
             created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
-            assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
+            assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 2
 
-            self.address_manager.remove_address(address)
+            self.address_manager.remove_address(address1)
             state = self.state_manager.get_state()
             created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
-            assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
+            assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
+            invalid_addresses = self.address_manager.validate_addresses(MappingProxyType(mapping))
+            assert invalid_addresses == {Hotkey("hotkey1"), Hotkey("invalid")}
         finally:
             self.address_manager.clean_all()
 

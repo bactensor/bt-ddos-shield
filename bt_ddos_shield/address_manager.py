@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
 from types import MappingProxyType
-from typing import Any, Union, Optional
+from typing import Any, Union, Optional, Callable
 
 import boto3
 import route53
@@ -101,6 +101,7 @@ class AwsELBData:
 
 
 class AwsObjectTypes(Enum):
+    WAF = 'WAF'
     ELB = 'ELB'
     SUBNET = 'SUBNET'
     HOSTED_ZONE = 'HOSTED_ZONE'
@@ -121,6 +122,8 @@ class AwsAddressManager(AbstractAddressManager):
     miner_instance: AwsEC2InstanceData
     miner_instance_port: int
     """ Port where miner server is working. """
+    waf_client: Any
+    waf_arn: Optional[str]
     elb_client: Any
     elb_data: Optional[AwsELBData]
     ec2_client: Any
@@ -145,6 +148,9 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor = event_processor
         self.state_manager = state_manager
 
+        self.waf_client = boto3.client('wafv2', aws_access_key_id=aws_access_key_id,
+                                       aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
+        self.waf_arn = None
         self.elb_client = boto3.client('elbv2', aws_access_key_id=aws_access_key_id,
                                        aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
         self.elb_data = None
@@ -181,51 +187,47 @@ class AwsAddressManager(AbstractAddressManager):
             self.state_manager.get_state().address_manager_created_objects
 
         # Order of removal is important
-        self._clean_hosted_zones(created_objects)
-        self._clean_elbs(created_objects)
-        self._clean_security_groups(created_objects)
-        self._clean_target_groups(created_objects)
-        self._clean_subnets(created_objects)
+        cleaned: bool = True
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.WAF,
+                                          self._remove_firewall) and cleaned
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.HOSTED_ZONE,
+                                          self._remove_hosted_zone) and cleaned
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.ELB,
+                                          self._remove_elb) and cleaned
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.SECURITY_GROUP,
+                                          self._remove_security_group) and cleaned
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.TARGET_GROUP,
+                                          self._remove_target_group) and cleaned
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.SUBNET,
+                                          self._remove_subnet) and cleaned
+        if not cleaned:
+            raise AddressManagerException('Failed to clean all AWS objects')
 
-    def _clean_elbs(self, created_objects: MappingProxyType[str, frozenset[str]]):
-        if AwsObjectTypes.ELB.value not in created_objects:
-            return
-        for elb_id in created_objects[AwsObjectTypes.ELB.value]:
-            self._remove_elb(elb_id)
-
-    def _clean_target_groups(self, created_objects: MappingProxyType[str, frozenset[str]]):
-        if AwsObjectTypes.TARGET_GROUP.value not in created_objects:
-            return
-        for target_group_id in created_objects[AwsObjectTypes.TARGET_GROUP.value]:
-            self._remove_target_group(target_group_id)
-
-    def _clean_subnets(self, created_objects: MappingProxyType[str, frozenset[str]]):
-        if AwsObjectTypes.SUBNET.value not in created_objects:
-            return
-        for subnet_id in created_objects[AwsObjectTypes.SUBNET.value]:
-            self._remove_subnet(subnet_id)
-
-    def _clean_security_groups(self, created_objects: MappingProxyType[str, frozenset[str]]):
-        if AwsObjectTypes.SECURITY_GROUP.value not in created_objects:
-            return
-        for security_group_id in created_objects[AwsObjectTypes.SECURITY_GROUP.value]:
-            self._remove_security_group(security_group_id)
-
-    def _clean_hosted_zones(self, created_objects: MappingProxyType[str, frozenset[str]]):
-        if AwsObjectTypes.HOSTED_ZONE.value not in created_objects:
-            return
-        for hosted_zone_id in created_objects[AwsObjectTypes.HOSTED_ZONE.value]:
-            self._remove_hosted_zone(hosted_zone_id)
+    @classmethod
+    def _clean_aws_objects(cls, created_objects: MappingProxyType[str, frozenset[str]], object_type: AwsObjectTypes,
+                           remove_method: Callable[[str], bool]) -> bool:
+        if object_type.value not in created_objects:
+            return True
+        cleaned: bool = True
+        for object_id in created_objects[object_type.value]:
+            cleaned = remove_method(object_id) and cleaned
+        return cleaned
 
     def create_address(self, hotkey: Hotkey) -> Address:
         self._validate_manager_state()
 
-        new_address_domain: str = f'{self._generate_subdomain(hotkey)}.{self.hosted_zone.name}'
-        self._add_route53_record(new_address_domain, self.hosted_zone)
-        # There is no ID for Route53 addresses, so we use domain name as an ID.
-        # Cut '.' from the end for working address.
-        return Address(address_id=new_address_domain, address_type=AddressType.DOMAIN,
-                       address=new_address_domain[:-1], port=self.miner_instance_port)
+        new_address_domain_id: str = f'{self._generate_subdomain(hotkey)}.{self.hosted_zone.name}'
+        new_address_domain: str = new_address_domain_id[:-1]  # Cut '.' from the end for working address
+        record_id: str = self._add_route53_record(new_address_domain_id, self.hosted_zone)
+
+        try:
+            self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
+        except Exception as e:
+            self._delete_route53_record_by_id(record_id, self.hosted_zone)
+            raise e
+
+        return Address(address_id=record_id, address_type=AddressType.DOMAIN,
+                       address=new_address_domain, port=self.miner_instance_port)
 
     def _get_hosted_zone_id(self) -> str:
         created_objects: MappingProxyType[str, frozenset[str]] = \
@@ -238,8 +240,7 @@ class AwsAddressManager(AbstractAddressManager):
 
     def remove_address(self, address: Address):
         self._validate_manager_state()
-
-        # TODO handle removing in ELB
+        self._remove_domain_rule_from_firewall(self.waf_arn, address.address)
         self._delete_route53_record_by_id(address.address_id, self.hosted_zone)
 
     def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
@@ -249,17 +250,27 @@ class AwsAddressManager(AbstractAddressManager):
         if not addresses:
             return set()
 
-        # TODO validate addresses also in ELB
         zone_addresses_ids: set[str] = {record_set.name for record_set in self.hosted_zone.record_sets}
-        invalid_hotkeys: set[Hotkey] = {hotkey for hotkey, address in addresses.items()
-                                        if address.address_id not in zone_addresses_ids}
+        waf_data: dict[str, Any] = self._get_firewall_info(self.waf_arn)
+        rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
+
+        invalid_hotkeys: set[Hotkey] = set()
+        for hotkey, address in addresses.items():
+            if address.address_id not in zone_addresses_ids:
+                invalid_hotkeys.add(hotkey)
+                continue
+
+            rule: Optional[dict[str, Any]] = self._find_rule(rules, address.address)
+            if rule is None:
+                invalid_hotkeys.add(hotkey)
         return invalid_hotkeys
 
     def _validate_manager_state(self) -> bool:
         """ Returns if we should invalidate all addresses created before. """
         ret: bool = self._handle_shielded_instance_change()
         self.elb_data = self._create_elb_if_needed(self.miner_instance, self.miner_instance_port)
-        self.hosted_zone = self._create_hosted_zone_if_needed()
+        self.hosted_zone = self._create_hosted_zone_if_needed(self.elb_data.dns_name)
+        self.waf_arn = self._create_firewall_if_needed()
         return ret
 
     def _handle_shielded_instance_change(self) -> bool:
@@ -320,7 +331,7 @@ class AwsAddressManager(AbstractAddressManager):
         return AwsSubnetData(subnet_id=subnet_id, availability_zone=subnet_data['AvailabilityZone'],
                              cidr_block=subnet_data['CidrBlock'])
 
-    def _add_route53_record(self, record_id: str, hosted_zone: HostedZone):
+    def _add_route53_record(self, record_id: str, hosted_zone: HostedZone) -> str:
         # Route53Connection doesn't handle alias records properly, so we use boto3 client directly
         self.route53_boto_client.change_resource_record_sets(
             HostedZoneId=hosted_zone.id,
@@ -348,6 +359,9 @@ class AwsAddressManager(AbstractAddressManager):
         except Exception as e:
             self._delete_route53_record_by_id(record_id, hosted_zone)
             raise e
+
+        # There is no ID for Route53 addresses, so we use domain name as an ID.
+        return record_id
 
     def _delete_route53_record_by_id(self, record_id: str, hosted_zone: HostedZone):
         for record_set in hosted_zone.record_sets:
@@ -399,10 +413,11 @@ class AwsAddressManager(AbstractAddressManager):
             raise e
         return subnet
 
-    def _remove_subnet(self, subnet_id: str):
+    def _remove_subnet(self, subnet_id: str) -> bool:
         self.ec2_client.delete_subnet(SubnetId=subnet_id)
         self.event_processor.event('Deleted AWS subnet {id}', id=subnet_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.SUBNET.value, subnet_id)
+        return True
 
     def _create_target_group(self, miner_vpc: AwsVpcData, miner_instance_id: str, miner_instance_port: int) -> str:
         group_name: str = f'miner-target-group-{self._generate_random_alnum_string(8)}'
@@ -425,26 +440,30 @@ class AwsAddressManager(AbstractAddressManager):
 
         return target_group_id
 
-    def _remove_target_group(self, target_group_id: str):
-        retries_count: int = 5
+    def _remove_target_group(self, target_group_id: str) -> bool:
+        old_instance_id: str = self.state_manager.get_state().address_manager_state[self.INSTANCE_ID_KEY]
+
+        retries_count: int = 10
         error_code: str = ''
         for _ in range(retries_count):
             try:
+                self.elb_client.deregister_targets(TargetGroupArn=target_group_id, Targets=[{'Id': old_instance_id}])
                 self.elb_client.delete_target_group(TargetGroupArn=target_group_id)
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceInUse':
-                    time.sleep(5)  # wait for ELB to be removed
+                    time.sleep(6)  # wait for ELB to be removed
                 else:
                     raise e
         else:
             self.event_processor.event('Failed to remove AWS TargetGroup {id}, error={error_code}',
                                        id=target_group_id, error_code=error_code)
-            return
+            return False
 
         self.event_processor.event('Deleted AWS TargetGroup {id}', id=target_group_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
+        return True
 
     def _create_elb(self, miner_instance: AwsEC2InstanceData, bonus_subnet: AwsSubnetData, target_group_id: str,
                     security_group_id: str) -> str:
@@ -467,10 +486,11 @@ class AwsAddressManager(AbstractAddressManager):
 
         return elb_id
 
-    def _remove_elb(self, elb_id: str):
+    def _remove_elb(self, elb_id: str) -> bool:
         self.elb_client.delete_load_balancer(LoadBalancerArn=elb_id)
         self.event_processor.event('Deleted AWS ELB {id}', id=elb_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.ELB.value, elb_id)
+        return True
 
     def _get_elb_info(self, elb_id: str) -> AwsELBData:
         response: dict[str, Any] = self.elb_client.describe_load_balancers(LoadBalancerArns=[elb_id])
@@ -488,8 +508,6 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor.event('Created AWS SecurityGroup, name={name}, id={id}',
                                    name=group_name, id=security_group_id)
 
-        # TODO allow incoming traffic only from created domains
-
         try:
             self.ec2_client.authorize_security_group_ingress(
                 GroupId=security_group_id,
@@ -506,8 +524,8 @@ class AwsAddressManager(AbstractAddressManager):
 
         return security_group_id
 
-    def _remove_security_group(self, security_group_id: str):
-        retries_count: int = 5
+    def _remove_security_group(self, security_group_id: str) -> bool:
+        retries_count: int = 10
         error_code: str = ''
         for _ in range(retries_count):
             try:
@@ -516,25 +534,25 @@ class AwsAddressManager(AbstractAddressManager):
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'DependencyViolation':
-                    time.sleep(5)  # wait for ELB to be removed
+                    time.sleep(6)  # wait for ELB to be removed
                 else:
                     raise e
         else:
             self.event_processor.event('Failed to remove AWS SecurityGroup {id}, error={error_code}',
                                        id=security_group_id, error_code=error_code)
-            return
+            return False
 
         self.event_processor.event('Deleted AWS SecurityGroup {id}', id=security_group_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.SECURITY_GROUP.value, security_group_id)
+        return True
 
-    def _create_hosted_zone(self) -> HostedZone:
-        zone_name: str = f'miner-shield-{self._generate_random_alnum_string(8)}.com'
+    def _create_hosted_zone(self, dns_name: str) -> HostedZone:
         hosted_zone: HostedZone
-        hosted_zone, _ = self.route53_client.create_hosted_zone(name=zone_name,
+        hosted_zone, _ = self.route53_client.create_hosted_zone(name=dns_name,
                                                                 comment='Hosted zone for Miner shield')
         hosted_zone_id: str = hosted_zone.id
         self.event_processor.event('Created AWS HostedZone, name={name}, id={id}',
-                                   name=zone_name, id=hosted_zone_id)
+                                   name=dns_name, id=hosted_zone_id)
         try:
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.HOSTED_ZONE.value, hosted_zone_id)
         except Exception as e:
@@ -543,14 +561,12 @@ class AwsAddressManager(AbstractAddressManager):
 
         return hosted_zone
 
-    def _remove_hosted_zone(self, hosted_zone_id: str):
-        if AwsObjectTypes.HOSTED_ZONE.value not in self.state_manager.get_state().address_manager_created_objects:
-            return
-
+    def _remove_hosted_zone(self, hosted_zone_id: str) -> bool:
         self._delete_route53_records(hosted_zone_id)
         self.route53_client.delete_hosted_zone_by_id(hosted_zone_id)
         self.event_processor.event('Deleted AWS HostedZone {id}', id=hosted_zone_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.HOSTED_ZONE.value, hosted_zone_id)
+        return True
 
     def _delete_route53_records(self, hosted_zone_id: str):
         address_manager_created_objects: MappingProxyType[str, frozenset[str]] = \
@@ -571,6 +587,142 @@ class AwsAddressManager(AbstractAddressManager):
             return
         for created_entry in address_manager_created_objects[AwsObjectTypes.DNS_ENTRY.value]:
             self.state_manager.del_address_manager_created_object(AwsObjectTypes.DNS_ENTRY.value, created_entry)
+
+    def _create_firewall(self) -> str:
+        waf_name: str = f'miner-waf-{self._generate_random_alnum_string(8)}'
+        response: dict[str, Any] = self.waf_client.create_web_acl(
+            Name=waf_name,
+            Scope='REGIONAL',
+            DefaultAction={'Block': {}},
+            Rules=[],
+            VisibilityConfig={
+                'SampledRequestsEnabled': True,
+                'CloudWatchMetricsEnabled': True,
+                'MetricName': waf_name
+            })
+        waf_arn: str = response['Summary']['ARN']
+        self.event_processor.event('Created AWS WAF, name={name}, id={id}', name=waf_name, id=waf_arn)
+
+        retries_count: int = 10
+        error_code: str = ''
+        for _ in range(retries_count):
+            try:
+                self.waf_client.associate_web_acl(WebACLArn=waf_arn, ResourceArn=self.elb_data.id)
+                self.event_processor.event('Associated AWS WAF {waf_id} to ELB {elb_id}',
+                                           waf_id=waf_arn, elb_id=self.elb_data.id)
+                break
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                time.sleep(6)  # wait for WAF to be created
+        else:
+            self._remove_firewall(waf_arn)
+            raise AddressManagerException(f'Failed to associate AWS WAF {waf_arn} with ELB, error={error_code}')
+
+        try:
+            self.state_manager.add_address_manager_created_object(AwsObjectTypes.WAF.value, waf_arn)
+        except Exception as e:
+            self._remove_firewall(waf_arn)
+            raise e
+
+        return waf_arn
+
+    def _remove_firewall(self, waf_arn: str) -> bool:
+        created_objects: MappingProxyType[str, frozenset[str]] = \
+            self.state_manager.get_state().address_manager_created_objects
+
+        if AwsObjectTypes.ELB.value in created_objects:
+            assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "only one ELB should be created"
+            elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
+            self.waf_client.disassociate_web_acl(ResourceArn=elb_id)
+
+        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
+        acl_data: dict[str, Any] = waf_data['WebACL']
+        lock_token = waf_data['LockToken']
+        self.waf_client.delete_web_acl(Name=acl_data['Name'], Id=acl_data['Id'], Scope='REGIONAL', LockToken=lock_token)
+        self.event_processor.event('Deleted AWS WAF {id}', id=waf_arn)
+        self.state_manager.del_address_manager_created_object(AwsObjectTypes.WAF.value, waf_arn)
+        return True
+
+    def _get_firewall_info(self, waf_arn: str) -> dict[str, Any]:
+        waf_name: str = self._get_name_from_waf_arn(waf_arn)
+        waf_id: str = self._get_id_from_waf_arn(waf_arn)
+        return self.waf_client.get_web_acl(Name=waf_name, Id=waf_id, Scope='REGIONAL')
+
+    def _update_web_acl(self, waf_data: dict[str, Any], rules: list[dict[str, Any]]):
+        acl_data: dict[str, Any] = waf_data['WebACL']
+        lock_token = waf_data['LockToken']
+        self.waf_client.update_web_acl(Name=acl_data['Name'], Id=acl_data['Id'], Scope='REGIONAL',
+                                       DefaultAction=acl_data['DefaultAction'], Rules=rules,
+                                       VisibilityConfig=acl_data['VisibilityConfig'], LockToken=lock_token)
+
+    def _add_domain_rule_to_firewall(self, waf_arn: str, domain: str):
+        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
+        rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
+        rule_name: str = f'miner-waf-rule-{self._generate_random_alnum_string(8)}'
+        priority: int = rules[-1]['Priority'] + 1 if rules else 1
+        rule = {
+            'Name': rule_name,
+            'Priority': priority,
+            'Statement': {
+                'ByteMatchStatement': {
+                    'SearchString': domain,
+                    'FieldToMatch': {
+                        'SingleHeader': {
+                            'Name': 'host'
+                        }
+                    },
+                    'TextTransformations': [
+                        {
+                            'Priority': 0,
+                            'Type': 'NONE'
+                        }
+                    ],
+                    'PositionalConstraint': 'EXACTLY'
+                }
+            },
+            'Action': {
+                'Allow': {}
+            },
+            'VisibilityConfig': {
+                'SampledRequestsEnabled': True,
+                'CloudWatchMetricsEnabled': True,
+                'MetricName': rule_name
+            }
+        }
+        rules.append(rule)
+        self._update_web_acl(waf_data, rules)
+        self.event_processor.event('Added rule {rule_name} to AWS WAF {waf_id}, domain={domain}',
+                                   rule_name=rule_name, waf_id=waf_arn, domain=domain)
+
+    def _remove_domain_rule_from_firewall(self, waf_arn: str, domain: str):
+        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
+        rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
+        rule: Optional[dict[str, Any]] = self._find_rule(rules, domain)
+        if rule is None:
+            return
+        rules.remove(rule)
+        self._update_web_acl(waf_data, rules)
+        self.event_processor.event('Removed rule {rule_name} from AWS WAF {waf_id}, domain={domain}',
+                                   rule_name=rule['Name'], waf_id=waf_arn, domain=domain)
+
+    @classmethod
+    def _find_rule(cls, rules: list[dict[str, Any]], domain: str) -> Optional[dict[str, Any]]:
+        for rule in rules:
+            try:
+                rule_domain: str = rule['Statement']['ByteMatchStatement']['SearchString'].decode()
+            except KeyError:
+                continue
+            if rule_domain == domain:
+                return rule
+        return None
+
+    @classmethod
+    def _get_id_from_waf_arn(cls, waf_arn: str) -> str:
+        return waf_arn.split('/')[-1]
+
+    @classmethod
+    def _get_name_from_waf_arn(cls, waf_arn: str) -> str:
+        return waf_arn.split('/')[-2]
 
     @classmethod
     def _get_available_cidr(cls, vpc: AwsVpcData, subnet_mask: int) -> str:
@@ -641,11 +793,20 @@ class AwsAddressManager(AbstractAddressManager):
         elb_id: str = self._create_elb(miner_instance, bonus_subnet, target_group_id, security_group_id)
         return self._get_elb_info(elb_id)
 
-    def _create_hosted_zone_if_needed(self) -> HostedZone:
+    def _create_hosted_zone_if_needed(self, dns_name: str) -> HostedZone:
         state: MinerShieldState = self.state_manager.get_state()
         if AwsObjectTypes.HOSTED_ZONE.value in state.address_manager_created_objects:
             assert len(state.address_manager_created_objects[AwsObjectTypes.HOSTED_ZONE.value]) == 1, \
                 "only one hosted zone should be created"
             return self.route53_client.get_hosted_zone_by_id(self._get_hosted_zone_id())
 
-        return self._create_hosted_zone()
+        return self._create_hosted_zone(dns_name)
+
+    def _create_firewall_if_needed(self) -> str:
+        created_objects: MappingProxyType[str, frozenset[str]] = \
+            self.state_manager.get_state().address_manager_created_objects
+        if AwsObjectTypes.WAF.value in created_objects:
+            assert len(created_objects[AwsObjectTypes.WAF.value]) == 1, "only one firewall should be created"
+            return next(iter(created_objects[AwsObjectTypes.WAF.value]))
+
+        return self._create_firewall()
