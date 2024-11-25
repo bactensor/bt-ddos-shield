@@ -130,7 +130,7 @@ class TestMinerShield:
         assert shield.run
 
         # give some time to make sure everything is initialized and validate is called
-        sleep(10 + 2 * validate_interval_sec)
+        sleep(120 + 2 * validate_interval_sec)
 
         try:
             state: MinerShieldState = state_manager.get_state()
