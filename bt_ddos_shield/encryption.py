@@ -38,7 +38,7 @@ class EncryptionManager:
             encrypted_data = encrypt(public_key, data_str)
             return encrypted_data
         except Exception as e:
-            raise EncryptionError(f"Encryption failed: {e}")
+            raise EncryptionError(f"Encryption failed: {e}") from e
 
     @staticmethod
     def decrypt_data(
@@ -67,4 +67,4 @@ class EncryptionManager:
             decrypted_dict = json.loads(decrypted_str)
             return decrypted_dict
         except Exception as e:
-            raise DecryptionError(f"Decryption failed: {e}")
+            raise DecryptionError(f"Decryption failed: {e}") from e
