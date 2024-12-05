@@ -104,7 +104,6 @@ class AwsObjectTypes(Enum):
     WAF = 'WAF'
     ELB = 'ELB'
     SUBNET = 'SUBNET'
-    HOSTED_ZONE = 'HOSTED_ZONE'
     DNS_ENTRY = 'DNS_ENTRY'
     TARGET_GROUP = 'TARGET_GROUP'
     SECURITY_GROUP = 'SECURITY_GROUP'
@@ -127,17 +126,20 @@ class AwsAddressManager(AbstractAddressManager):
     elb_client: Any
     elb_data: Optional[AwsELBData]
     ec2_client: Any
-    hosted_zone: Optional[HostedZone]
+    hosted_zone_id: str
+    """ ID of hosted zone in Route53 where addresses are located. """
+    hosted_zone: HostedZone
     route53_client: Route53Connection
     route53_boto_client: Any
     event_processor: AbstractMinerShieldEventProcessor
     state_manager: AbstractMinerShieldStateManager
 
+    HOSTED_ZONE_ID_KEY: str = 'aws_hosted_zone_id'
     INSTANCE_PORT_KEY: str = 'ec2_instance_port'
     INSTANCE_ID_KEY: str = 'ec2_instance_id'
 
     def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, miner_region_name: str,
-                 miner_address: Address, event_processor: AbstractMinerShieldEventProcessor,
+                 miner_address: Address, hosted_zone_id: str, event_processor: AbstractMinerShieldEventProcessor,
                  state_manager: AbstractMinerShieldStateManager):
         """
         Initialize AWS address manager. miner_address can be passed as EC2 type (then AWS instance_id should be set in
@@ -155,9 +157,10 @@ class AwsAddressManager(AbstractAddressManager):
                                        aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
         self.elb_data = None
         self.route53_client = route53.connect(aws_access_key_id, aws_secret_access_key)
+        self.hosted_zone_id = hosted_zone_id
+        self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
         self.route53_boto_client = boto3.client('route53', aws_access_key_id=aws_access_key_id,
                                                 aws_secret_access_key=aws_secret_access_key)
-        self.hosted_zone = None
         self.ec2_client = boto3.client('ec2', aws_access_key_id=aws_access_key_id,
                                        aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
         self._initialize_miner_instance(miner_address)
@@ -186,12 +189,12 @@ class AwsAddressManager(AbstractAddressManager):
         created_objects: MappingProxyType[str, frozenset[str]] = \
             self.state_manager.get_state().address_manager_created_objects
 
+        self._delete_route53_records(self.hosted_zone_id)
+
         # Order of removal is important
         cleaned: bool = True
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.WAF,
                                           self._remove_firewall) and cleaned
-        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.HOSTED_ZONE,
-                                          self._remove_hosted_zone) and cleaned
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.ELB,
                                           self._remove_elb) and cleaned
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.SECURITY_GROUP,
@@ -229,11 +232,6 @@ class AwsAddressManager(AbstractAddressManager):
         return Address(address_id=record_id, address_type=AddressType.DOMAIN,
                        address=new_address_domain, port=self.miner_instance_port)
 
-    def _get_hosted_zone_id(self) -> str:
-        created_objects: MappingProxyType[str, frozenset[str]] = \
-            self.state_manager.get_state().address_manager_created_objects
-        return next(iter(created_objects[AwsObjectTypes.HOSTED_ZONE.value]))
-
     @classmethod
     def _generate_subdomain(cls, hotkey: Hotkey) -> str:
         return f'{hotkey[:8]}_{secrets.token_urlsafe(16)}'.lower()
@@ -268,31 +266,33 @@ class AwsAddressManager(AbstractAddressManager):
     def _validate_manager_state(self) -> bool:
         """ Returns if we should invalidate all addresses created before. """
         ret: bool = self._handle_shielded_instance_change()
+        ret = self._handle_hosted_zone_change() or ret
         self.elb_data = self._create_elb_if_needed(self.miner_instance, self.miner_instance_port)
-        self.hosted_zone = self._create_hosted_zone_if_needed(self.elb_data.dns_name)
         self.waf_arn = self._create_firewall_if_needed()
         return ret
 
     def _handle_shielded_instance_change(self) -> bool:
-        recreate_needed: bool = False
         state: MinerShieldState = self.state_manager.get_state()
 
+        id_changed: bool = False
         old_id: Optional[str] = None
         if self.INSTANCE_ID_KEY in state.address_manager_state:
             old_id = state.address_manager_state[self.INSTANCE_ID_KEY]
             if old_id != self.miner_instance_id:
-                recreate_needed = True
+                id_changed = True
         else:
-            self.state_manager.update_address_manager_state(self.INSTANCE_ID_KEY, self.miner_instance_id)
+            id_changed = True
 
+        port_changed: bool = False
         old_port: Optional[int] = None
         if self.INSTANCE_PORT_KEY in state.address_manager_state:
             old_port = int(state.address_manager_state[self.INSTANCE_PORT_KEY])
             if old_port != self.miner_instance_port:
-                recreate_needed = True
+                port_changed = True
         else:
-            self.state_manager.update_address_manager_state(self.INSTANCE_PORT_KEY, str(self.miner_instance_port))
+            port_changed = True
 
+        recreate_needed: bool = id_changed or port_changed
         if recreate_needed:
             # If shielded instance ID or port changed, we need to recreate ELB. Maybe we can try to change only
             # needed objects, but changing ELB is the easiest way and this operation should happen rarely.
@@ -300,11 +300,32 @@ class AwsAddressManager(AbstractAddressManager):
                                        '{new_id}:{new_port}', old_id=old_id, old_port=old_port,
                                        new_id=self.miner_instance_id, new_port=self.miner_instance_port)
             self.clean_all()
-            self.state_manager.update_address_manager_state(self.INSTANCE_ID_KEY, self.miner_instance_id)
-            self.state_manager.update_address_manager_state(self.INSTANCE_PORT_KEY, str(self.miner_instance_port))
-            return True
 
-        return False
+        if id_changed:
+            self.state_manager.update_address_manager_state(self.INSTANCE_ID_KEY, self.miner_instance_id)
+        if port_changed:
+            self.state_manager.update_address_manager_state(self.INSTANCE_PORT_KEY, str(self.miner_instance_port))
+
+        return recreate_needed
+
+    def _handle_hosted_zone_change(self) -> bool:
+        state: MinerShieldState = self.state_manager.get_state()
+        zone_changed: bool = False
+        if self.HOSTED_ZONE_ID_KEY in state.address_manager_state:
+            old_zone_id: str = state.address_manager_state[self.HOSTED_ZONE_ID_KEY]
+            if old_zone_id != self.hosted_zone_id:
+                # If hosted zone changed, we need to clean all previous route53 addresses
+                self.event_processor.event('Route53 hosted zone changed from {old_id} to {new_id}',
+                                           old_id=old_zone_id,
+                                           new_id=self.hosted_zone_id)
+                self._delete_route53_records(old_zone_id)
+                zone_changed = True
+        else:
+            zone_changed = True
+
+        if zone_changed:
+            self.state_manager.update_address_manager_state(self.HOSTED_ZONE_ID_KEY, self.hosted_zone_id)
+        return zone_changed
 
     def _get_ec2_instance_data(self, instance_id: str) -> AwsEC2InstanceData:
         response: dict[str, Any] = self.ec2_client.describe_instances(InstanceIds=[instance_id])
@@ -442,21 +463,25 @@ class AwsAddressManager(AbstractAddressManager):
 
     def _remove_target_group(self, target_group_id: str) -> bool:
         old_instance_id: str = self.state_manager.get_state().address_manager_state[self.INSTANCE_ID_KEY]
+        self.elb_client.deregister_targets(TargetGroupArn=target_group_id, Targets=[{'Id': old_instance_id}])
 
-        retries_count: int = 10
+        retries_count: int = 20
         error_code: str = ''
         for _ in range(retries_count):
             try:
-                self.elb_client.deregister_targets(TargetGroupArn=target_group_id, Targets=[{'Id': old_instance_id}])
                 self.elb_client.delete_target_group(TargetGroupArn=target_group_id)
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceInUse':
-                    time.sleep(6)  # wait for ELB to be removed
+                    time.sleep(6)  # wait for target group to be deregistered
                 else:
                     raise e
         else:
+            # It happens quite often and sometimes AWS waits for many minutes before allowing to remove target group.
+            # But we don't want to wait for so long - 2 minutes is long enough.
+            # If it happens during tests, user should remove target group later manually using AWS panel to not leave
+            # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS TargetGroup {id}, error={error_code}',
                                        id=target_group_id, error_code=error_code)
             return False
@@ -544,28 +569,6 @@ class AwsAddressManager(AbstractAddressManager):
 
         self.event_processor.event('Deleted AWS SecurityGroup {id}', id=security_group_id)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.SECURITY_GROUP.value, security_group_id)
-        return True
-
-    def _create_hosted_zone(self, dns_name: str) -> HostedZone:
-        hosted_zone: HostedZone
-        hosted_zone, _ = self.route53_client.create_hosted_zone(name=dns_name,
-                                                                comment='Hosted zone for Miner shield')
-        hosted_zone_id: str = hosted_zone.id
-        self.event_processor.event('Created AWS HostedZone, name={name}, id={id}',
-                                   name=dns_name, id=hosted_zone_id)
-        try:
-            self.state_manager.add_address_manager_created_object(AwsObjectTypes.HOSTED_ZONE.value, hosted_zone_id)
-        except Exception as e:
-            self._remove_hosted_zone(hosted_zone_id)
-            raise e
-
-        return hosted_zone
-
-    def _remove_hosted_zone(self, hosted_zone_id: str) -> bool:
-        self._delete_route53_records(hosted_zone_id)
-        self.route53_client.delete_hosted_zone_by_id(hosted_zone_id)
-        self.event_processor.event('Deleted AWS HostedZone {id}', id=hosted_zone_id)
-        self.state_manager.del_address_manager_created_object(AwsObjectTypes.HOSTED_ZONE.value, hosted_zone_id)
         return True
 
     def _delete_route53_records(self, hosted_zone_id: str):
@@ -792,15 +795,6 @@ class AwsAddressManager(AbstractAddressManager):
                                                                        created_objects)
         elb_id: str = self._create_elb(miner_instance, bonus_subnet, target_group_id, security_group_id)
         return self._get_elb_info(elb_id)
-
-    def _create_hosted_zone_if_needed(self, dns_name: str) -> HostedZone:
-        state: MinerShieldState = self.state_manager.get_state()
-        if AwsObjectTypes.HOSTED_ZONE.value in state.address_manager_created_objects:
-            assert len(state.address_manager_created_objects[AwsObjectTypes.HOSTED_ZONE.value]) == 1, \
-                "only one hosted zone should be created"
-            return self.route53_client.get_hosted_zone_by_id(self._get_hosted_zone_id())
-
-        return self._create_hosted_zone(dns_name)
 
     def _create_firewall_if_needed(self) -> str:
         created_objects: MappingProxyType[str, frozenset[str]] = \
