@@ -204,7 +204,7 @@ class AwsAddressManager(AbstractAddressManager):
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.SUBNET,
                                           self._remove_subnet) and cleaned
         if not cleaned:
-            raise AddressManagerException('Failed to clean all AWS objects')
+            raise AddressManagerException('Failed to clean all AWS objects that are no longer needed')
 
     @classmethod
     def _clean_aws_objects(cls, created_objects: MappingProxyType[str, frozenset[str]], object_type: AwsObjectTypes,

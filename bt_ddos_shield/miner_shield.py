@@ -200,7 +200,7 @@ class MinerShield:
         except Exception as e:
             self._event("Error during reloading state", e)
             if first_run:
-                # we cannot continue without initial shield state
+                # We cannot continue without initial shield state
                 raise e
 
     def _reload_validators(self, first_run: bool) -> bool:
@@ -226,7 +226,7 @@ class MinerShield:
         except Exception as e:
             self._event("Error during reloading validators", e)
             if first_run:
-                # we cannot continue without initial validators state
+                # We cannot continue without initial validators state
                 raise e
 
         return False
@@ -252,7 +252,7 @@ class MinerShield:
         except Exception as e:
             self._event("Error during validating addresses", e)
             if first_run:
-                # we cannot continue without initializing address_manager
+                # We cannot continue without initializing address_manager
                 raise e
             # If error happens later, just proceed. It is only validation, and it will be called again
             # by _ticker_function.

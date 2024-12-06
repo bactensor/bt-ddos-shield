@@ -92,7 +92,7 @@ class JsonManifestSerializer(AbstractManifestSerializer):
             data = json.loads(json_str, object_hook=self._custom_decoder)
             return Manifest(data["encrypted_address_mapping"], data["md5_hash"])
         except Exception as e:
-            raise ManifestDeserializationException(f"Failed to deserialize manifest data: {e}")
+            raise ManifestDeserializationException(f"Failed to deserialize manifest data: {e}") from e
 
     @staticmethod
     def _custom_encoder(obj: Any) -> Any:
