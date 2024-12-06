@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import traceback
 from datetime import datetime
+from sys import stdout
 from typing import Any
 
 
@@ -59,4 +60,4 @@ class PrintingMinerShieldEventProcessor(AbstractMinerShieldEventProcessor):
         print(f"{event.date}: MinerShieldEvent: {event.description}\nMetadata: {event.metadata}")
         if event.exception is not None:
             print("Exception happened:")
-            print("".join(traceback.format_exception(event.exception)))
+            traceback.print_exception(event.exception, file=stdout)

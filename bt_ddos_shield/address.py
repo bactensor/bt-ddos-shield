@@ -95,4 +95,4 @@ class DefaultAddressSerializer(AbstractAddressSerializer):
             address_id: str = ":".join(parts[3:])  # there can possibly be some colons in address_id
             return Address(address_id=address_id, address_type=address_type, address=address, port=port)
         except Exception as e:
-            raise AddressDeserializationException(f"Failed to deserialize address, error='{e}'")
+            raise AddressDeserializationException(f"Failed to deserialize address, error='{e}'") from e

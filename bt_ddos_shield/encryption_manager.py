@@ -46,10 +46,10 @@ class ECIESEncryptionManager(AbstractEncryptionManager):
         try:
             return ecies.encrypt(public_key, data)
         except Exception as e:
-            raise EncryptionError(f"Encryption failed: {e}")
+            raise EncryptionError(f"Encryption failed: {e}") from e
 
     def decrypt(self, private_key: PrivateKey, data: bytes) -> bytes:
         try:
             return ecies.decrypt(private_key, data)
         except Exception as e:
-            raise DecryptionError(f"Decryption failed: {e}")
+            raise DecryptionError(f"Decryption failed: {e}") from e
