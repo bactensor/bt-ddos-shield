@@ -4,7 +4,7 @@ from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, AwsObjectTypes
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import MinerShieldState
-from bt_ddos_shield.utils import Hotkey
+from bt_ddos_shield.utils import Hotkey, AWSClientFactory
 from tests.test_credentials import aws_access_key_id, aws_secret_access_key, miner_instance_id, \
     miner_instance_ip, miner_instance_port, miner_region_name, aws_route53_hosted_zone_id, \
     aws_route53_other_hosted_zone_id
@@ -65,9 +65,11 @@ class TestAddressManager:
         miner_address: Address = get_miner_address_from_credentials(AddressType.IP, port)
         if create_state_manager:
             self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
-        return AwsAddressManager(aws_access_key_id, aws_secret_access_key, miner_region_name=miner_region_name,
-                                 miner_address=miner_address, hosted_zone_id=hosted_zone_id,
-                                 event_processor=PrintingMinerShieldEventProcessor(), state_manager=self.state_manager)
+        aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
+                                                                miner_region_name)
+        return AwsAddressManager(aws_client_factory=aws_client_factory, miner_address=miner_address,
+                                 hosted_zone_id=hosted_zone_id, event_processor=PrintingMinerShieldEventProcessor(),
+                                 state_manager=self.state_manager)
 
     def test_create_elb(self):
         """ Test creating ELB by AwsAddressManager class. """
