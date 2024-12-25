@@ -173,8 +173,7 @@ class AbstractMinerShieldStateManager(ABC):
                              if banned_validators is None else banned_validators,
                              dict(self.current_miner_shield_state.validators_addresses)
                              if validators_addresses is None else validators_addresses,
-                             self.current_miner_shield_state.manifest_address
-                             if manifest_address is None else manifest_address,
+                             manifest_address or self.current_miner_shield_state.manifest_address,
                              dict(self.current_miner_shield_state.address_manager_state)
                              if address_manager_state is None else address_manager_state,
                              dict(self.current_miner_shield_state.address_manager_created_objects)
