@@ -8,7 +8,7 @@ from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import Manifest, S3ManifestManager, JsonManifestSerializer
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import Hotkey, PublicKey
+from bt_ddos_shield.utils import Hotkey, PublicKey, AWSClientFactory
 from bt_ddos_shield.validators_manager import MemoryValidatorsManager
 from tests.test_address_manager import MemoryAddressManager, get_miner_address_from_credentials
 from tests.test_blockchain_manager import MemoryBlockchainManager
@@ -109,15 +109,14 @@ class TestMinerShield:
         state_manager: SQLAlchemyMinerShieldStateManager = SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
         state_manager.clear_tables()
         miner_address: Address = get_miner_address_from_credentials(AddressType.IP)
+        aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
+                                                                miner_region_name)
         address_manager: AwsAddressManager = \
-            AwsAddressManager(aws_access_key_id, aws_secret_access_key,
-                              miner_region_name=miner_region_name, miner_address=miner_address,
+            AwsAddressManager(aws_client_factory=aws_client_factory, miner_address=miner_address,
                               hosted_zone_id=aws_route53_hosted_zone_id,
                               event_processor=PrintingMinerShieldEventProcessor(), state_manager=state_manager)
         manifest_manager: S3ManifestManager = \
-            S3ManifestManager(aws_access_key_id=aws_access_key_id,
-                              aws_secret_access_key=aws_secret_access_key,
-                              region_name=aws_s3_region_name, bucket_name=aws_s3_bucket_name,
+            S3ManifestManager(aws_client_factory=aws_client_factory, bucket_name=aws_s3_bucket_name,
                               address_serializer=DefaultAddressSerializer(),
                               manifest_serializer=JsonManifestSerializer(),
                               encryption_manager=ECIESEncryptionManager())

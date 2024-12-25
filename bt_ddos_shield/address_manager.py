@@ -9,8 +9,7 @@ from ipaddress import IPv4Network, IPv6Network
 from types import MappingProxyType
 from typing import Any, Union, Optional, Callable
 
-import boto3
-import route53
+from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 from route53.connection import Route53Connection
 from route53.hosted_zone import HostedZone
@@ -19,7 +18,7 @@ from route53.resource_record_set import ResourceRecordSet
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
-from bt_ddos_shield.utils import Hotkey
+from bt_ddos_shield.utils import Hotkey, AWSClientFactory
 
 
 class AddressManagerException(Exception):
@@ -121,16 +120,16 @@ class AwsAddressManager(AbstractAddressManager):
     miner_instance: AwsEC2InstanceData
     miner_instance_port: int
     """ Port where miner server is working. """
-    waf_client: Any
+    waf_client: BaseClient
     waf_arn: Optional[str]
-    elb_client: Any
+    elb_client: BaseClient
     elb_data: Optional[AwsELBData]
-    ec2_client: Any
+    ec2_client: BaseClient
     hosted_zone_id: str
     """ ID of hosted zone in Route53 where addresses are located. """
     hosted_zone: HostedZone
     route53_client: Route53Connection
-    route53_boto_client: Any
+    route53_boto_client: BaseClient
     event_processor: AbstractMinerShieldEventProcessor
     state_manager: AbstractMinerShieldStateManager
 
@@ -138,7 +137,7 @@ class AwsAddressManager(AbstractAddressManager):
     INSTANCE_PORT_KEY: str = 'ec2_instance_port'
     INSTANCE_ID_KEY: str = 'ec2_instance_id'
 
-    def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, miner_region_name: str,
+    def __init__(self, aws_client_factory: AWSClientFactory,
                  miner_address: Address, hosted_zone_id: str, event_processor: AbstractMinerShieldEventProcessor,
                  state_manager: AbstractMinerShieldStateManager):
         """
@@ -146,23 +145,18 @@ class AwsAddressManager(AbstractAddressManager):
         address field) or as IP/IPV6 (then we try to find EC2 instance with this IP, which should be private IP
         address of EC2 instance) - where port means destination port and address_id is ignored.
         """
-        self.miner_region_name = miner_region_name
         self.event_processor = event_processor
         self.state_manager = state_manager
 
-        self.waf_client = boto3.client('wafv2', aws_access_key_id=aws_access_key_id,
-                                       aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
+        self.waf_client = aws_client_factory.boto3_client('wafv2')
         self.waf_arn = None
-        self.elb_client = boto3.client('elbv2', aws_access_key_id=aws_access_key_id,
-                                       aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
+        self.elb_client = aws_client_factory.boto3_client('elbv2')
         self.elb_data = None
-        self.route53_client = route53.connect(aws_access_key_id, aws_secret_access_key)
+        self.route53_client = aws_client_factory.route53_client()
         self.hosted_zone_id = hosted_zone_id
         self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
-        self.route53_boto_client = boto3.client('route53', aws_access_key_id=aws_access_key_id,
-                                                aws_secret_access_key=aws_secret_access_key)
-        self.ec2_client = boto3.client('ec2', aws_access_key_id=aws_access_key_id,
-                                       aws_secret_access_key=aws_secret_access_key, region_name=miner_region_name)
+        self.route53_boto_client = aws_client_factory.boto3_client('route53')
+        self.ec2_client = aws_client_factory.boto3_client('ec2')
         self._initialize_miner_instance(miner_address)
 
     def _initialize_miner_instance(self, miner_address: Address):
