@@ -1,5 +1,9 @@
 import pytest
-from bt_ddos_shield.encryption_manager import ECIESEncryptionManager, EncryptionError, DecryptionError
+from bt_ddos_shield.encryption_manager import (
+    DecryptionError,
+    ECIESEncryptionManager,
+    EncryptionError,
+)
 from ecies.utils import generate_eth_key
 
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
 from types import MappingProxyType
-from typing import Any, Union, Optional, Callable
+from typing import Any, Callable, Optional, Union
 
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
@@ -18,7 +18,7 @@ from route53.resource_record_set import ResourceRecordSet
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
-from bt_ddos_shield.utils import Hotkey, AWSClientFactory
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey
 
 
 class AddressManagerException(Exception):

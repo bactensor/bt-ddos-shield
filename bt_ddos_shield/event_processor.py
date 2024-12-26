@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
 import traceback
+from abc import ABC, abstractmethod
 from datetime import datetime
 from sys import stdout
 from typing import Any

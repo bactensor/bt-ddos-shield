@@ -1,4 +1,4 @@
-from bt_ddos_shield.address import DefaultAddressSerializer, Address, AddressType
+from bt_ddos_shield.address import Address, AddressType, DefaultAddressSerializer
 
 
 class TestAddress:

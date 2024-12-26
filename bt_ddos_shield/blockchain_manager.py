@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from bt_ddos_shield.address import Address, AbstractAddressSerializer, AddressDeserializationException
+from bt_ddos_shield.address import (
+    AbstractAddressSerializer,
+    Address,
+    AddressDeserializationException,
+)
 from bt_ddos_shield.utils import Hotkey
 
 

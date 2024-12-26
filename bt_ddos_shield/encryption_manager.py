@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+
 import ecies
 
-from bt_ddos_shield.utils import PublicKey, PrivateKey
+from bt_ddos_shield.utils import PrivateKey, PublicKey
 
 
 class EncryptionManagerException(Exception):
