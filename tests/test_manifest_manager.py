@@ -1,13 +1,22 @@
 from typing import Optional
 
 import pytest
-
-from bt_ddos_shield.address import DefaultAddressSerializer, Address, AddressType
+from bt_ddos_shield.address import Address, AddressType, DefaultAddressSerializer
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
-from bt_ddos_shield.manifest_manager import JsonManifestSerializer, AbstractManifestManager, \
-    ManifestNotFoundException, Manifest, S3ManifestManager
-from bt_ddos_shield.utils import Hotkey, AWSClientFactory
-from tests.test_credentials import aws_access_key_id, aws_secret_access_key, aws_s3_region_name, aws_s3_bucket_name
+from bt_ddos_shield.manifest_manager import (
+    AbstractManifestManager,
+    JsonManifestSerializer,
+    Manifest,
+    ManifestNotFoundException,
+    S3ManifestManager,
+)
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey
+from tests.test_credentials import (
+    aws_access_key_id,
+    aws_s3_bucket_name,
+    aws_s3_region_name,
+    aws_secret_access_key,
+)
 
 
 class MemoryManifestManager(AbstractManifestManager):

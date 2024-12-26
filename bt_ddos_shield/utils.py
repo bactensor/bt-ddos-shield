@@ -1,10 +1,9 @@
-from typing import TypeAlias, Optional
+from typing import Optional, TypeAlias
 
 import boto3
 import route53
 from botocore.client import BaseClient
 from route53.connection import Route53Connection
-
 
 Hotkey: TypeAlias = str
 PublicKey: TypeAlias = str
@@ -16,7 +15,7 @@ class AWSClientFactory:
     aws_secret_access_key: str
     aws_region_name: Optional[str]
 
-    def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, aws_region_name: Optional[str]=None):
+    def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, aws_region_name: Optional[str] = None):
         """
         Args:
             aws_access_key_id: AWS access key ID.

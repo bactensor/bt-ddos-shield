@@ -1,16 +1,22 @@
 import base64
 import hashlib
 import json
-from botocore.client import BaseClient
-from botocore.exceptions import ClientError
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Optional
 
-from bt_ddos_shield.address import Address, AbstractAddressSerializer, AddressType, AddressDeserializationException
+from botocore.client import BaseClient
+from botocore.exceptions import ClientError
+
+from bt_ddos_shield.address import (
+    AbstractAddressSerializer,
+    Address,
+    AddressDeserializationException,
+    AddressType,
+)
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
-from bt_ddos_shield.utils import Hotkey, PublicKey, AWSClientFactory
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
 
 
 class ManifestManagerException(Exception):

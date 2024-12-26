@@ -1,15 +1,21 @@
 from types import MappingProxyType
 
 import pytest
-
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, AwsObjectTypes
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import MinerShieldState
-from bt_ddos_shield.utils import Hotkey, AWSClientFactory
-from tests.test_credentials import aws_access_key_id, aws_secret_access_key, miner_instance_id, \
-    miner_instance_ip, miner_instance_port, miner_region_name, aws_route53_hosted_zone_id, \
-    aws_route53_other_hosted_zone_id
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey
+from tests.test_credentials import (
+    aws_access_key_id,
+    aws_route53_hosted_zone_id,
+    aws_route53_other_hosted_zone_id,
+    aws_secret_access_key,
+    miner_instance_id,
+    miner_instance_ip,
+    miner_instance_port,
+    miner_region_name,
+)
 from tests.test_state_manager import MemoryMinerShieldStateManager
 
 

@@ -1,21 +1,25 @@
 import re
 import threading
 from abc import ABC, abstractmethod
-from queue import Queue
 from dataclasses import dataclass
+from queue import Queue
 from time import sleep
 from types import MappingProxyType
 from typing import Optional
 
 from bt_ddos_shield.address import Address
+from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-from bt_ddos_shield.address_manager import AbstractAddressManager
+from bt_ddos_shield.manifest_manager import (
+    AbstractManifestManager,
+    Manifest,
+    ManifestDeserializationException,
+    ManifestNotFoundException,
+)
+from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
 from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager
-from bt_ddos_shield.manifest_manager import AbstractManifestManager, ManifestNotFoundException, Manifest, \
-    ManifestDeserializationException
-from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
 
 
 @dataclass

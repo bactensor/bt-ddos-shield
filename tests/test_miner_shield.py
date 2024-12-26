@@ -1,19 +1,25 @@
 from time import sleep
 from typing import Optional
 
-from bt_ddos_shield.address import Address, DefaultAddressSerializer, AddressType
+from bt_ddos_shield.address import Address, AddressType, DefaultAddressSerializer
 from bt_ddos_shield.address_manager import AwsAddressManager
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from bt_ddos_shield.manifest_manager import Manifest, S3ManifestManager, JsonManifestSerializer
+from bt_ddos_shield.manifest_manager import JsonManifestSerializer, Manifest, S3ManifestManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import Hotkey, PublicKey, AWSClientFactory
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import MemoryValidatorsManager
 from tests.test_address_manager import MemoryAddressManager, get_miner_address_from_credentials
 from tests.test_blockchain_manager import MemoryBlockchainManager
-from tests.test_credentials import aws_access_key_id, aws_secret_access_key, \
-    aws_s3_region_name, aws_s3_bucket_name, sql_alchemy_db_url, miner_region_name, aws_route53_hosted_zone_id
+from tests.test_credentials import (
+    aws_access_key_id,
+    aws_route53_hosted_zone_id,
+    aws_s3_bucket_name,
+    aws_secret_access_key,
+    miner_region_name,
+    sql_alchemy_db_url,
+)
 from tests.test_encryption_manager import generate_key_pair
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager

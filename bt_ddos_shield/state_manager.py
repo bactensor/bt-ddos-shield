@@ -3,10 +3,20 @@ from collections import defaultdict
 from datetime import datetime
 from types import MappingProxyType
 from typing import Optional, Union
-from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, Integer, CheckConstraint, Engine, \
-    PrimaryKeyConstraint
+
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    Engine,
+    ForeignKey,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+    create_engine,
+)
 from sqlalchemy.engine import url
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.utils import Hotkey, PublicKey
