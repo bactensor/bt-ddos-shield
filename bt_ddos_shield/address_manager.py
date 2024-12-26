@@ -544,7 +544,7 @@ class AwsAddressManager(AbstractAddressManager):
         return security_group_id
 
     def _remove_security_group(self, security_group_id: str) -> bool:
-        retries_count: int = 10
+        retries_count: int = 20
         error_code: str = ''
         for _ in range(retries_count):
             try:
@@ -557,6 +557,10 @@ class AwsAddressManager(AbstractAddressManager):
                 else:
                     raise e
         else:
+            # It happens quite often and sometimes AWS waits for many minutes before allowing to remove security group.
+            # But we don't want to wait for so long - 2 minutes is long enough.
+            # If it happens during tests, user should remove security group later manually using AWS panel to not leave
+            # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS SecurityGroup {id}, error={error_code}',
                                        id=security_group_id, error_code=error_code)
             return False
@@ -634,8 +638,30 @@ class AwsAddressManager(AbstractAddressManager):
 
         waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
         acl_data: dict[str, Any] = waf_data['WebACL']
+        waf_id: str = acl_data['Id']
         lock_token = waf_data['LockToken']
-        self.waf_client.delete_web_acl(Name=acl_data['Name'], Id=acl_data['Id'], Scope='REGIONAL', LockToken=lock_token)
+
+        retries_count: int = 20
+        error_code: str = ''
+        for _ in range(retries_count):
+            try:
+                self.waf_client.delete_web_acl(Name=acl_data['Name'], Id=waf_id, Scope='REGIONAL', LockToken=lock_token)
+                break
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                if error_code == 'WAFAssociatedItemException':
+                    time.sleep(6)  # wait for ELB disassociating
+                else:
+                    raise e
+        else:
+            # It happens quite often and sometimes AWS waits for many minutes before allowing to remove WAF.
+            # But we don't want to wait for so long - 2 minutes is long enough.
+            # If it happens during tests, user should remove WAF later manually using AWS panel to not leave
+            # unneeded objects in AWS.
+            self.event_processor.event('Failed to remove AWS WAF {id}, error={error_code}',
+                                       id=waf_id, error_code=error_code)
+            return False
+
         self.event_processor.event('Deleted AWS WAF {id}', id=waf_arn)
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.WAF.value, waf_arn)
         return True
