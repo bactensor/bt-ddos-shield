@@ -113,8 +113,6 @@ class AwsAddressManager(AbstractAddressManager):
     Address manager using AWS Route53 service to manage DNS records and ELB for handling access to Miner server.
     """
 
-    miner_region_name: str
-    """ AWS region name where miner server is located. """
     miner_instance_id: str
     """ ID of miner EC2 instance in AWS. All traffic will be redirected to this instance. """
     miner_instance: AwsEC2InstanceData
