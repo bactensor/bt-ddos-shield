@@ -1,23 +1,26 @@
+import os
 from time import sleep
 from typing import Optional
 
-from bt_ddos_shield.address import Address, AddressType, DefaultAddressSerializer
-from bt_ddos_shield.address_manager import AwsAddressManager
-from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
+from bt_ddos_shield.address import Address
+from bt_ddos_shield.address_manager import AbstractAddressManager
+from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from bt_ddos_shield.manifest_manager import JsonManifestSerializer, Manifest, S3ManifestManager
-from bt_ddos_shield.miner_shield import MinerShield, MinerShieldOptions
+from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
+from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
+from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import MemoryValidatorsManager
-from tests.test_address_manager import MemoryAddressManager, get_miner_address_from_credentials
+from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
 from tests.test_credentials import (
     aws_access_key_id,
+    aws_region_name,
     aws_route53_hosted_zone_id,
     aws_s3_bucket_name,
     aws_secret_access_key,
-    miner_region_name,
+    miner_instance_ip,
+    miner_instance_port,
     sql_alchemy_db_url,
 )
 from tests.test_encryption_manager import generate_key_pair
@@ -111,32 +114,37 @@ class TestMinerShield:
         """
         Test if shield is properly starting from scratch and fully enabling protection using real managers.
         """
-        validators_manager: MemoryValidatorsManager = self.create_memory_validators_manager()
-        state_manager: SQLAlchemyMinerShieldStateManager = SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
-        state_manager.clear_tables()
-        miner_address: Address = get_miner_address_from_credentials(AddressType.IP)
-        aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
-                                                                miner_region_name)
-        address_manager: AwsAddressManager = \
-            AwsAddressManager(aws_client_factory=aws_client_factory, miner_address=miner_address,
-                              hosted_zone_id=aws_route53_hosted_zone_id,
-                              event_processor=PrintingMinerShieldEventProcessor(), state_manager=state_manager)
-        manifest_manager: S3ManifestManager = \
-            S3ManifestManager(aws_client_factory=aws_client_factory, bucket_name=aws_s3_bucket_name,
-                              address_serializer=DefaultAddressSerializer(),
-                              manifest_serializer=JsonManifestSerializer(),
-                              encryption_manager=ECIESEncryptionManager())
-        blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager()
+        os.environ["MINER_HOTKEY"] = self.MINER_HOTKEY
+        os.environ["AWS_MINER_INSTANCE_IP"] = miner_instance_ip
+        os.environ["MINER_INSTANCE_PORT"] = str(miner_instance_port)
+        os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
+        os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
+        os.environ["AWS_REGION_NAME"] = aws_region_name
+        os.environ["AWS_S3_BUCKET_NAME"] = aws_s3_bucket_name
+        os.environ["AWS_ROUTE53_HOSTED_ZONE_ID"] = aws_route53_hosted_zone_id
+        os.environ["SQL_ALCHEMY_DB_URL"] = sql_alchemy_db_url
+        shield: MinerShield = MinerShieldFactory.create_miner_shield(self.DEFAULT_VALIDATORS)
 
-        validate_interval_sec = 10
-        shield = MinerShield(self.MINER_HOTKEY, validators_manager, address_manager, manifest_manager,
-                             blockchain_manager, state_manager, PrintingMinerShieldEventProcessor(),
-                             MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec))
+        assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
+        state_manager: SQLAlchemyMinerShieldStateManager = shield.state_manager  # type: ignore
+        state_manager.clear_tables()
+
+        assert isinstance(shield.validators_manager, MemoryValidatorsManager)
+        validators_manager: MemoryValidatorsManager = shield.validators_manager  # type: ignore
+
+        manifest_manager: AbstractManifestManager = shield.manifest_manager
+        blockchain_manager: AbstractBlockchainManager = shield.blockchain_manager
+        address_manager: AbstractAddressManager = shield.address_manager
+
+        # Shorten validate_interval_sec and retry_delay_sec to speed up tests
+        shield.options.validate_interval_sec = 10
+        shield.options.retry_delay_sec = 1
+
         shield.enable()
         assert shield.run
 
-        # give some time to make sure everything is initialized and validate is called
-        sleep(120 + 2 * validate_interval_sec)
+        # Give some time to make sure everything is initialized and validate is called
+        sleep(120 + 2*shield.options.validate_interval_sec)
 
         try:
             state: MinerShieldState = state_manager.get_state()
@@ -154,7 +162,7 @@ class TestMinerShield:
 
             # Remove all validators to clean up everything (except S3 file) and check if validate loop is running.
             validators_manager.validators.clear()
-            sleep(10 + validate_interval_sec)
+            sleep(10 + shield.options.validate_interval_sec)
 
             state = state_manager.get_state()
             assert state.known_validators == {}

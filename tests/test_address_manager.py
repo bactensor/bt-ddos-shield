@@ -8,13 +8,13 @@ from bt_ddos_shield.state_manager import MinerShieldState
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
 from tests.test_credentials import (
     aws_access_key_id,
+    aws_region_name,
     aws_route53_hosted_zone_id,
     aws_route53_other_hosted_zone_id,
     aws_secret_access_key,
     miner_instance_id,
     miner_instance_ip,
     miner_instance_port,
-    miner_region_name,
 )
 from tests.test_state_manager import MemoryMinerShieldStateManager
 
@@ -74,7 +74,7 @@ class TestAddressManager:
         if create_state_manager:
             self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
         aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
-                                                                miner_region_name)
+                                                                aws_region_name)
         return AwsAddressManager(aws_client_factory=aws_client_factory, miner_address=miner_address,
                                  hosted_zone_id=hosted_zone_id, event_processor=PrintingMinerShieldEventProcessor(),
                                  state_manager=self.state_manager)

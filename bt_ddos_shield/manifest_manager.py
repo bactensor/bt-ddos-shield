@@ -195,7 +195,7 @@ class S3ManifestManager(AbstractManifestManager):
 
     bucket_name: Optional[str]
     aws_client_factory: AWSClientFactory
-    s3_client: Optional[BaseClient]
+    _s3_client: Optional[BaseClient]
 
     def __init__(self, address_serializer: AbstractAddressSerializer, manifest_serializer: AbstractManifestSerializer,
                  encryption_manager: AbstractEncryptionManager,
@@ -203,19 +203,23 @@ class S3ManifestManager(AbstractManifestManager):
         """
         Creates S3ManifestManager instance. bucket_name and aws_region_name inside aws_client_factory can be None when
         used on Validator side and in such case these fields are initialized when manifest file address is
-        deserialized - use create_client_from_address method for it.
+        deserialized - use init_client_from_address method for it.
         """
         super().__init__(address_serializer, manifest_serializer, encryption_manager)
         self.aws_client_factory = aws_client_factory
         self.bucket_name = bucket_name
-        if self.aws_client_factory.aws_region_name is not None:
-            self.s3_client = self.aws_client_factory.boto3_client("s3")
+        self._s3_client = None
 
-    def create_client_from_address(self, address: Address):
+    def init_client_from_address(self, address: Address):
         region_name, bucket_name, _ = self._deserialize_manifest_address(address)
         self.aws_client_factory.set_aws_region_name(region_name)
         self.bucket_name = bucket_name
-        self.s3_client = self.aws_client_factory.boto3_client("s3")
+
+    @property
+    def s3_client(self):
+        if self._s3_client is None:
+            self._s3_client = self.aws_client_factory.boto3_client("s3")
+        return self._s3_client
 
     def _put_manifest_file(self, data: bytes) -> Address:
         file_key: str = self.MANIFEST_FILE_NAME

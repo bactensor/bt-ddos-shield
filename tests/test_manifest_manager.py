@@ -13,8 +13,8 @@ from bt_ddos_shield.manifest_manager import (
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
 from tests.test_credentials import (
     aws_access_key_id,
+    aws_region_name,
     aws_s3_bucket_name,
-    aws_s3_region_name,
     aws_secret_access_key,
 )
 
@@ -60,7 +60,7 @@ class TestManifestManager:
     def test_s3_put_get(self):
         """ Test S3ManifestManager class. Put manifest file, get it and check if it was stored correctly. """
         aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
-                                                                aws_s3_region_name)
+                                                                aws_region_name)
         manifest_manager = S3ManifestManager(aws_client_factory=aws_client_factory, bucket_name=aws_s3_bucket_name,
                                              address_serializer=DefaultAddressSerializer(),
                                              manifest_serializer=JsonManifestSerializer(),
@@ -81,7 +81,7 @@ class TestManifestManager:
                                                        manifest_serializer=JsonManifestSerializer(),
                                                        encryption_manager=ECIESEncryptionManager(),
                                                        aws_client_factory=validator_aws_client_factory)
-        validator_manifest_manager.create_client_from_address(address)
+        validator_manifest_manager.init_client_from_address(address)
         retrieved_data: bytes = validator_manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 
