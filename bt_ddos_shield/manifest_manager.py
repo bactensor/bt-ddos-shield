@@ -16,7 +16,7 @@ from bt_ddos_shield.address import (
     AddressType,
 )
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey
 
 
 class ManifestManagerException(Exception):
@@ -168,6 +168,15 @@ class AbstractManifestManager(ABC):
         raw_data: bytes = self._get_manifest_file(address)
         return self.manifest_serializer.deserialize(raw_data)
 
+    def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
+                                  validator_private_key: PrivateKey) -> Address:
+        """
+        Get address for validator identified by hotkey from manifest. Decrypts address using validator's private key.
+        """
+        encrypted_address: bytes = manifest.encrypted_address_mapping[validator_hotkey]
+        decrypted_address: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_address)
+        return self.address_serializer.deserialize(decrypted_address)
+
     @abstractmethod
     def _put_manifest_file(self, data: bytes) -> Address:
         """
@@ -202,17 +211,18 @@ class S3ManifestManager(AbstractManifestManager):
                  aws_client_factory: AWSClientFactory, bucket_name: Optional[str] = None):
         """
         Creates S3ManifestManager instance. bucket_name and aws_region_name inside aws_client_factory can be None when
-        used on Validator side and in such case these fields are initialized when manifest file address is
-        deserialized - use init_client_from_address method for it.
+        used on Validator side and in such case these fields will be initialized from address when getting manifest
+        file.
         """
         super().__init__(address_serializer, manifest_serializer, encryption_manager)
         self.aws_client_factory = aws_client_factory
         self.bucket_name = bucket_name
         self._s3_client = None
 
-    def init_client_from_address(self, address: Address):
+    def _init_client_from_address(self, address: Address):
         region_name, bucket_name, _ = self._deserialize_manifest_address(address)
-        self.aws_client_factory.set_aws_region_name(region_name)
+        if self.aws_client_factory.set_aws_region_name(region_name):
+            self._s3_client = None
         self.bucket_name = bucket_name
 
     @property
@@ -229,6 +239,7 @@ class S3ManifestManager(AbstractManifestManager):
         return Address(address_id=file_key, address_type=AddressType.S3, address=serialized_address, port=0)
 
     def _get_manifest_file(self, address: Address) -> bytes:
+        self._init_client_from_address(address)
         try:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=address.address_id)
             return response['Body'].read()

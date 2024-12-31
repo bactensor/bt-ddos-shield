@@ -26,8 +26,12 @@ class AWSClientFactory:
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_region_name = aws_region_name
 
-    def set_aws_region_name(self, aws_region_name: str):
+    def set_aws_region_name(self, aws_region_name: str) -> bool:
+        """ Set AWS region name. Returns if region name was changed. """
+        if self.aws_region_name == aws_region_name:
+            return False
         self.aws_region_name = aws_region_name
+        return True
 
     def boto3_client(self, service_name: str) -> BaseClient:
         return boto3.client(service_name, aws_access_key_id=self.aws_access_key_id,

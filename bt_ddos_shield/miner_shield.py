@@ -130,6 +130,7 @@ class MinerShield:
             return
 
         self.finishing = False
+        self.ticker.clear()
         self.run = True
         self._add_task(MinerShieldInitializeTask())
         self.worker_thread = threading.Thread(target=self._worker_function)
@@ -148,7 +149,7 @@ class MinerShield:
             self.worker_thread.join()
             self.worker_thread = None
 
-        self.task_queue = Queue()  # clear task queue
+        self.task_queue = Queue()  # Clear task queue
 
         if self.ticker_thread is not None:
             self.ticker_thread.join()
@@ -204,7 +205,6 @@ class MinerShield:
 
     def _handle_initialize(self):
         self._handle_validate_state(first_run=True)
-        self.ticker.clear()
         self.ticker_thread = threading.Thread(target=self._ticker_function)
         self.ticker_thread.start()
 
@@ -422,11 +422,11 @@ class MinerShield:
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_address: Address = self.state_manager.get_state().manifest_address
-        current_address: Address = self.blockchain_manager.get_address(self.miner_hotkey)
+        current_address: Address = self.blockchain_manager.get_miner_manifest_address()
         if current_address == expected_address:
             self._event("Manifest address already published")
         else:
-            self.blockchain_manager.put_address(self.miner_hotkey, expected_address)
+            self.blockchain_manager.put_miner_manifest_address(expected_address)
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):
@@ -536,7 +536,7 @@ class MinerShieldFactory:
                                                                              state_manager)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager, aws_client_factory)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager()
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(miner_hotkey)
 
         options: MinerShieldOptions = MinerShieldOptions()
         options.auto_hide_original_server = os.getenv('AUTO_HIDE_ORIGINAL_SERVER') is not None
@@ -626,6 +626,6 @@ class MinerShieldFactory:
                                  bucket_name)
 
     @classmethod
-    def create_blockchain_manager(cls) -> AbstractBlockchainManager:
+    def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:
         # TODO: waiting for implementation of blockchain manager
-        return MemoryBlockchainManager()
+        return MemoryBlockchainManager(miner_hotkey)

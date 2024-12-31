@@ -18,22 +18,24 @@ class AbstractBlockchainManager(ABC):
     Abstract base class for manager handling publishing address to blockchain.
     """
 
+    miner_hotkey: Hotkey
     address_serializer: AbstractAddressSerializer
 
-    def __init__(self, address_serializer: AbstractAddressSerializer):
+    def __init__(self, miner_hotkey: Hotkey, address_serializer: AbstractAddressSerializer):
+        self.miner_hotkey = miner_hotkey
         self.address_serializer = address_serializer
 
-    def put_address(self, hotkey: Hotkey, address: Address):
+    def put_miner_manifest_address(self, address: Address):
         """
-        Put address to blockchain for given user identified by hotkey.
+        Put miner manifest address to blockchain.
         """
-        self.put(hotkey, self.address_serializer.serialize(address))
+        self.put(self.miner_hotkey, self.address_serializer.serialize(address))
 
-    def get_address(self, hotkey: Hotkey) -> Optional[Address]:
+    def get_miner_manifest_address(self) -> Optional[Address]:
         """
-        Get address from blockchain for given user identified by hotkey or None if not found or not valid.
+        Get miner manifest address from blockchain or None if not found or not valid.
         """
-        serialized_address: Optional[bytes] = self.get(hotkey)
+        serialized_address: Optional[bytes] = self.get(self.miner_hotkey)
         if serialized_address is None:
             return None
         try:
