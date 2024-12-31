@@ -81,7 +81,6 @@ class TestManifestManager:
                                                        manifest_serializer=JsonManifestSerializer(),
                                                        encryption_manager=ECIESEncryptionManager(),
                                                        aws_client_factory=validator_aws_client_factory)
-        validator_manifest_manager.init_client_from_address(address)
         retrieved_data: bytes = validator_manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 

@@ -35,7 +35,7 @@ class MemoryValidatorsManager(AbstractValidatorsManager):
     validators: dict[Hotkey, PublicKey]
 
     def __init__(self, validators: dict[Hotkey, PublicKey]):
-        self.validators = validators
+        self.validators = dict(validators)
 
     def get_validators(self) -> MappingProxyType[Hotkey, PublicKey]:
         return MappingProxyType(self.validators)

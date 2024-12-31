@@ -58,7 +58,7 @@ class TestMinerShield:
         self.validators_manager: MemoryValidatorsManager = self.create_memory_validators_manager()
         self.address_manager: MemoryAddressManager = MemoryAddressManager()
         self.manifest_manager: MemoryManifestManager = MemoryManifestManager()
-        self.blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager()
+        self.blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager(self.MINER_HOTKEY)
         self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
         self.shield = MinerShield(self.MINER_HOTKEY, self.validators_manager, self.address_manager,
                                   self.manifest_manager, self.blockchain_manager, self.state_manager,
@@ -75,7 +75,7 @@ class TestMinerShield:
 
         # noinspection PyTypeChecker
         shield = MinerShield(self.MINER_HOTKEY, self.create_memory_validators_manager(), MemoryAddressManager(),
-                             MemoryManifestManager(), MemoryBlockchainManager(),
+                             MemoryManifestManager(), MemoryBlockchainManager(self.MINER_HOTKEY),
                              state_manager, PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay_sec=1))
         shield.enable()
         assert shield.run
@@ -104,7 +104,7 @@ class TestMinerShield:
             manifest_address: Address = self.manifest_manager.default_address
             manifest: Manifest = self.manifest_manager.get_manifest(manifest_address)
             assert manifest.encrypted_address_mapping.keys() == state.validators_addresses.keys()
-            assert self.blockchain_manager.get_address(self.MINER_HOTKEY) == manifest_address
+            assert self.blockchain_manager.get_miner_manifest_address() == manifest_address
             assert self.blockchain_manager.put_counter == 1
         finally:
             self.shield.disable()
@@ -155,7 +155,7 @@ class TestMinerShield:
             assert state.manifest_address is not None
             manifest: Manifest = manifest_manager.get_manifest(state.manifest_address)
             assert manifest.encrypted_address_mapping.keys() == state.validators_addresses.keys()
-            assert blockchain_manager.get_address(self.MINER_HOTKEY) == state.manifest_address
+            assert blockchain_manager.get_miner_manifest_address() == state.manifest_address
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -169,7 +169,7 @@ class TestMinerShield:
             assert state.validators_addresses == {}
             manifest: Manifest = manifest_manager.get_manifest(state.manifest_address)
             assert manifest.encrypted_address_mapping == {}
-            assert blockchain_manager.get_address(self.MINER_HOTKEY) == state.manifest_address
+            assert blockchain_manager.get_miner_manifest_address() == state.manifest_address
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -194,10 +194,10 @@ class TestMinerShield:
 
             # shield is working, ban single validator
 
-            self.shield.ban_validator(self.VALIDATOR_1_HOTKEY)
             expected_validators: dict[Hotkey, PublicKey] = dict(self.validators_manager.get_validators())
             expected_validators.pop(self.VALIDATOR_1_HOTKEY)
             banned_validators: set[Hotkey] = {self.VALIDATOR_1_HOTKEY}
+            self.shield.ban_validator(self.VALIDATOR_1_HOTKEY)
             sleep(2)
 
             state = self.state_manager.get_state()
