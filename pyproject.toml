@@ -9,6 +9,9 @@ readme = "README.md"
 python = "^3.12"
 boto3 = "^1.35.27"
 eciespy = "^0.4.2"
+pytest = "^8.3.4"
+sqlalchemy = "^2.0.36"
+route53 = "^1.0.1"
 
 
 [build-system]
