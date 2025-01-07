@@ -1,5 +1,7 @@
+import argparse
 import os
 import re
+import sys
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -629,3 +631,35 @@ class MinerShieldFactory:
     def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:
         # TODO: waiting for implementation of blockchain manager
         return MemoryBlockchainManager(miner_hotkey)
+
+
+def run_shield() -> int:
+    parser = argparse.ArgumentParser(description='Run MinerShield')
+    parser.add_argument('--clean-all', action='store_true', help='Clean all addresses in the address manager')
+    args = parser.parse_args()
+
+    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield({})
+
+    if args.clean_all:
+        print("Cleaning shield objects")
+        miner_shield.address_manager.clean_all()
+        print("All objects cleaned")
+        return 0
+
+    try:
+        print("Starting shield")
+        miner_shield.enable()
+        print("Shield started, press Ctrl+C to stop. Run with --clean-all param to clean all objects created by shield")
+        threading.Event().wait()
+        return -1
+    except KeyboardInterrupt:
+        print("Keyboard interrupt, stopping shield")
+        miner_shield.disable()
+        return 0
+    except MinerShieldException as e:
+        print(f"Error during enabling shield: {e}")
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(run_shield())
