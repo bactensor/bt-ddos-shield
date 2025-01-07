@@ -18,19 +18,20 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
     put_counter: int
 
     def __init__(self, miner_hotkey: Hotkey):
-        super().__init__(miner_hotkey, DefaultAddressSerializer())
+        super().__init__(DefaultAddressSerializer())
+        self.miner_hotkey = miner_hotkey
         self.known_data = {}
         self.put_counter = 0
         self._lock = threading.Lock()
 
-    def put(self, hotkey: Hotkey, data: bytes):
+    def put(self, data: bytes):
         with self._lock:
-            self.known_data[hotkey] = data
+            self.known_data[self.miner_hotkey] = data
             self.put_counter += 1
 
-    def get(self, hotkey: Hotkey) -> Optional[bytes]:
+    def get(self) -> Optional[bytes]:
         with self._lock:
-            return self.known_data.get(hotkey)
+            return self.known_data.get(self.miner_hotkey)
 
 
 @pytest.fixture
@@ -38,7 +39,15 @@ def hotkey():
     return "5EU2xVWC7qffsUNGtvakp5WCj7WGJMPkwG1dsm3qnU2Kqvee"
 
 
-def test_bittensor_get(hotkey):
+@pytest.fixture
+def wallet(hotkey):
+    mock_wallet = unittest.mock.Mock()
+    mock_wallet.hotkey.ss58_address = hotkey
+
+    return mock_wallet
+
+
+def test_bittensor_get(wallet):
     mock_subtensor = unittest.mock.MagicMock()
     mock_substrate = mock_subtensor.substrate.__enter__.return_value
     mock_substrate.query.return_value = unittest.mock.Mock(
@@ -50,14 +59,13 @@ def test_bittensor_get(hotkey):
     )
 
     manager = BittensorBlockchainManager(
-        miner_hotkey=hotkey,
         address_serializer=DefaultAddressSerializer(),
         subtensor=mock_subtensor,
-        wallet=unittest.mock.Mock(),
+        wallet=wallet,
         netuid=1,
     )
 
-    assert manager.get(hotkey) is None
+    assert manager.get() is None
 
     mock_substrate.query.assert_called_once_with(
         module="Commitments",
@@ -79,25 +87,21 @@ def test_bittensor_get(hotkey):
         },
     )
 
-    assert manager.get(hotkey) == b"data"
+    assert manager.get() == b"data"
 
 
-def test_bittensor_put(hotkey):
+def test_bittensor_put(wallet):
     mock_subtensor = unittest.mock.MagicMock()
     mock_substrate = mock_subtensor.substrate.__enter__.return_value
 
-    mock_wallet = unittest.mock.Mock()
-    mock_wallet.hotkey.ss58_address = hotkey
-
     manager = BittensorBlockchainManager(
-        miner_hotkey=hotkey,
         address_serializer=DefaultAddressSerializer(),
         subtensor=mock_subtensor,
-        wallet=mock_wallet,
+        wallet=wallet,
         netuid=1,
     )
 
-    manager.put(hotkey, b"data")
+    manager.put(b"data")
 
     mock_substrate.compose_call.assert_called_once_with(
         call_module="Commitments",
@@ -117,7 +121,7 @@ def test_bittensor_put(hotkey):
     )
     mock_substrate.create_signed_extrinsic.assert_called_once_with(
         call=mock_substrate.compose_call.return_value,
-        keypair=mock_wallet.hotkey,
+        keypair=wallet.hotkey,
     )
     mock_subtensor.substrate.submit_extrinsic.assert_called_once_with(
         mock_substrate.create_signed_extrinsic.return_value,
@@ -126,26 +130,7 @@ def test_bittensor_put(hotkey):
     )
 
 
-def test_bittensor_put_not_own_hotkey():
-    mock_wallet = unittest.mock.Mock()
-    mock_wallet.hotkey.ss58_address = "MyHotkey"
-
-    manager = BittensorBlockchainManager(
-        miner_hotkey="MyHotkey",
-        address_serializer=DefaultAddressSerializer(),
-        subtensor=unittest.mock.MagicMock(),
-        wallet=mock_wallet,
-        netuid=1,
-    )
-
-    with pytest.raises(ValueError):
-        manager.put("SomeoneHotkey", b"data")
-
-
-def test_bittensor_retries(hotkey):
-    mock_wallet = unittest.mock.Mock()
-    mock_wallet.hotkey.ss58_address = hotkey
-
+def test_bittensor_retries(wallet):
     mock_subtensor = unittest.mock.MagicMock()
     mock_substrate = mock_subtensor.substrate.__enter__.return_value
     mock_substrate.query.side_effect = (
@@ -164,14 +149,13 @@ def test_bittensor_retries(hotkey):
     )
 
     manager = BittensorBlockchainManager(
-        miner_hotkey=hotkey,
         address_serializer=DefaultAddressSerializer(),
         subtensor=mock_subtensor,
-        wallet=mock_wallet,
+        wallet=wallet,
         netuid=1,
     )
 
-    assert manager.get(hotkey) == b"data"
+    assert manager.get() == b"data"
     assert mock_substrate.query.call_count == 2
 
     mock_subtensor.substrate.submit_extrinsic.side_effect = (
@@ -179,6 +163,6 @@ def test_bittensor_retries(hotkey):
         unittest.mock.Mock(),
     )
 
-    manager.put(hotkey, b"data")
+    manager.put(b"data")
 
     assert mock_subtensor.substrate.submit_extrinsic.call_count == 2
