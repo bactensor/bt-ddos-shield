@@ -5,6 +5,7 @@ import sys
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from dotenv import load_dotenv
 from queue import Queue
 from time import sleep
 from types import MappingProxyType
@@ -662,4 +663,5 @@ def run_shield() -> int:
 
 
 if __name__ == '__main__':
+    load_dotenv()
     sys.exit(run_shield())
