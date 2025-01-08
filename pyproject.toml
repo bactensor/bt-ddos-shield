@@ -1,19 +1,37 @@
-[tool.poetry]
+[project]
 name = "bt-ddos-shield"
-version = "0.1.0"
-description = ""
-authors = []
-readme = "README.md"
+version = "0.1"
+requires-python = "~=3.12.3"
 
-[tool.poetry.dependencies]
-python = "^3.12"
-boto3 = "^1.35.27"
-eciespy = "^0.4.2"
-pytest = "^8.3.4"
-sqlalchemy = "^2.0.36"
-route53 = "^1.0.1"
+dependencies = [
+    "boto3~=1.35.27",
+    "eciespy~=0.4.2",
+    "sqlalchemy~=2.0.36",
+    "psycopg2-binary~=2.9.7",
+    "route53~=1.0.1",
+    "python-dotenv",
+]
 
+[tool.uv]
+prerelease = "allow"
+environments = ["sys_platform == 'linux'", "sys_platform == 'darwin'"]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+test = [
+    "pytest",
+]
+format = [
+    "ruff",
+]
+lint = [
+    "ruff",
+    "codespell[toml]",
+]
+type_check = [
+    "mypy",
+    "types-python-dateutil",
+    "types-requests",
+]
+security_check = [
+    "bandit>=1.7.7",
+]
