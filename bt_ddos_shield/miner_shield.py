@@ -542,7 +542,9 @@ class MinerShieldFactory:
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(miner_hotkey)
 
         options: MinerShieldOptions = MinerShieldOptions()
-        options.auto_hide_original_server = os.getenv('AUTO_HIDE_ORIGINAL_SERVER') is not None
+        options.auto_hide_original_server = (
+            BooleanModel(bool_value=os.getenv('AUTO_HIDE_ORIGINAL_SERVER', 'False')).bool_value  # type: ignore
+        )
         options.auto_hide_delay_sec = int(os.getenv('AUTO_HIDE_DELAY_SEC', str(options.auto_hide_delay_sec)))
 
         return MinerShield(miner_hotkey, validators_manager, address_manager, manifest_manager, blockchain_manager,

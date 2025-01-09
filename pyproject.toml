@@ -10,6 +10,7 @@ dependencies = [
     "psycopg2-binary~=2.9.7",
     "route53~=1.0.1",
     "python-dotenv",
+    "pydantic>=2.10.5",
 ]
 
 [tool.uv]
