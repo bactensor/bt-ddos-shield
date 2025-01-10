@@ -12,6 +12,7 @@ eciespy = "^0.4.2"
 pytest = "^8.3.4"
 sqlalchemy = "^2.0.36"
 route53 = "^1.0.1"
+bittensor = "^8.5.1"
 
 
 [build-system]
