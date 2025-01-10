@@ -7,7 +7,6 @@ dependencies = [
     "boto3~=1.35.27",
     "eciespy~=0.4.2",
     "sqlalchemy~=2.0.36",
-    "psycopg2-binary~=2.9.7",
     "route53~=1.0.1",
     "python-dotenv",
     "pydantic>=2.10.5",
