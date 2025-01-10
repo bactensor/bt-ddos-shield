@@ -13,6 +13,7 @@ uv sync --group test --group format --group lint --group type_check --group secu
 
 # Set symlinks
 ln -sf "${ENV_DIR}/.env" .env
+ln -sf "bin/run_shield.sh" run_shield.sh
 
 # Ensure that the script returns zero for the CI
 exit 0

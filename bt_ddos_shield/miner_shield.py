@@ -32,7 +32,7 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, BooleanModel
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, MemoryValidatorsManager
 
 

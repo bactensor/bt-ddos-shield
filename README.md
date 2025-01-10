@@ -102,6 +102,23 @@ pip insatll -e <path/to/package>
 poetry publish
 ```
 
+## Docker Usage
+
+### Creating Docker Image
+
+To create a docker image, run the following command:
+```bash
+cd docker && ./build_image.sh
+```
+
+### Running Docker Image
+
+To run created docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
+Then run the following command:
+```bash
+cd docker && ./run_image.sh
+```
+
 ## License
 
 See the [LICENSE](./LICENSE) file for more details.
