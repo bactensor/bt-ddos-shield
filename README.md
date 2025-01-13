@@ -20,7 +20,7 @@ The goal of this project is to implement a distributed and decentralized system 
 
 1. **Encryption-Based Communication**:
    - Uses ECIES (Elliptic Curve Integrated Encryption Scheme) to encrypt communication between miners and validators.
-   - The encrypted data includes the miner's hotkey, subnet ID, and validator connection details (IP, IP version, and port).
+   - The encrypted data includes connection details for validator (IP, IP version, and port).
 
 2. **Decentralized DDoS Mitigation**:
    - Removes the need for centralized DDoS protection services by distributing connection information securely across nodes.
@@ -73,33 +73,14 @@ cd bt-ddos-shield
 
 ### 2. Install Dependencies:
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install poetry
-poetry install
-```
+Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
 
-### 3. Build the Pacakge:
-```bash
-poetry build
-```
+### 3. Run Tests:
 
-### 4. Run Tests:
+First update your credentials in `tests/test_credentials.py`. Then activate venv with source .venv/bin/activate and run
+the following command to execute the tests:
 ```bash
-poetry run pytest
-```
-
-### 5. Local Pacakge Usage
-
-To install the package locally for development purposes:
-```bash
-pip insatll -e <path/to/package>
-```
-
-### 6. Publish the Package
-```bash
-poetry publish
+export PYTHONPATH=$(pwd) && pytest
 ```
 
 ## Docker Usage
