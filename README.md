@@ -13,7 +13,7 @@ impractical for subnets handling large volumes of data.
 The goal of this project is to implement a distributed and decentralized system that:
 - Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
 - Removes the need for on-chain storage of unencrypted IP addresses and ports, eliminating an obvious attack surface.
-- Uses encrypted messages between miners and validators to securely exchange connection information (IP, IP version, and port).
+- Uses encrypted messages between miners and validators to securely exchange connection information (connection address).
 - Provides a scalable, decentralized alternative to traditional DDoS protection methods while maintaining performance and minimizing attack vectors.
 
 ## Features
@@ -80,7 +80,7 @@ Run `setup-dev.sh` script to install the required dependencies and set up the de
 First update your credentials in `tests/test_credentials.py`. Then activate venv with source .venv/bin/activate and run
 the following command to execute the tests:
 ```bash
-export PYTHONPATH=$(pwd) && pytest
+pytest
 ```
 
 ## Docker Usage
@@ -98,6 +98,11 @@ To run created docker image, first create a `docker/.env` file filling template 
 Then run the following command:
 ```bash
 cd docker && ./run_image.sh
+```
+
+If one wants to clean objects created by shield run the following command:
+```bash
+cd docker && ./run_image.sh clean
 ```
 
 ## License

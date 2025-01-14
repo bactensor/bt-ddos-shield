@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import re
 import sys
@@ -637,33 +638,39 @@ class MinerShieldFactory:
 
 
 def run_shield() -> int:
-    parser = argparse.ArgumentParser(description='Run MinerShield')
-    parser.add_argument('--clean-all', action='store_true', help='Clean all addresses in the address manager')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    parser = argparse.ArgumentParser(description='MinerShield')
+    subparsers = parser.add_subparsers(dest='command', help='Subcommands')
+    subparsers.add_parser('start', help='Start the MinerShield')
+    subparsers.add_parser('clean', help='Clean all stuff created by shield, especially AWS objects')
     args = parser.parse_args()
 
     miner_shield: MinerShield = MinerShieldFactory.create_miner_shield({})
 
-    if args.clean_all:
-        print("Cleaning shield objects")
+    if args.command == 'clean':
+        logging.info("Cleaning shield objects")
         miner_shield.address_manager.clean_all()
-        print("All objects cleaned")
+        logging.info("All objects cleaned")
         return 0
 
-    try:
-        print("Starting shield")
-        miner_shield.enable()
-        print("Shield started, press Ctrl+C to stop. Run with --clean-all param to clean all objects created by shield")
-        threading.Event().wait()
-        return -1
-    except KeyboardInterrupt:
-        print("Keyboard interrupt, stopping shield")
-        miner_shield.disable()
-        return 0
-    except MinerShieldException as e:
-        print(f"Error during enabling shield: {e}")
-        return 1
+    if args.command == 'start' or args.command is None:
+        try:
+            logging.info("Starting shield")
+            miner_shield.enable()
+            logging.info("Shield started, press Ctrl+C to stop")
+            threading.Event().wait()
+            return -1
+        except KeyboardInterrupt:
+            logging.info("Keyboard interrupt, stopping shield")
+            miner_shield.disable()
+            return 0
+        except MinerShieldException as e:
+            logging.info(f"Error during enabling shield: {e}")
+            return 1
+
+    parser.print_help()
+    return 1
 
 
 if __name__ == '__main__':
-    load_dotenv()
     sys.exit(run_shield())

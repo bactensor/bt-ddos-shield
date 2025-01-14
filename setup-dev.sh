@@ -9,10 +9,9 @@ ENV_DIR="./envs"
 uv sync --group test --group format --group lint --group type_check --group security_check
 
 # Create .env from the template if doesn't exist
-[[ -f "${ENV_DIR}/.env" ]] || cp "${ENV_DIR}/.env.template" "${ENV_DIR}/.env"
+[[ -f "${ENV_DIR}/.envrc" ]] || cp "${ENV_DIR}/.env.template" ".envrc"
 
 # Set symlinks
-ln -sf "${ENV_DIR}/.env" .env
 ln -sf "bin/run_shield.sh" run_shield.sh
 
 # Ensure that the script returns zero for the CI
