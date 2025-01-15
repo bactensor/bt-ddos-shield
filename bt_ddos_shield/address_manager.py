@@ -602,7 +602,7 @@ class AwsAddressManager(AbstractAddressManager):
         waf_arn: str = response['Summary']['ARN']
         self.event_processor.event('Created AWS WAF, name={name}, id={id}', name=waf_name, id=waf_arn)
 
-        retries_count: int = 10
+        retries_count: int = 20
         error_code: str = ''
         for _ in range(retries_count):
             try:

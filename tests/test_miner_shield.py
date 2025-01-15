@@ -1,4 +1,3 @@
-import os
 from time import sleep
 from typing import Optional
 
@@ -11,18 +10,9 @@ from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerSh
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import MemoryValidatorsManager
+from tests.conftest import ShieldTestSettings
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
-from tests.test_credentials import (
-    aws_access_key_id,
-    aws_region_name,
-    aws_route53_hosted_zone_id,
-    aws_s3_bucket_name,
-    aws_secret_access_key,
-    miner_instance_ip,
-    miner_instance_port,
-    sql_alchemy_db_url,
-)
 from tests.test_encryption_manager import generate_key_pair
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager
@@ -110,20 +100,12 @@ class TestMinerShield:
             self.shield.disable()
             assert not self.shield.run
 
-    def test_integration(self):
+    def test_integration(self, shield_settings: ShieldTestSettings):
         """
         Test if shield is properly starting from scratch and fully enabling protection using real managers.
         """
-        os.environ["MINER_HOTKEY"] = self.MINER_HOTKEY
-        os.environ["AWS_MINER_INSTANCE_IP"] = miner_instance_ip
-        os.environ["MINER_INSTANCE_PORT"] = str(miner_instance_port)
-        os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
-        os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
-        os.environ["AWS_REGION_NAME"] = aws_region_name
-        os.environ["AWS_S3_BUCKET_NAME"] = aws_s3_bucket_name
-        os.environ["AWS_ROUTE53_HOSTED_ZONE_ID"] = aws_route53_hosted_zone_id
-        os.environ["SQL_ALCHEMY_DB_URL"] = sql_alchemy_db_url
-        shield: MinerShield = MinerShieldFactory.create_miner_shield(self.DEFAULT_VALIDATORS)
+
+        shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, self.DEFAULT_VALIDATORS)
 
         assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
         state_manager: SQLAlchemyMinerShieldStateManager = shield.state_manager  # type: ignore

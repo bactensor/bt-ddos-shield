@@ -274,5 +274,9 @@ newdj/media/
 .pytest_cache/
 .ipython/
 .env
+.env.test
 .envs/*
 !.envs/.local/
+
+ddos_shield.db
+bin/run_shield.sh

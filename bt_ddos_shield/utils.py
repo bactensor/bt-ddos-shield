@@ -40,7 +40,3 @@ class AWSClientFactory:
 
     def route53_client(self) -> Route53Connection:
         return route53.connect(self.aws_access_key_id, self.aws_secret_access_key)
-
-
-class BooleanModel(BaseModel):
-    bool_value: bool

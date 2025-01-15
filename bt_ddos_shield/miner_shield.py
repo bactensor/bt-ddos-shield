@@ -1,13 +1,12 @@
 import argparse
 import logging
-import os
 import re
 import sys
 import threading
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from dotenv import load_dotenv
 from queue import Queue
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
 from time import sleep
 from types import MappingProxyType
 from typing import Optional
@@ -33,12 +32,11 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, BooleanModel
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, MemoryValidatorsManager
 
 
-@dataclass
-class MinerShieldOptions:
+class MinerShieldOptions(BaseModel):
     """
     A class to represent the configuration options for the MinerShield.
     """
@@ -500,56 +498,58 @@ class MinerShieldPublishManifestTask(AbstractMinerShieldTask):
         miner_shield._handle_publish_manifest()
 
 
+class ShieldSettings(BaseSettings):
+    aws_access_key_id: str = Field(min_length=1)
+    aws_secret_access_key: str = Field(min_length=1)
+    aws_region_name: str = Field(min_length=1)
+    """AWS region name where shield will be created"""
+    aws_s3_bucket_name: str = Field(min_length=1)
+    """AWS S3 bucket name where manifest file will be stored"""
+    aws_route53_hosted_zone_id: str = Field(min_length=1)
+    """AWS Route53 hosted zone ID for creating DNS entries for server clients"""
+    aws_miner_instance_id: str = ''
+    """AWS instance ID of miner server"""
+    aws_miner_instance_ip: str = ''
+    """AWS instance IP of miner server"""
+    miner_instance_port: int
+    """Port on which miner server is listening"""
+    sql_alchemy_db_url: str = Field('sqlite:///ddos_shield.db', min_length=1)
+    """SQL Alchemy URL to database where shield state is stored"""
+    miner_hotkey: str = Field(min_length=1)
+    """Hotkey of shielded miner"""
+    options: MinerShieldOptions = MinerShieldOptions()
+
+    model_config = {
+        'env_file': '.env',
+        'env_nested_delimiter': '__',
+    }
+
+
 class MinerShieldFactory:
     """
     Factory class to create proper MinerShield instance basing on set environmental variables.
     """
 
     @classmethod
-    def create_miner_shield(cls, validators: Optional[dict[Hotkey, PublicKey]] = None) -> MinerShield:
+    def create_miner_shield(cls, settings: ShieldSettings, validators: Optional[dict[Hotkey, PublicKey]] = None) -> MinerShield:
         """
-        Create MinerShield instance basing on set environmental variables.
-
-        List of required env variables:
-        - MINER_HOTKEY: Hotkey of shielded miner.
-        - AWS_MINER_INSTANCE_ID or AWS_MINER_INSTANCE_IP: AWS instance ID or IP of miner machine.
-        - MINER_INSTANCE_PORT: Port on which miner instance is listening.
-        - AWS_ACCESS_KEY_ID: AWS access key ID.
-        - AWS_SECRET_ACCESS_KEY: AWS secret access key.
-        - AWS_REGION_NAME: AWS region name.
-        - AWS_S3_BUCKET_NAME: AWS S3 bucket name.
-        - AWS_ROUTE53_HOSTED_ZONE_ID: AWS Route53 hosted zone ID for creating DNS entries for validators.
-        - SQL_ALCHEMY_DB_URL: URL to SQL database to store shield state.
-
-        Optional env variables:
-        - AUTO_HIDE_ORIGINAL_SERVER: If set, original server will be hidden after some time after shield gets enabled.
-        - AUTO_HIDE_DELAY_SEC: Time in seconds after which the original server will be hidden.
-
         Args:
+            settings: ShieldSettings instance.
             validators: Dictionary containing validators hotkeys and their public keys.
         """
-        miner_hotkey: Hotkey = os.getenv('MINER_HOTKEY')
-        if not miner_hotkey:
-            raise MinerShieldException("MINER_HOTKEY env is not set")
-
         validators_manager: AbstractValidatorsManager = cls.create_validators_manager(validators)
         event_processor: AbstractMinerShieldEventProcessor = cls.create_event_processor()
-        state_manager: AbstractMinerShieldStateManager = cls.create_state_manager()
-        aws_client_factory: AWSClientFactory = cls.create_aws_client_factory()
-        address_manager: AbstractAddressManager = cls.create_address_manager(aws_client_factory, event_processor,
-                                                                             state_manager)
+        state_manager: AbstractMinerShieldStateManager = cls.create_state_manager(settings)
+        aws_client_factory: AWSClientFactory = cls.create_aws_client_factory(settings)
+        address_manager: AbstractAddressManager = cls.create_address_manager(settings, aws_client_factory,
+                                                                             event_processor, state_manager)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
-        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager, aws_client_factory)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(miner_hotkey)
+        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(settings, encryption_manager,
+                                                                                aws_client_factory)
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings.miner_hotkey)
 
-        options: MinerShieldOptions = MinerShieldOptions()
-        options.auto_hide_original_server = (
-            BooleanModel(bool_value=os.getenv('AUTO_HIDE_ORIGINAL_SERVER', 'False')).bool_value  # type: ignore
-        )
-        options.auto_hide_delay_sec = int(os.getenv('AUTO_HIDE_DELAY_SEC', str(options.auto_hide_delay_sec)))
-
-        return MinerShield(miner_hotkey, validators_manager, address_manager, manifest_manager, blockchain_manager,
-                           state_manager, event_processor, options)
+        return MinerShield(settings.miner_hotkey, validators_manager, address_manager, manifest_manager, blockchain_manager,
+                           state_manager, event_processor, settings.options)
 
     @classmethod
     def create_validators_manager(cls, validators: Optional[dict[Hotkey, PublicKey]]) -> AbstractValidatorsManager:
@@ -562,74 +562,55 @@ class MinerShieldFactory:
         return PrintingMinerShieldEventProcessor()
 
     @classmethod
-    def create_state_manager(cls) -> AbstractMinerShieldStateManager:
-        sql_alchemy_db_url: str = os.getenv('SQL_ALCHEMY_DB_URL')
-        if not sql_alchemy_db_url:
-            raise MinerShieldException("SQL_ALCHEMY_DB_URL env is not set")
-        return SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
+    def create_state_manager(cls, settings: ShieldSettings) -> AbstractMinerShieldStateManager:
+        return SQLAlchemyMinerShieldStateManager(settings.sql_alchemy_db_url)
 
     @classmethod
-    def create_aws_client_factory(cls) -> AWSClientFactory:
-        aws_access_key_id: str = os.getenv('AWS_ACCESS_KEY_ID')
-        aws_secret_access_key: str = os.getenv('AWS_SECRET_ACCESS_KEY')
-        aws_region_name: str = os.getenv('AWS_REGION_NAME')
-        if not aws_access_key_id or not aws_secret_access_key or not aws_region_name:
-            raise MinerShieldException("AWS credentials are not set")
-        return AWSClientFactory(aws_access_key_id, aws_secret_access_key, aws_region_name)
+    def create_aws_client_factory(cls, settings: ShieldSettings) -> AWSClientFactory:
+        return AWSClientFactory(settings.aws_access_key_id, settings.aws_secret_access_key, settings.aws_region_name)
 
     @classmethod
-    def load_miner_aws_address(cls):
-        miner_instance_id: str = os.getenv('AWS_MINER_INSTANCE_ID')
-        miner_instance_ip: str = os.getenv('AWS_MINER_INSTANCE_IP')
-        if miner_instance_id:
-            address = miner_instance_id
+    def load_miner_aws_address(cls, settings: ShieldSettings):
+        if settings.aws_miner_instance_id:
+            address = settings.aws_miner_instance_id
             address_type = AddressType.EC2
-        elif miner_instance_ip:
-            address = miner_instance_ip
+        elif settings.aws_miner_instance_ip:
+            address = settings.aws_miner_instance_ip
             address_type = AddressType.IP
         else:
             raise MinerShieldException("AWS_MINER_INSTANCE_ID or AWS_MINER_INSTANCE_IP env is not set")
 
-        miner_instance_port: str = os.getenv('MINER_INSTANCE_PORT')
-        if not miner_instance_port:
-            raise MinerShieldException("MINER_INSTANCE_PORT env is not set")
-
-        return Address(address_id="miner", address_type=address_type, address=address, port=int(miner_instance_port))
+        return Address(address_id="miner", address_type=address_type, address=address,
+                       port=settings.miner_instance_port)
 
     @classmethod
-    def create_address_manager(cls, aws_client_factory: Optional[AWSClientFactory],
+    def create_address_manager(cls, settings: ShieldSettings, aws_client_factory: Optional[AWSClientFactory],
                                event_processor: AbstractMinerShieldEventProcessor,
                                state_manager: AbstractMinerShieldStateManager) -> AbstractAddressManager:
         if aws_client_factory:
-            return cls.create_aws_address_manager(aws_client_factory, event_processor, state_manager)
+            return cls.create_aws_address_manager(settings, aws_client_factory, event_processor, state_manager)
         else:
             raise MinerShieldException("Cannot create address manager")
 
     @classmethod
-    def create_aws_address_manager(cls, aws_client_factory: AWSClientFactory,
+    def create_aws_address_manager(cls, settings: ShieldSettings, aws_client_factory: AWSClientFactory,
                                    event_processor: AbstractMinerShieldEventProcessor,
                                    state_manager: AbstractMinerShieldStateManager) -> AbstractAddressManager:
-        miner_address: Address = cls.load_miner_aws_address()
-        aws_route53_hosted_zone_id: str = os.getenv('AWS_ROUTE53_HOSTED_ZONE_ID')
-        if not aws_route53_hosted_zone_id:
-            raise MinerShieldException("AWS_ROUTE53_HOSTED_ZONE_ID env is not set")
-        return AwsAddressManager(aws_client_factory, miner_address, aws_route53_hosted_zone_id, event_processor,
-                                 state_manager)
+        miner_address: Address = cls.load_miner_aws_address(settings)
+        return AwsAddressManager(aws_client_factory, miner_address, settings.aws_route53_hosted_zone_id,
+                                 event_processor, state_manager)
 
     @classmethod
     def create_encryption_manager(cls) -> AbstractEncryptionManager:
         return ECIESEncryptionManager()
 
     @classmethod
-    def create_manifest_manager(cls, encryption_manager: AbstractEncryptionManager,
+    def create_manifest_manager(cls, settings: ShieldSettings, encryption_manager: AbstractEncryptionManager,
                                 aws_client_factory: AWSClientFactory) -> AbstractManifestManager:
-        bucket_name: str = os.getenv('AWS_S3_BUCKET_NAME')
-        if not bucket_name:
-            raise MinerShieldException("AWS_S3_BUCKET_NAME env is not set")
         address_serializer: AbstractAddressSerializer = DefaultAddressSerializer()
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
         return S3ManifestManager(address_serializer, manifest_serializer, encryption_manager, aws_client_factory,
-                                 bucket_name)
+                                 settings.aws_s3_bucket_name)
 
     @classmethod
     def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:
@@ -645,7 +626,8 @@ def run_shield() -> int:
     subparsers.add_parser('clean', help='Clean all stuff created by shield, especially AWS objects')
     args = parser.parse_args()
 
-    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield({})
+    settings: ShieldSettings = ShieldSettings()  # type: ignore
+    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings, {})
 
     if args.command == 'clean':
         logging.info("Cleaning shield objects")
