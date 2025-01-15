@@ -10,6 +10,7 @@ dependencies = [
     "route53~=1.0.1",
     "python-dotenv",
     "pydantic>=2.10.5",
+    "pydantic-settings>=2.7.1",
     "bittensor>=8.5.1",
 ]
 

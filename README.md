@@ -77,10 +77,18 @@ Run `setup-dev.sh` script to install the required dependencies and set up the de
 
 ### 3. Run Tests:
 
-First update your credentials in `tests/test_credentials.py`. Then activate venv with source .venv/bin/activate and run
-the following command to execute the tests:
+First create a `.env.test` file filling template file `envs/.env.test.template`. Stub should be made by `setup-dev.sh` script.
+Then activate venv with source .venv/bin/activate and run the following command to execute the tests:
 ```bash
 pytest
+```
+
+### 4. Run Shield locally:
+
+First create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
+Then activate venv with source .venv/bin/activate and run the following command to run the shield:
+```bash
+bin/run_shield.sh
 ```
 
 ## Docker Usage
