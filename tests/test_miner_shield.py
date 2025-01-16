@@ -103,6 +103,8 @@ class TestMinerShield:
     def test_integration(self, shield_settings: ShieldTestSettings):
         """
         Test if shield is properly starting from scratch and fully enabling protection using real managers.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
         """
 
         shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, self.DEFAULT_VALIDATORS)

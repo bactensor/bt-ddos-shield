@@ -81,7 +81,11 @@ class TestAddressManager:
         manager.clean_all()
 
     def test_create_elb(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
-        """ Test creating ELB by AwsAddressManager class. """
+        """
+        Test creating ELB by AwsAddressManager class.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
 
         # This triggers creation of ELB
         address_manager.validate_addresses(MappingProxyType({}))
@@ -114,7 +118,11 @@ class TestAddressManager:
         assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
 
     def test_handle_address(self, address_manager: AwsAddressManager):
-        """ Create address, validate it and remove created address. """
+        """
+        Create address, validate it and remove created address.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
         address1: Address = address_manager.create_address("validator1")
         address2: Address = address_manager.create_address("validator2")
         invalid_address: Address = Address(address_id="invalid", address_type=AddressType.DOMAIN,
@@ -139,7 +147,11 @@ class TestAddressManager:
         assert invalid_addresses == {Hotkey("hotkey1"), Hotkey("invalid")}
 
     def test_miner_instance_change(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
-        """ Test changing Miner instance when initializing shield. """
+        """
+        Test changing Miner instance when initializing shield.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
         address: Address = address_manager.create_address("validator1")
         hotkey: Hotkey = "hotkey"
         mapping: dict[Hotkey, Address] = {hotkey: address}
@@ -167,7 +179,11 @@ class TestAddressManager:
         assert new_elb_id != elb_id
 
     def test_hosted_zone_id_change(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
-        """ Test changing hosted zone id when initializing shield. """
+        """
+        Test changing hosted zone id when initializing shield.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
         address: Address = address_manager.create_address("validator1")
         hotkey: Hotkey = "hotkey"
         mapping: dict[Hotkey, Address] = {hotkey: address}

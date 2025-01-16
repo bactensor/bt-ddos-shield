@@ -466,12 +466,12 @@ class AwsAddressManager(AbstractAddressManager):
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceInUse':
-                    time.sleep(6)  # wait for target group to be deregistered
+                    time.sleep(9)  # wait for target group to be deregistered
                 else:
                     raise e
         else:
             # It happens quite often and sometimes AWS waits for many minutes before allowing to remove target group.
-            # But we don't want to wait for so long - 2 minutes is long enough.
+            # But we don't want to wait for so long - 3 minutes is long enough.
             # If it happens during tests, user should remove target group later manually using AWS panel to not leave
             # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS TargetGroup {id}, error={error_code}',
@@ -551,12 +551,12 @@ class AwsAddressManager(AbstractAddressManager):
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'DependencyViolation':
-                    time.sleep(6)  # wait for ELB to be removed
+                    time.sleep(9)  # wait for ELB to be removed
                 else:
                     raise e
         else:
             # It happens quite often and sometimes AWS waits for many minutes before allowing to remove security group.
-            # But we don't want to wait for so long - 2 minutes is long enough.
+            # But we don't want to wait for so long - 3 minutes is long enough.
             # If it happens during tests, user should remove security group later manually using AWS panel to not leave
             # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS SecurityGroup {id}, error={error_code}',
@@ -612,10 +612,14 @@ class AwsAddressManager(AbstractAddressManager):
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
-                time.sleep(6)  # wait for WAF to be created
+                time.sleep(9)  # wait for WAF to be created
         else:
             self._remove_firewall(waf_arn)
-            raise AddressManagerException(f'Failed to associate AWS WAF {waf_arn} with ELB, error={error_code}')
+            # It happens quite often and sometimes creation of ELB propagates for many minutes before association is
+            # allowed. But we don't want to wait for so long - 3 minutes is long enough.
+            raise AddressManagerException(
+                f'Failed to associate AWS WAF {waf_arn} with ELB {self.elb_data.id}, error={error_code}'
+            )
 
         try:
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.WAF.value, waf_arn)
@@ -648,12 +652,12 @@ class AwsAddressManager(AbstractAddressManager):
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'WAFAssociatedItemException':
-                    time.sleep(6)  # wait for ELB disassociating
+                    time.sleep(9)  # wait for ELB disassociating
                 else:
                     raise e
         else:
             # It happens quite often and sometimes AWS waits for many minutes before allowing to remove WAF.
-            # But we don't want to wait for so long - 2 minutes is long enough.
+            # But we don't want to wait for so long - 3 minutes is long enough.
             # If it happens during tests, user should remove WAF later manually using AWS panel to not leave
             # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS WAF {id}, error={error_code}',
