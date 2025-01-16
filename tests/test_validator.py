@@ -19,6 +19,8 @@ class TestValidator:
     def test_full_flow(self, shield_settings: ShieldTestSettings):
         """
         Test if validator is working using real managers and real shield.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
         """
         validator_private_key, validator_public_key = generate_key_pair()
 
@@ -42,7 +44,7 @@ class TestValidator:
         assert shield.run
 
         try:
-            miner_address: MinerAddress = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=60))
+            miner_address: MinerAddress = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=180))
             urlparse(miner_address.domain)
             assert miner_address.port == shield_settings.miner_instance_port
         finally:
