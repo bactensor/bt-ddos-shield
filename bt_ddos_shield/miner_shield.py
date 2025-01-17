@@ -515,6 +515,7 @@ class ShieldSettings(BaseSettings):
     """Port on which miner server is listening"""
     sql_alchemy_db_url: str = Field('sqlite:///ddos_shield.db', min_length=1)
     """SQL Alchemy URL to database where shield state is stored"""
+    #TODO: replace with miner wallet
     miner_hotkey: str = Field(min_length=1)
     """Hotkey of shielded miner"""
     options: MinerShieldOptions = MinerShieldOptions()
@@ -646,12 +647,9 @@ def run_shield() -> int:
             logging.info("Keyboard interrupt, stopping shield")
             miner_shield.disable()
             return 0
-        except MinerShieldException as e:
-            logging.info(f"Error during enabling shield: {e}")
+        except MinerShieldException:
+            logging.exception(f"Error during enabling shield")
             return 1
-
-    parser.print_help()
-    return 1
 
 
 if __name__ == '__main__':
