@@ -19,6 +19,8 @@ def shield_settings() -> ShieldTestSettings:
 
 
 class ValidatorTestSettings(ValidatorSettings):
+    validator_public_key: str
+
     model_config = {
         'env_file': '.env.test',
         'extra': 'ignore',

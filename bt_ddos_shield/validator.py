@@ -1,14 +1,18 @@
 import asyncio
+import functools
 from collections import namedtuple
 from dataclasses import dataclass
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from typing import Optional
 
-from tests.test_blockchain_manager import MemoryBlockchainManager
+import bittensor
 
 from bt_ddos_shield.address import AbstractAddressSerializer, Address, AddressType, DefaultAddressSerializer
-from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
+from bt_ddos_shield.blockchain_manager import (
+    AbstractBlockchainManager,
+    ReadOnlyBittensorBlockchainManager,
+)
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
     AbstractManifestManager,
@@ -68,6 +72,16 @@ class ValidatorFactoryException(Exception):
     pass
 
 
+class SubtensorSettings(BaseModel):
+    network: Optional[str] = None
+
+    @functools.cached_property
+    def client(self) -> bittensor.Subtensor:
+        return bittensor.Subtensor(
+            **self.model_dump()
+        )
+
+
 class ValidatorSettings(BaseSettings):
     aws_access_key_id: str = Field(min_length=1)
     aws_secret_access_key: str = Field(min_length=1)
@@ -78,8 +92,12 @@ class ValidatorSettings(BaseSettings):
     validator_private_key: str = Field(min_length=1)
     """Hex representation of secp256k1 private key of validator"""
 
+    netuid: int
+    subtensor: SubtensorSettings = SubtensorSettings()
+
     model_config = {
         'env_file': '.env',
+        'env_nested_delimiter': '__',
     }
 
 
@@ -93,7 +111,7 @@ class ValidatorFactory:
         aws_client_factory: AWSClientFactory = cls.create_aws_client_factory(settings)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager, aws_client_factory)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings.miner_hotkey)
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings)
         options: ValidatorOptions = ValidatorOptions()
         return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
                          manifest_manager, options)
@@ -114,6 +132,13 @@ class ValidatorFactory:
         return S3ManifestManager(address_serializer, manifest_serializer, encryption_manager, aws_client_factory)
 
     @classmethod
-    def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:
-        # TODO: waiting for implementation of blockchain manager
-        return MemoryBlockchainManager(miner_hotkey)
+    def create_blockchain_manager(
+        cls,
+        settings: ValidatorSettings,
+    ) -> AbstractBlockchainManager:
+        return ReadOnlyBittensorBlockchainManager(
+            address_serializer=DefaultAddressSerializer(),
+            hotkey=settings.miner_hotkey,
+            netuid=settings.netuid,
+            subtensor=settings.subtensor.client,
+        )
