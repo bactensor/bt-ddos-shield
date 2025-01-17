@@ -11,12 +11,7 @@ from bt_ddos_shield.manifest_manager import (
     S3ManifestManager,
 )
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
-from tests.test_credentials import (
-    aws_access_key_id,
-    aws_region_name,
-    aws_s3_bucket_name,
-    aws_secret_access_key,
-)
+from tests.conftest import ShieldTestSettings
 
 
 class MemoryManifestManager(AbstractManifestManager):
@@ -57,11 +52,13 @@ class TestManifestManager:
 
         assert manifest == deserialized_manifest
 
-    def test_s3_put_get(self):
+    def test_s3_put_get(self, shield_settings: ShieldTestSettings):
         """ Test S3ManifestManager class. Put manifest file, get it and check if it was stored correctly. """
-        aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
-                                                                aws_region_name)
-        manifest_manager = S3ManifestManager(aws_client_factory=aws_client_factory, bucket_name=aws_s3_bucket_name,
+        aws_client_factory: AWSClientFactory = AWSClientFactory(shield_settings.aws_access_key_id,
+                                                                shield_settings.aws_secret_access_key,
+                                                                shield_settings.aws_region_name)
+        manifest_manager = S3ManifestManager(aws_client_factory=aws_client_factory,
+                                             bucket_name=shield_settings.aws_s3_bucket_name,
                                              address_serializer=DefaultAddressSerializer(),
                                              manifest_serializer=JsonManifestSerializer(),
                                              encryption_manager=ECIESEncryptionManager())
@@ -76,7 +73,8 @@ class TestManifestManager:
         retrieved_data: bytes = manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 
-        validator_aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key)
+        validator_aws_client_factory: AWSClientFactory = AWSClientFactory(shield_settings.aws_access_key_id,
+                                                                          shield_settings.aws_secret_access_key)
         validator_manifest_manager = S3ManifestManager(address_serializer=DefaultAddressSerializer(),
                                                        manifest_serializer=JsonManifestSerializer(),
                                                        encryption_manager=ECIESEncryptionManager(),

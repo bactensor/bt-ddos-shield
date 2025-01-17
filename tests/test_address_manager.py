@@ -1,3 +1,4 @@
+import copy
 from types import MappingProxyType
 
 import pytest
@@ -6,20 +7,11 @@ from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressMan
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import MinerShieldState
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
-from tests.test_credentials import (
-    aws_access_key_id,
-    aws_region_name,
-    aws_route53_hosted_zone_id,
-    aws_route53_other_hosted_zone_id,
-    aws_secret_access_key,
-    miner_instance_id,
-    miner_instance_ip,
-    miner_instance_port,
-)
 from tests.test_state_manager import MemoryMinerShieldStateManager
+from tests.conftest import ShieldTestSettings
 
-
-def get_miner_address_from_credentials(address_type: AddressType, port: int = miner_instance_port) -> Address:
+def get_miner_address_from_credentials(address_type: AddressType, port: int, miner_instance_id: str = '',
+                                       miner_instance_ip: str = '') -> Address:
     if address_type == AddressType.EC2:
         return Address(address_id="miner", address_type=AddressType.EC2, address=miner_instance_id,
                        port=port)
@@ -67,35 +59,42 @@ class TestAddressManager:
     Test suite for the address manager.
     """
 
-    def create_aws_address_manager(self, port: int = miner_instance_port,
-                                   hosted_zone_id: str = aws_route53_hosted_zone_id,
+    def create_aws_address_manager(self, test_settings: ShieldTestSettings,
                                    create_state_manager: bool = True) -> AwsAddressManager:
-        miner_address: Address = get_miner_address_from_credentials(AddressType.IP, port)
+        miner_address: Address = get_miner_address_from_credentials(
+            AddressType.IP, test_settings.miner_instance_port, miner_instance_ip=test_settings.aws_miner_instance_ip
+        )
         if create_state_manager:
             self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
-        aws_client_factory: AWSClientFactory = AWSClientFactory(aws_access_key_id, aws_secret_access_key,
-                                                                aws_region_name)
+        aws_client_factory: AWSClientFactory = AWSClientFactory(test_settings.aws_access_key_id,
+                                                                test_settings.aws_secret_access_key,
+                                                                test_settings.aws_region_name)
         return AwsAddressManager(aws_client_factory=aws_client_factory, miner_address=miner_address,
-                                 hosted_zone_id=hosted_zone_id, event_processor=PrintingMinerShieldEventProcessor(),
+                                 hosted_zone_id=test_settings.aws_route53_hosted_zone_id,
+                                 event_processor=PrintingMinerShieldEventProcessor(),
                                  state_manager=self.state_manager)
 
     @pytest.fixture
-    def address_manager(self):
-        manager = self.create_aws_address_manager()
+    def address_manager(self, shield_settings: ShieldTestSettings):
+        manager = self.create_aws_address_manager(shield_settings)
         yield manager
         manager.clean_all()
 
-    def test_create_elb(self, address_manager: AwsAddressManager):
-        """ Test creating ELB by AwsAddressManager class. """
+    def test_create_elb(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
+        """
+        Test creating ELB by AwsAddressManager class.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
 
         # This triggers creation of ELB
         address_manager.validate_addresses(MappingProxyType({}))
 
         state: MinerShieldState = self.state_manager.get_state()
         address_manager_state: MappingProxyType[str, str] = state.address_manager_state
-        assert address_manager_state[address_manager.HOSTED_ZONE_ID_KEY] == aws_route53_hosted_zone_id
-        assert address_manager_state[address_manager.INSTANCE_ID_KEY] == miner_instance_id
-        assert int(address_manager_state[address_manager.INSTANCE_PORT_KEY]) == miner_instance_port
+        assert address_manager_state[address_manager.HOSTED_ZONE_ID_KEY] == shield_settings.aws_route53_hosted_zone_id
+        assert address_manager_state[address_manager.INSTANCE_ID_KEY] == shield_settings.aws_miner_instance_id
+        assert int(address_manager_state[address_manager.INSTANCE_PORT_KEY]) == shield_settings.miner_instance_port
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
         assert len(created_objects[AwsObjectTypes.WAF.value]) == 1
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
@@ -119,7 +118,11 @@ class TestAddressManager:
         assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
 
     def test_handle_address(self, address_manager: AwsAddressManager):
-        """ Create address, validate it and remove created address. """
+        """
+        Create address, validate it and remove created address.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
         address1: Address = address_manager.create_address("validator1")
         address2: Address = address_manager.create_address("validator2")
         invalid_address: Address = Address(address_id="invalid", address_type=AddressType.DOMAIN,
@@ -143,8 +146,12 @@ class TestAddressManager:
         invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == {Hotkey("hotkey1"), Hotkey("invalid")}
 
-    def test_miner_instance_change(self, address_manager: AwsAddressManager):
-        """ Test changing Miner instance when initializing shield. """
+    def test_miner_instance_change(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
+        """
+        Test changing Miner instance when initializing shield.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
         address: Address = address_manager.create_address("validator1")
         hotkey: Hotkey = "hotkey"
         mapping: dict[Hotkey, Address] = {hotkey: address}
@@ -158,7 +165,9 @@ class TestAddressManager:
         elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
 
         # Create new manager with different port - ELB should be recreated
-        address_manager = self.create_aws_address_manager(port=miner_instance_port + 1, create_state_manager=False)
+        new_test_settings: ShieldTestSettings = copy.deepcopy(shield_settings)
+        new_test_settings.miner_instance_port += 1
+        address_manager = self.create_aws_address_manager(new_test_settings, create_state_manager=False)
         invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == {hotkey}
 
@@ -169,8 +178,12 @@ class TestAddressManager:
         new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
         assert new_elb_id != elb_id
 
-    def test_hosted_zone_id_change(self, address_manager: AwsAddressManager):
-        """ Test changing hosted zone id when initializing shield. """
+    def test_hosted_zone_id_change(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
+        """
+        Test changing hosted zone id when initializing shield.
+
+        IMPORTANT: Test can run for many minutes due to AWS delays.
+        """
         address: Address = address_manager.create_address("validator1")
         hotkey: Hotkey = "hotkey"
         mapping: dict[Hotkey, Address] = {hotkey: address}
@@ -184,8 +197,9 @@ class TestAddressManager:
         elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
 
         # Create new manager with different hosted zone - only addresses should be removed
-        address_manager = self.create_aws_address_manager(hosted_zone_id=aws_route53_other_hosted_zone_id,
-                                                          create_state_manager=False)
+        new_test_settings: ShieldTestSettings = copy.deepcopy(shield_settings)
+        new_test_settings.aws_route53_hosted_zone_id = shield_settings.aws_route53_other_hosted_zone_id
+        address_manager = self.create_aws_address_manager(new_test_settings, create_state_manager=False)
         invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == {hotkey}
 

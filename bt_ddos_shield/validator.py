@@ -1,7 +1,8 @@
 import asyncio
-import os
 from collections import namedtuple
 from dataclasses import dataclass
+from pydantic import Field
+from pydantic_settings import BaseSettings
 from typing import Optional
 
 from tests.test_blockchain_manager import MemoryBlockchainManager
@@ -67,49 +68,39 @@ class ValidatorFactoryException(Exception):
     pass
 
 
+class ValidatorSettings(BaseSettings):
+    aws_access_key_id: str = Field(min_length=1)
+    aws_secret_access_key: str = Field(min_length=1)
+    miner_hotkey: str = Field(min_length=1)
+    """Hotkey of shielded miner"""
+    validator_hotkey: str = Field(min_length=1)
+    """Hotkey of validator"""
+    validator_private_key: str = Field(min_length=1)
+    """Hex representation of secp256k1 private key of validator"""
+
+    model_config = {
+        'env_file': '.env',
+    }
+
+
 class ValidatorFactory:
     """
     Factory class to create proper Validator instance basing on set environmental variables.
     """
 
     @classmethod
-    def create_validator(cls) -> Validator:
-        """
-        Create Validator instance basing on set environmental variables.
-
-        List of required env variables:
-        - MINER_HOTKEY: Hotkey of shielded miner.
-        - VALIDATOR_HOTKEY: Hotkey of validator.
-        - VALIDATOR_PRIVATE_KEY: Hex representation of secp256k1 private key of validator.
-        - AWS_ACCESS_KEY_ID: AWS access key ID.
-        - AWS_SECRET_ACCESS_KEY: AWS secret access key.
-        """
-        miner_hotkey: Hotkey = os.getenv('MINER_HOTKEY')
-        if not miner_hotkey:
-            raise ValidatorFactoryException("MINER_HOTKEY env is not set")
-
-        validator_hotkey: Hotkey = os.getenv('VALIDATOR_HOTKEY')
-        if not validator_hotkey:
-            raise ValidatorFactoryException("VALIDATOR_HOTKEY env is not set")
-
-        validator_private_key: PrivateKey = os.getenv('VALIDATOR_PRIVATE_KEY')
-        if not validator_private_key:
-            raise ValidatorFactoryException("VALIDATOR_PRIVATE_KEY env is not set")
-
-        aws_client_factory: AWSClientFactory = cls.create_aws_client_factory()
+    def create_validator(cls, settings: ValidatorSettings) -> Validator:
+        aws_client_factory: AWSClientFactory = cls.create_aws_client_factory(settings)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager, aws_client_factory)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(miner_hotkey)
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings.miner_hotkey)
         options: ValidatorOptions = ValidatorOptions()
-        return Validator(validator_hotkey, validator_private_key, blockchain_manager, manifest_manager, options)
+        return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
+                         manifest_manager, options)
 
     @classmethod
-    def create_aws_client_factory(cls) -> AWSClientFactory:
-        aws_access_key_id: str = os.getenv('AWS_ACCESS_KEY_ID')
-        aws_secret_access_key: str = os.getenv('AWS_SECRET_ACCESS_KEY')
-        if not aws_access_key_id or not aws_secret_access_key:
-            raise ValidatorFactoryException("AWS credentials are not set")
-        return AWSClientFactory(aws_access_key_id, aws_secret_access_key)
+    def create_aws_client_factory(cls, settings: ValidatorSettings) -> AWSClientFactory:
+        return AWSClientFactory(settings.aws_access_key_id, settings.aws_secret_access_key)
 
     @classmethod
     def create_encryption_manager(cls) -> AbstractEncryptionManager:
