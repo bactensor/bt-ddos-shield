@@ -9,8 +9,11 @@ from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
-from bt_ddos_shield.validators_manager import MemoryValidatorsManager
-from tests.conftest import ShieldTestSettings
+from bt_ddos_shield.validators_manager import (
+    MemoryValidatorsManager,
+    BittensorValidatorsManager,
+)
+from tests.conftest import ShieldTestSettings, ValidatorTestSettings
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
 from tests.test_encryption_manager import generate_key_pair
@@ -100,21 +103,21 @@ class TestMinerShield:
             self.shield.disable()
             assert not self.shield.run
 
-    def test_integration(self, shield_settings: ShieldTestSettings):
+    def test_integration(self, shield_settings: ShieldTestSettings, validator_settings: ValidatorTestSettings):
         """
         Test if shield is properly starting from scratch and fully enabling protection using real managers.
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
 
-        shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, self.DEFAULT_VALIDATORS)
+        shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings)
 
         assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
         state_manager: SQLAlchemyMinerShieldStateManager = shield.state_manager  # type: ignore
         state_manager.clear_tables()
 
-        assert isinstance(shield.validators_manager, MemoryValidatorsManager)
-        validators_manager: MemoryValidatorsManager = shield.validators_manager  # type: ignore
+        assert isinstance(shield.validators_manager, BittensorValidatorsManager)
+        validators_manager: BittensorValidatorsManager = shield.validators_manager  # type: ignore
 
         manifest_manager: AbstractManifestManager = shield.manifest_manager
         blockchain_manager: AbstractBlockchainManager = shield.blockchain_manager
@@ -128,11 +131,13 @@ class TestMinerShield:
         assert shield.run
 
         # Give some time to make sure everything is initialized and validate is called
-        sleep(120 + 2*shield.options.validate_interval_sec)
+        shield.task_queue.join()
 
         try:
             state: MinerShieldState = state_manager.get_state()
-            assert validators_manager.get_validators() == self.DEFAULT_VALIDATORS
+            assert validators_manager.get_validators() == {
+                validator_settings.validator_hotkey: validator_settings.validator_public_key,
+            }
             assert state.known_validators == validators_manager.get_validators()
             assert state.banned_validators == {}
             assert state.validators_addresses.keys() == validators_manager.get_validators().keys()
@@ -145,7 +150,7 @@ class TestMinerShield:
             assert reloaded_state == state
 
             # Remove all validators to clean up everything (except S3 file) and check if validate loop is running.
-            validators_manager.validators.clear()
+            validators_manager.validators = frozenset([None])
             sleep(10 + shield.options.validate_interval_sec)
 
             state = state_manager.get_state()
