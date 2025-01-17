@@ -135,6 +135,14 @@ class AwsAddressManager(AbstractAddressManager):
     INSTANCE_PORT_KEY: str = 'ec2_instance_port'
     INSTANCE_ID_KEY: str = 'ec2_instance_id'
 
+    AWS_OPERATION_MAX_RETRIES: int = 20
+    """ How many retries should be done for AWS operations, which need long time until can be processed. """
+    AWS_OPERATION_RETRY_DELAY_SEC: int = 9
+    """
+    Delay in seconds between retries for AWS operations. Total time for waiting for operation is
+    AWS_OPERATION_MAX_RETRIES * AWS_OPERATION_RETRY_DELAY_SEC seconds.
+    """
+
     def __init__(self, aws_client_factory: AWSClientFactory,
                  miner_address: Address, hosted_zone_id: str, event_processor: AbstractMinerShieldEventProcessor,
                  state_manager: AbstractMinerShieldStateManager):
@@ -457,21 +465,20 @@ class AwsAddressManager(AbstractAddressManager):
         old_instance_id: str = self.state_manager.get_state().address_manager_state[self.INSTANCE_ID_KEY]
         self.elb_client.deregister_targets(TargetGroupArn=target_group_id, Targets=[{'Id': old_instance_id}])
 
-        retries_count: int = 20
         error_code: str = ''
-        for _ in range(retries_count):
+        for _ in range(self.AWS_OPERATION_MAX_RETRIES):
             try:
                 self.elb_client.delete_target_group(TargetGroupArn=target_group_id)
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceInUse':
-                    time.sleep(6)  # wait for target group to be deregistered
+                    time.sleep(self.AWS_OPERATION_RETRY_DELAY_SEC)  # Wait for target group to be deregistered
                 else:
                     raise e
         else:
             # It happens quite often and sometimes AWS waits for many minutes before allowing to remove target group.
-            # But we don't want to wait for so long - 2 minutes is long enough.
+            # But we don't want to wait for too long.
             # If it happens during tests, user should remove target group later manually using AWS panel to not leave
             # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS TargetGroup {id}, error={error_code}',
@@ -542,21 +549,20 @@ class AwsAddressManager(AbstractAddressManager):
         return security_group_id
 
     def _remove_security_group(self, security_group_id: str) -> bool:
-        retries_count: int = 20
         error_code: str = ''
-        for _ in range(retries_count):
+        for _ in range(self.AWS_OPERATION_MAX_RETRIES):
             try:
                 self.ec2_client.delete_security_group(GroupId=security_group_id)
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'DependencyViolation':
-                    time.sleep(6)  # wait for ELB to be removed
+                    time.sleep(self.AWS_OPERATION_RETRY_DELAY_SEC)  # Wait for ELB to be removed
                 else:
                     raise e
         else:
             # It happens quite often and sometimes AWS waits for many minutes before allowing to remove security group.
-            # But we don't want to wait for so long - 2 minutes is long enough.
+            # But we don't want to wait for too long.
             # If it happens during tests, user should remove security group later manually using AWS panel to not leave
             # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS SecurityGroup {id}, error={error_code}',
@@ -602,9 +608,8 @@ class AwsAddressManager(AbstractAddressManager):
         waf_arn: str = response['Summary']['ARN']
         self.event_processor.event('Created AWS WAF, name={name}, id={id}', name=waf_name, id=waf_arn)
 
-        retries_count: int = 10
         error_code: str = ''
-        for _ in range(retries_count):
+        for _ in range(self.AWS_OPERATION_MAX_RETRIES):
             try:
                 self.waf_client.associate_web_acl(WebACLArn=waf_arn, ResourceArn=self.elb_data.id)
                 self.event_processor.event('Associated AWS WAF {waf_id} to ELB {elb_id}',
@@ -612,10 +617,14 @@ class AwsAddressManager(AbstractAddressManager):
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
-                time.sleep(6)  # wait for WAF to be created
+                time.sleep(self.AWS_OPERATION_RETRY_DELAY_SEC)  # Wait for WAF to be created
         else:
             self._remove_firewall(waf_arn)
-            raise AddressManagerException(f'Failed to associate AWS WAF {waf_arn} with ELB, error={error_code}')
+            # It happens quite often and sometimes creation of ELB propagates for many minutes before association is
+            # allowed. But we don't want to wait for too long.
+            raise AddressManagerException(
+                f'Failed to associate AWS WAF {waf_arn} with ELB {self.elb_data.id}, error={error_code}'
+            )
 
         try:
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.WAF.value, waf_arn)
@@ -639,21 +648,20 @@ class AwsAddressManager(AbstractAddressManager):
         waf_id: str = acl_data['Id']
         lock_token = waf_data['LockToken']
 
-        retries_count: int = 20
         error_code: str = ''
-        for _ in range(retries_count):
+        for _ in range(self.AWS_OPERATION_MAX_RETRIES):
             try:
                 self.waf_client.delete_web_acl(Name=acl_data['Name'], Id=waf_id, Scope='REGIONAL', LockToken=lock_token)
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'WAFAssociatedItemException':
-                    time.sleep(6)  # wait for ELB disassociating
+                    time.sleep(self.AWS_OPERATION_RETRY_DELAY_SEC)  # Wait for ELB disassociating
                 else:
                     raise e
         else:
             # It happens quite often and sometimes AWS waits for many minutes before allowing to remove WAF.
-            # But we don't want to wait for so long - 2 minutes is long enough.
+            # But we don't want to wait for too long.
             # If it happens during tests, user should remove WAF later manually using AWS panel to not leave
             # unneeded objects in AWS.
             self.event_processor.event('Failed to remove AWS WAF {id}, error={error_code}',

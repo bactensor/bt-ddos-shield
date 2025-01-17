@@ -11,7 +11,8 @@ from bt_ddos_shield.state_manager import (
 )
 from bt_ddos_shield.utils import Hotkey, PublicKey
 from sqlalchemy.exc import IntegrityError, NoResultFound
-from tests.test_credentials import sql_alchemy_db_url
+
+from tests.conftest import ShieldTestSettings
 
 
 class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
@@ -58,13 +59,13 @@ class TestMinerShieldStateManager:
     """
 
     @classmethod
-    def create_db_state_manager(cls) -> SQLAlchemyMinerShieldStateManager:
-        state_manager = SQLAlchemyMinerShieldStateManager(sql_alchemy_db_url)
+    def create_db_state_manager(cls, test_settings: ShieldTestSettings) -> SQLAlchemyMinerShieldStateManager:
+        state_manager = SQLAlchemyMinerShieldStateManager(test_settings.sql_alchemy_db_url)
         state_manager.clear_tables()
         state_manager.get_state()
         return state_manager
 
-    def test_active_validators(self):
+    def test_active_validators(self, shield_settings: ShieldTestSettings):
         validator1_hotkey = "validator1"
         validator1_publickey = "publickey1"
         validator1_address = Address(address_id="validator1_id", address_type=AddressType.IP,
@@ -76,7 +77,7 @@ class TestMinerShieldStateManager:
         validator2_address = Address(address_id="validator2_id", address_type=AddressType.IP,
                                      address="2.3.4.5", port=81)
 
-        state_manager = self.create_db_state_manager()
+        state_manager = self.create_db_state_manager(shield_settings)
 
         state_manager.add_validator(validator1_hotkey, validator1_publickey, validator1_address)
         # can't add again same address
@@ -103,10 +104,10 @@ class TestMinerShieldStateManager:
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
 
-    def test_banned_validators(self):
+    def test_banned_validators(self, shield_settings: ShieldTestSettings):
         banned_validator_hotkey = "banned_validator"
 
-        state_manager = self.create_db_state_manager()
+        state_manager = self.create_db_state_manager(shield_settings)
 
         state_manager.add_banned_validator(banned_validator_hotkey)
         ban_time: datetime = state_manager.get_state().banned_validators[banned_validator_hotkey]
@@ -121,13 +122,13 @@ class TestMinerShieldStateManager:
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
 
-    def test_manifest_address(self):
+    def test_manifest_address(self, shield_settings: ShieldTestSettings):
         manifest_address1 = Address(address_id="manifest", address_type=AddressType.IP,
                                     address="1.2.3.4", port=80)
         manifest_address2 = Address(address_id="manifest", address_type=AddressType.IP,
                                     address="2.3.4.5", port=81)
 
-        state_manager = self.create_db_state_manager()
+        state_manager = self.create_db_state_manager(shield_settings)
         state_manager.set_manifest_address(manifest_address1)
         state_manager.set_manifest_address(manifest_address2)
         state: MinerShieldState = state_manager.get_state()
@@ -136,14 +137,14 @@ class TestMinerShieldStateManager:
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
 
-    def test_address_manager_state(self):
+    def test_address_manager_state(self, shield_settings: ShieldTestSettings):
         key1 = "key1"
         value1 = "value1"
         key2 = "key2"
         value2 = "value2"
         key3 = "key3"
 
-        state_manager = self.create_db_state_manager()
+        state_manager = self.create_db_state_manager(shield_settings)
 
         # Add key-value pairs to the address manager state
         state_manager.update_address_manager_state(key1, value1)
@@ -171,14 +172,14 @@ class TestMinerShieldStateManager:
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
 
-    def test_address_manager_created_objects(self):
+    def test_address_manager_created_objects(self, shield_settings: ShieldTestSettings):
         object_type1 = "type1"
         object_id1 = "id1"
         object_type2 = "type2"
         object_id2 = "id2"
         object_id3 = "id3"
 
-        state_manager = self.create_db_state_manager()
+        state_manager = self.create_db_state_manager(shield_settings)
 
         # Add objects to the address manager created objects
         state_manager.add_address_manager_created_object(object_type1, object_id1)

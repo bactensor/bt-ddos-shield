@@ -13,14 +13,14 @@ impractical for subnets handling large volumes of data.
 The goal of this project is to implement a distributed and decentralized system that:
 - Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
 - Removes the need for on-chain storage of unencrypted IP addresses and ports, eliminating an obvious attack surface.
-- Uses encrypted messages between miners and validators to securely exchange connection information (IP, IP version, and port).
+- Uses encrypted messages between miners and validators to securely exchange connection information (connection address).
 - Provides a scalable, decentralized alternative to traditional DDoS protection methods while maintaining performance and minimizing attack vectors.
 
 ## Features
 
 1. **Encryption-Based Communication**:
    - Uses ECIES (Elliptic Curve Integrated Encryption Scheme) to encrypt communication between miners and validators.
-   - The encrypted data includes the miner's hotkey, subnet ID, and validator connection details (IP, IP version, and port).
+   - The encrypted data includes connection details for validator (IP, IP version, and port).
 
 2. **Decentralized DDoS Mitigation**:
    - Removes the need for centralized DDoS protection services by distributing connection information securely across nodes.
@@ -73,33 +73,44 @@ cd bt-ddos-shield
 
 ### 2. Install Dependencies:
 
+Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
+
+### 3. Run Tests:
+
+First create a `.env.test` file filling template file `envs/.env.test.template`. Stub should be made by `setup-dev.sh` script.
+Then activate venv with source .venv/bin/activate and run the following command to execute the tests:
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install poetry
-poetry install
+pytest
 ```
 
-### 3. Build the Pacakge:
+### 4. Run Shield locally:
+
+First create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
+Then activate venv with source .venv/bin/activate and run the following command to run the shield:
 ```bash
-poetry build
+bin/run_shield.sh
 ```
 
-### 4. Run Tests:
+## Docker Usage
+
+### Creating Docker Image
+
+To create a docker image, run the following command:
 ```bash
-poetry run pytest
+cd docker && ./build_image.sh
 ```
 
-### 5. Local Pacakge Usage
+### Running Docker Image
 
-To install the package locally for development purposes:
+To run created docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
+Then run the following command:
 ```bash
-pip insatll -e <path/to/package>
+cd docker && ./run_image.sh
 ```
 
-### 6. Publish the Package
+If one wants to clean objects created by shield run the following command:
 ```bash
-poetry publish
+cd docker && ./run_image.sh clean
 ```
 
 ## License

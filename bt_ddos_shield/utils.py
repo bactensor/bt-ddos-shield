@@ -3,6 +3,7 @@ from typing import Optional, TypeAlias
 import boto3
 import route53
 from botocore.client import BaseClient
+from pydantic import BaseModel
 from route53.connection import Route53Connection
 
 Hotkey: TypeAlias = str
