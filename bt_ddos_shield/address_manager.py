@@ -1,9 +1,10 @@
 import ipaddress
+import json
 import secrets
 import string
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, is_dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
 from types import MappingProxyType
@@ -99,10 +100,51 @@ class AwsELBData:
     hosted_zone_id: str
 
 
+@dataclass
+class AwsEC2ServerLocation:
+    vpc_id: str
+    subnet_id: str
+    server_id: str
+
+
+@dataclass
+class AwsShieldedServerData:
+    server_address: Address
+    """ Address of shielded server (IP or EC2 instance ID). """
+    aws_location: Optional[AwsEC2ServerLocation]
+    """ Location of server in AWS (only if it is EC2 instance). """
+
+    def to_json(self) -> str:
+        class DataEncoder(json.JSONEncoder):
+            def default(self, obj: Any):
+                if isinstance(obj, Enum):
+                    return obj.value
+                elif is_dataclass(obj):
+                    return asdict(obj)
+                return super().default(obj)
+
+        return json.dumps(self, cls=DataEncoder)
+
+    @staticmethod
+    def from_json(json_str: str) -> 'AwsShieldedServerData':
+        def data_object_hook(d: dict[str, Any]) -> Any:
+            if 'address_type' in d and isinstance(d['address_type'], str):
+                d['address_type'] = AddressType(d['address_type'])
+            if 'server_address' in d:
+                d['server_address'] = Address(**d['server_address'])
+            if 'aws_location' in d and d['aws_location'] is not None:
+                d['aws_location'] = AwsEC2ServerLocation(**d['aws_location'])
+            return d
+
+        data = json.loads(json_str, object_hook=data_object_hook)
+        return AwsShieldedServerData(**data)
+
+
 class AwsObjectTypes(Enum):
     WAF = 'WAF'
     ELB = 'ELB'
     SUBNET = 'SUBNET'
+    VPC = 'VPC'
     DNS_ENTRY = 'DNS_ENTRY'
     TARGET_GROUP = 'TARGET_GROUP'
     SECURITY_GROUP = 'SECURITY_GROUP'
@@ -113,11 +155,7 @@ class AwsAddressManager(AbstractAddressManager):
     Address manager using AWS Route53 service to manage DNS records and ELB for handling access to Miner server.
     """
 
-    miner_instance_id: str
-    """ ID of miner EC2 instance in AWS. All traffic will be redirected to this instance. """
-    miner_instance: AwsEC2InstanceData
-    miner_instance_port: int
-    """ Port where miner server is working. """
+    shielded_server_data: AwsShieldedServerData
     waf_client: BaseClient
     waf_arn: Optional[str]
     elb_client: BaseClient
@@ -131,9 +169,8 @@ class AwsAddressManager(AbstractAddressManager):
     event_processor: AbstractMinerShieldEventProcessor
     state_manager: AbstractMinerShieldStateManager
 
-    HOSTED_ZONE_ID_KEY: str = 'aws_hosted_zone_id'
-    INSTANCE_PORT_KEY: str = 'ec2_instance_port'
-    INSTANCE_ID_KEY: str = 'ec2_instance_id'
+    HOSTED_ZONE_ID_STATE_KEY: str = 'aws_hosted_zone_id'
+    SHIELDED_SERVER_STATE_KEY: str = 'aws_shielded_server'
 
     AWS_OPERATION_MAX_RETRIES: int = 20
     """ How many retries should be done for AWS operations, which need long time until can be processed. """
@@ -143,13 +180,13 @@ class AwsAddressManager(AbstractAddressManager):
     AWS_OPERATION_MAX_RETRIES * AWS_OPERATION_RETRY_DELAY_SEC seconds.
     """
 
-    def __init__(self, aws_client_factory: AWSClientFactory,
-                 miner_address: Address, hosted_zone_id: str, event_processor: AbstractMinerShieldEventProcessor,
-                 state_manager: AbstractMinerShieldStateManager):
+    def __init__(self, aws_client_factory: AWSClientFactory, server_address: Address, hosted_zone_id: str,
+                 event_processor: AbstractMinerShieldEventProcessor, state_manager: AbstractMinerShieldStateManager):
         """
-        Initialize AWS address manager. miner_address can be passed as EC2 type (then AWS instance_id should be set in
-        address field) or as IP/IPV6 (then we try to find EC2 instance with this IP, which should be private IP
-        address of EC2 instance) - where port means destination port and address_id is ignored.
+        Initialize AWS address manager. server_address parameter can be passed as EC2 type (in such case AWS instance ID
+        or private IP should be set in address field of server_address param) or as any public IP/IPV6 address - for
+        both options port field means destination port on the server and address_id field is ignored.
+        REMARK: As for now only hiding of EC2 server works.
         """
         self.event_processor = event_processor
         self.state_manager = state_manager
@@ -163,20 +200,38 @@ class AwsAddressManager(AbstractAddressManager):
         self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
         self.route53_boto_client = aws_client_factory.boto3_client('route53')
         self.ec2_client = aws_client_factory.boto3_client('ec2')
-        self._initialize_miner_instance(miner_address)
+        self._initialize_server_data(server_address)
 
-    def _initialize_miner_instance(self, miner_address: Address):
-        if miner_address.address_type == AddressType.EC2:
-            self.miner_instance_id = miner_address.address
-        elif miner_address.address_type in (AddressType.IP, AddressType.IPV6):
-            if miner_address.address_type == AddressType.IPV6:
-                # TODO implement IPv6 support
-                raise AddressManagerException('IPv6 is not yet supported')
-            self.miner_instance_id = self._find_ec2_instance_id_by_ip(miner_address.address)
+    def _initialize_server_data(self, server_address: Address):
+        server_aws_location: Optional[AwsEC2ServerLocation]
+
+        if server_address.address_type == AddressType.EC2:
+            server_instance_id: str
+            try:
+                # For EC2 type user can pass private IP of the server or AWS instance ID
+                ipaddress.ip_address(server_address.address)
+                server_instance_id = self._find_ec2_instance_id_by_ip(server_address.address)
+            except ValueError:
+                server_instance_id = server_address.address
+
+            server_instance: AwsEC2InstanceData = self._get_ec2_instance_data(server_instance_id)
+            server_address = Address(address_id='', address_type=AddressType.EC2,
+                                     address=server_instance_id, port=server_address.port)
+            server_aws_location = AwsEC2ServerLocation(vpc_id=server_instance.vpc_id,
+                                                       subnet_id=server_instance.subnet_id,
+                                                       server_id=server_instance_id)
+
+        elif server_address.address_type in (AddressType.IP, AddressType.IPV6):
+            # TODO: See comment in _create_target_group method what needs to be done.
+            raise AddressManagerException('Shielding non EC2 servers is not implemented yet')
+            # server_address = deepcopy(server_address)
+            # server_aws_location = None
         else:
-            raise AddressManagerException('Miner address should be of type EC2 or IP')
-        self.miner_instance = self._get_ec2_instance_data(self.miner_instance_id)
-        self.miner_instance_port = miner_address.port
+            raise AddressManagerException('Server address should be of type EC2 or IP')
+
+        server_address.address_id = 'server_address'
+        self.shielded_server_data = AwsShieldedServerData(server_address=server_address,
+                                                          aws_location=server_aws_location)
 
     def _find_ec2_instance_id_by_ip(self, ip_address: str) -> str:
         response: dict[str, Any] = self.ec2_client.describe_instances(Filters=[{'Name': 'private-ip-address',
@@ -203,6 +258,8 @@ class AwsAddressManager(AbstractAddressManager):
                                           self._remove_target_group) and cleaned
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.SUBNET,
                                           self._remove_subnet) and cleaned
+        cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.VPC,
+                                          self._remove_vpc) and cleaned
         if not cleaned:
             raise AddressManagerException('Failed to clean all AWS objects that are no longer needed')
 
@@ -230,7 +287,7 @@ class AwsAddressManager(AbstractAddressManager):
             raise e
 
         return Address(address_id=record_id, address_type=AddressType.DOMAIN,
-                       address=new_address_domain, port=self.miner_instance_port)
+                       address=new_address_domain, port=self.shielded_server_data.server_address.port)
 
     @classmethod
     def _generate_subdomain(cls, hotkey: Hotkey) -> str:
@@ -265,54 +322,41 @@ class AwsAddressManager(AbstractAddressManager):
 
     def _validate_manager_state(self) -> bool:
         """ Returns if we should invalidate all addresses created before. """
-        ret: bool = self._handle_shielded_instance_change()
+        ret: bool = self._handle_shielded_server_change()
         ret = self._handle_hosted_zone_change() or ret
-        self.elb_data = self._create_elb_if_needed(self.miner_instance, self.miner_instance_port)
+        self.elb_data = self._create_elb_if_needed(self.shielded_server_data)
         self.waf_arn = self._create_firewall_if_needed()
         return ret
 
-    def _handle_shielded_instance_change(self) -> bool:
+    def _store_server_data(self, server_data: AwsShieldedServerData):
+        self.state_manager.update_address_manager_state(self.SHIELDED_SERVER_STATE_KEY, server_data.to_json())
+
+    def _load_server_data(self) -> Optional[AwsShieldedServerData]:
         state: MinerShieldState = self.state_manager.get_state()
+        if self.SHIELDED_SERVER_STATE_KEY not in state.address_manager_state:
+            return None
+        json_data: str = state.address_manager_state[self.SHIELDED_SERVER_STATE_KEY]
+        return AwsShieldedServerData.from_json(json_data)
 
-        id_changed: bool = False
-        old_id: Optional[str] = None
-        if self.INSTANCE_ID_KEY in state.address_manager_state:
-            old_id = state.address_manager_state[self.INSTANCE_ID_KEY]
-            if old_id != self.miner_instance_id:
-                id_changed = True
-        else:
-            id_changed = True
-
-        port_changed: bool = False
-        old_port: Optional[int] = None
-        if self.INSTANCE_PORT_KEY in state.address_manager_state:
-            old_port = int(state.address_manager_state[self.INSTANCE_PORT_KEY])
-            if old_port != self.miner_instance_port:
-                port_changed = True
-        else:
-            port_changed = True
-
-        recreate_needed: bool = id_changed or port_changed
-        if recreate_needed:
-            # If shielded instance ID or port changed, we need to recreate ELB. Maybe we can try to change only
+    def _handle_shielded_server_change(self) -> bool:
+        old_server_data: Optional[AwsShieldedServerData] = self._load_server_data()
+        if old_server_data != self.shielded_server_data:
+            # If shielded server changed, we need to recreate ELB. Maybe we can try to change only
             # needed objects, but changing ELB is the easiest way and this operation should happen rarely.
-            self.event_processor.event('Shielded EC2 instance ID changed from {old_id}:{old_port} to '
-                                       '{new_id}:{new_port}', old_id=old_id, old_port=old_port,
-                                       new_id=self.miner_instance_id, new_port=self.miner_instance_port)
+            self.event_processor.event('Shielded server changed from {old_server_desc} to {new_server_desc}',
+                                       old_server_desc=str(old_server_data) if old_server_data else 'None',
+                                       new_server_desc=str(self.shielded_server_data))
             self.clean_all()
+            self._store_server_data(self.shielded_server_data)
+            return True
 
-        if id_changed:
-            self.state_manager.update_address_manager_state(self.INSTANCE_ID_KEY, self.miner_instance_id)
-        if port_changed:
-            self.state_manager.update_address_manager_state(self.INSTANCE_PORT_KEY, str(self.miner_instance_port))
-
-        return recreate_needed
+        return False
 
     def _handle_hosted_zone_change(self) -> bool:
         state: MinerShieldState = self.state_manager.get_state()
         zone_changed: bool = False
-        if self.HOSTED_ZONE_ID_KEY in state.address_manager_state:
-            old_zone_id: str = state.address_manager_state[self.HOSTED_ZONE_ID_KEY]
+        if self.HOSTED_ZONE_ID_STATE_KEY in state.address_manager_state:
+            old_zone_id: str = state.address_manager_state[self.HOSTED_ZONE_ID_STATE_KEY]
             if old_zone_id != self.hosted_zone_id:
                 # If hosted zone changed, we need to clean all previous route53 addresses
                 self.event_processor.event('Route53 hosted zone changed from {old_id} to {new_id}',
@@ -324,7 +368,7 @@ class AwsAddressManager(AbstractAddressManager):
             zone_changed = True
 
         if zone_changed:
-            self.state_manager.update_address_manager_state(self.HOSTED_ZONE_ID_KEY, self.hosted_zone_id)
+            self.state_manager.update_address_manager_state(self.HOSTED_ZONE_ID_STATE_KEY, self.hosted_zone_id)
         return zone_changed
 
     def _get_ec2_instance_data(self, instance_id: str) -> AwsEC2InstanceData:
@@ -420,6 +464,56 @@ class AwsAddressManager(AbstractAddressManager):
         characters = string.ascii_letters + string.digits
         return ''.join(secrets.choice(characters) for _ in range(length))
 
+    def _get_vpc_networks(self) -> list[Union[IPv4Network, IPv6Network]]:
+        response: dict[str, Any] = self.ec2_client.describe_vpcs()
+        return [ipaddress.ip_network(vpc['CidrBlock']) for vpc in response['Vpcs']]
+
+    @classmethod
+    def _get_subnet_networks(cls, vpc: AwsVpcData) -> list[Union[IPv4Network, IPv6Network]]:
+        return [ipaddress.ip_network(subnet.cidr_block) for subnet in vpc.subnets]
+
+    @classmethod
+    def _find_available_subnet(cls, network: Union[IPv4Network, IPv6Network],
+                               used_subnets: list[Union[IPv4Network, IPv6Network]], subnet_size: int) -> str:
+        """
+        Find available CIDR block (subnet) of specified size inside network. This block must not collide with any
+        subnets from used_subnets param.
+        """
+        for subnet in network.subnets(new_prefix=subnet_size):
+            if not any(subnet.overlaps(used) for used in used_subnets):
+                return str(subnet)
+
+        raise AddressManagerException('No available CIDR block found in AWS')
+
+    def _create_vpc(self) -> str:
+        # Preferable IP range for VPC is 10.0.0.0/8 according to
+        # https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html.
+        # Do not try 172.* and 192.* as 10.* should be enough.
+        network: Union[IPv4Network, IPv6Network] = ipaddress.ip_network('10.0.0.0/8')
+        vpc_network_size: int = 24  # Network size 24 (255 addresses) is enough for shield
+        cidr: str = self._find_available_subnet(network, self._get_vpc_networks(), vpc_network_size)
+        response: dict[str, Any] = self.ec2_client.create_vpc(
+            CidrBlock=cidr,
+            TagSpecifications=[{
+                'ResourceType': 'vpc',
+                'Tags': [{'Key': 'Name', 'Value': 'DDosShield'}]
+            }]
+        )
+        vpc_id: str = response['Vpc']['VpcId']
+        self.event_processor.event('Created AWS VPC {id} with cidr={cidr}', id=vpc_id, cidr=cidr)
+        try:
+            self.state_manager.add_address_manager_created_object(AwsObjectTypes.VPC.value, vpc_id)
+        except Exception as e:
+            self._remove_vpc(vpc_id)
+            raise e
+        return vpc_id
+
+    def _remove_vpc(self, vpc_id: str) -> bool:
+        self.ec2_client.delete_vpc(VpcId=vpc_id)
+        self.event_processor.event('Deleted AWS VPC {id}', id=vpc_id)
+        self.state_manager.del_address_manager_created_object(AwsObjectTypes.VPC.value, vpc_id)
+        return True
+
     def _create_subnet(self, vpc_id: str, cidr_block: str, availability_zone: str) -> AwsSubnetData:
         response: dict[str, Any] = self.ec2_client.create_subnet(VpcId=vpc_id, CidrBlock=cidr_block,
                                                                  AvailabilityZone=availability_zone)
@@ -440,20 +534,27 @@ class AwsAddressManager(AbstractAddressManager):
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.SUBNET.value, subnet_id)
         return True
 
-    def _create_target_group(self, miner_vpc: AwsVpcData, miner_instance_id: str, miner_instance_port: int) -> str:
+    def _create_target_group(self, vpc_data: AwsVpcData, server_data: AwsShieldedServerData) -> str:
         group_name: str = f'miner-target-group-{self._generate_random_alnum_string(8)}'
-        # Health check can't be disabled, when targeting instance - as for now we use traffic-port
+        # Health check can't be disabled - as for now we use traffic-port
         response: dict[str, Any] = self.elb_client.create_target_group(Name=group_name, Protocol='HTTP',
-                                                                       Port=miner_instance_port, VpcId=miner_vpc.vpc_id,
-                                                                       HealthCheckPort='traffic-port',
-                                                                       TargetType='instance')
+                                                                       Port=server_data.server_address.port,
+                                                                       VpcId=vpc_data.vpc_id,
+                                                                       TargetType='instance',
+                                                                       HealthCheckEnabled=True,
+                                                                       HealthCheckProtocol='HTTP',
+                                                                       HealthCheckPort='traffic-port')
         target_group_id: str = response['TargetGroups'][0]['TargetGroupArn']
         self.event_processor.event('Created AWS TargetGroup, name={name}, id={id}',
                                    name=group_name, id=target_group_id)
 
         try:
-            self.elb_client.register_targets(TargetGroupArn=target_group_id, Targets=[{'Id': miner_instance_id,
-                                                                                       'Port': miner_instance_port}])
+            # TODO: AWS load balancers prohibit redirection to IP address from outside of AWS. This have to be done
+            # other way - probably by creating EC2 instance and configuring there haproxy, which will redirect traffic
+            # to the shielded server.
+            self.elb_client.register_targets(TargetGroupArn=target_group_id,
+                                             Targets=[{'Id': server_data.server_address.address,
+                                                       'Port': server_data.server_address.port}])
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
         except Exception as e:
             self._remove_target_group(target_group_id)
@@ -462,8 +563,10 @@ class AwsAddressManager(AbstractAddressManager):
         return target_group_id
 
     def _remove_target_group(self, target_group_id: str) -> bool:
-        old_instance_id: str = self.state_manager.get_state().address_manager_state[self.INSTANCE_ID_KEY]
-        self.elb_client.deregister_targets(TargetGroupArn=target_group_id, Targets=[{'Id': old_instance_id}])
+        current_server_data: Optional[AwsShieldedServerData] = self._load_server_data()
+        if current_server_data:
+            self.elb_client.deregister_targets(TargetGroupArn=target_group_id,
+                                               Targets=[{'Id': current_server_data.server_address.address}])
 
         error_code: str = ''
         for _ in range(self.AWS_OPERATION_MAX_RETRIES):
@@ -489,11 +592,11 @@ class AwsAddressManager(AbstractAddressManager):
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
         return True
 
-    def _create_elb(self, miner_instance: AwsEC2InstanceData, bonus_subnet: AwsSubnetData, target_group_id: str,
+    def _create_elb(self, shield_subnets: list[AwsSubnetData], target_group_id: str,
                     security_group_id: str) -> str:
         elb_name: str = f'miner-elb-{self._generate_random_alnum_string(8)}'
-        subnets: list[str] = [miner_instance.subnet_id, bonus_subnet.subnet_id]
-        response: dict[str, Any] = self.elb_client.create_load_balancer(Name=elb_name, Subnets=subnets,
+        subnets_ids: list[str] = [subnet.subnet_id for subnet in shield_subnets]
+        response: dict[str, Any] = self.elb_client.create_load_balancer(Name=elb_name, Subnets=subnets_ids,
                                                                         SecurityGroups=[security_group_id],
                                                                         Scheme='internet-facing', Type='application')
         elb_info: dict[str, Any] = response['LoadBalancers'][0]
@@ -522,12 +625,12 @@ class AwsAddressManager(AbstractAddressManager):
         return AwsELBData(id=elb_info['LoadBalancerArn'], dns_name=elb_info['DNSName'],
                           hosted_zone_id=elb_info['CanonicalHostedZoneId'])
 
-    def _create_security_group(self, miner_vpc: AwsVpcData, miner_instance_port: int) -> str:
+    def _create_security_group(self, vpc_data: AwsVpcData, server_port: int) -> str:
         group_name: str = f'miner-security-group-{self._generate_random_alnum_string(8)}'
         response: dict[str, Any] = \
             self.ec2_client.create_security_group(GroupName=group_name,
                                                   Description='Security group for miner instance',
-                                                  VpcId=miner_vpc.vpc_id)
+                                                  VpcId=vpc_data.vpc_id)
         security_group_id: str = response['GroupId']
         self.event_processor.event('Created AWS SecurityGroup, name={name}, id={id}',
                                    name=group_name, id=security_group_id)
@@ -536,7 +639,7 @@ class AwsAddressManager(AbstractAddressManager):
             self.ec2_client.authorize_security_group_ingress(
                 GroupId=security_group_id,
                 IpPermissions=[{
-                    'FromPort': 80, 'ToPort': miner_instance_port, 'IpProtocol': 'tcp',
+                    'FromPort': 80, 'ToPort': server_port, 'IpProtocol': 'tcp',
                     'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
                 }]
             )
@@ -753,58 +856,74 @@ class AwsAddressManager(AbstractAddressManager):
     def _get_name_from_waf_arn(cls, waf_arn: str) -> str:
         return waf_arn.split('/')[-2]
 
-    @classmethod
-    def _get_available_cidr(cls, vpc: AwsVpcData, subnet_mask: int) -> str:
-        vpc_network: Union[IPv4Network, IPv6Network] = ipaddress.ip_network(vpc.cidr_block)
-        subnets_cidrs: list[str] = [subnet.cidr_block for subnet in vpc.subnets]
-
-        # Find the first available subnet that does not overlap with existing subnets
-        for subnet in vpc_network.subnets(new_prefix=subnet_mask):
-            if not any(ipaddress.ip_network(used_cidr).overlaps(subnet) for used_cidr in subnets_cidrs):
-                return str(subnet)
-
-        raise AddressManagerException('No available CIDR block found for the new subnet')
-
-    def _create_bonus_subnet_if_needed(self, miner_vpc: AwsVpcData, miner_subnet: AwsSubnetData,
-                                       created_objects: MappingProxyType[str, frozenset[str]]) -> AwsSubnetData:
+    def _create_subnets_if_needed(self, vpc_data: AwsVpcData, server_data: AwsShieldedServerData,
+                                  created_objects: MappingProxyType[str, frozenset[str]]) -> list[AwsSubnetData]:
+        shield_subnets: list[AwsSubnetData] = []
         if AwsObjectTypes.SUBNET.value in created_objects:
-            assert len(created_objects[AwsObjectTypes.SUBNET.value]) == 1, "only one subnet should be created"
-            bonus_subnet_id: str = next(iter(created_objects[AwsObjectTypes.SUBNET.value]))
-            return self._get_subnet_data(bonus_subnet_id)
+            for subnet_id in created_objects[AwsObjectTypes.SUBNET.value]:
+                shield_subnets.append(self._get_subnet_data(subnet_id))
+        if server_data.aws_location:
+            shield_subnets.append(self._get_subnet_data(server_data.aws_location.subnet_id))
 
-        for subnet in miner_vpc.subnets:
-            if subnet.availability_zone != miner_subnet.availability_zone:
-                bonus_subnet_availability_zone: str = subnet.availability_zone
-                break
-        else:
-            raise AddressManagerException("Miner instance VPC doesn't have subnet in different availability zone")
+        # ELB needs at least two subnets in different AZs
+        min_subnets_for_elb: int = 2
+        if len(shield_subnets) >= min_subnets_for_elb:
+            return shield_subnets
 
-        # Create new subnet in the same VPC as miner instance, because ELB needs at least two subnets in different AZs
-        min_elb_subnet_mask: int = 27  # 27 as specified in documentation
-        bonus_subnet_cidr: str = self._get_available_cidr(miner_vpc, min_elb_subnet_mask)
-        bonus_subnet: AwsSubnetData = self._create_subnet(miner_vpc.vpc_id, bonus_subnet_cidr,
-                                                          bonus_subnet_availability_zone)
-        return bonus_subnet
+        response: dict[str, Any] = self.ec2_client.describe_availability_zones()
+        vpc_availability_zones: set[str] = {az['ZoneName'] for az in response['AvailabilityZones']}
+        subnets_availability_zones: set[str] = {subnet.availability_zone for subnet in shield_subnets}
+        # Region should have at least 2 different availability zones, and we need to create at most 2 subnets, so
+        # we can use set difference to find remaining availability zones.
+        remaining_availability_zones: set[str] = vpc_availability_zones - subnets_availability_zones
 
-    def _create_target_group_if_needed(self, miner_vpc: AwsVpcData, miner_instance_id: str, miner_instance_port: int,
+        vpc_network: Union[IPv4Network, IPv6Network] = ipaddress.ip_network(vpc_data.cidr_block)
+        used_networks: list[Union[IPv4Network, IPv6Network]] = self._get_subnet_networks(vpc_data)
+        # 27 as specified in https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#availability-zones  # noqa: E501
+        min_elb_subnet_size: int = 27
+
+        while len(shield_subnets) < min_subnets_for_elb:
+            new_subnet_cidr: str = self._find_available_subnet(vpc_network, used_networks, min_elb_subnet_size)
+            new_subnet_az: str = remaining_availability_zones.pop()
+            new_subnet: AwsSubnetData = self._create_subnet(vpc_data.vpc_id, new_subnet_cidr, new_subnet_az)
+            used_networks.append(ipaddress.ip_network(new_subnet_cidr))
+            shield_subnets.append(new_subnet)
+        return shield_subnets
+
+    def _create_target_group_if_needed(self, vpc_data: AwsVpcData, server_data: AwsShieldedServerData,
                                        created_objects: MappingProxyType[str, frozenset[str]]) -> str:
         if AwsObjectTypes.TARGET_GROUP.value in created_objects:
             assert len(created_objects[AwsObjectTypes.TARGET_GROUP.value]) == 1, "only one group should be created"
             target_group_id: str = next(iter(created_objects[AwsObjectTypes.TARGET_GROUP.value]))
             return target_group_id
 
-        return self._create_target_group(miner_vpc, miner_instance_id, miner_instance_port)
+        return self._create_target_group(vpc_data, server_data)
 
-    def _create_security_group_if_needed(self, miner_vpc, miner_instance_port: int,
+    def _create_security_group_if_needed(self, vpc_data: AwsVpcData, server_port: int,
                                          created_objects: MappingProxyType[str, frozenset[str]]) -> str:
         if AwsObjectTypes.SECURITY_GROUP.value in created_objects:
             assert len(created_objects[AwsObjectTypes.SECURITY_GROUP.value]) == 1, "only one group should be created"
             security_group_id: str = next(iter(created_objects[AwsObjectTypes.SECURITY_GROUP.value]))
             return security_group_id
 
-        return self._create_security_group(miner_vpc, miner_instance_port)
+        return self._create_security_group(vpc_data, server_port)
 
-    def _create_elb_if_needed(self, miner_instance: AwsEC2InstanceData, miner_port: int) -> AwsELBData:
+    def _create_vpc_if_needed(self, server_data: AwsShieldedServerData,
+                              created_objects: MappingProxyType[str, frozenset[str]]) -> AwsVpcData:
+        vpc_id: str
+        if server_data.aws_location:
+            assert AwsObjectTypes.VPC.value not in created_objects, "VPC of EC2 instance should be used"
+            vpc_id = server_data.aws_location.vpc_id
+        else:
+            if AwsObjectTypes.VPC.value in created_objects:
+                assert len(created_objects[AwsObjectTypes.VPC.value]) == 1, "only one VPC should be created"
+                vpc_id = next(iter(created_objects[AwsObjectTypes.VPC.value]))
+            else:
+                vpc_id = self._create_vpc()
+
+        return self._get_vpc_data(vpc_id)
+
+    def _create_elb_if_needed(self, server_data: AwsShieldedServerData) -> AwsELBData:
         created_objects: MappingProxyType[str, frozenset[str]] = \
             self.state_manager.get_state().address_manager_created_objects
 
@@ -812,14 +931,12 @@ class AwsAddressManager(AbstractAddressManager):
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "only one ELB should be created"
             return self._get_elb_info(next(iter(created_objects[AwsObjectTypes.ELB.value])))
 
-        miner_vpc: AwsVpcData = self._get_vpc_data(miner_instance.vpc_id)
-        miner_subnet: AwsSubnetData = self._get_subnet_data(miner_instance.subnet_id)
-        bonus_subnet: AwsSubnetData = self._create_bonus_subnet_if_needed(miner_vpc, miner_subnet, created_objects)
-        target_group_id: str = self._create_target_group_if_needed(miner_vpc, miner_instance.instance_id,
-                                                                   miner_port, created_objects)
-        security_group_id: str = self._create_security_group_if_needed(miner_vpc, miner_port,
-                                                                       created_objects)
-        elb_id: str = self._create_elb(miner_instance, bonus_subnet, target_group_id, security_group_id)
+        server_port: int = server_data.server_address.port
+        vpc_data: AwsVpcData = self._create_vpc_if_needed(server_data, created_objects)
+        shield_subnets: list[AwsSubnetData] = self._create_subnets_if_needed(vpc_data, server_data, created_objects)
+        target_group_id: str = self._create_target_group_if_needed(vpc_data, server_data, created_objects)
+        security_group_id: str = self._create_security_group_if_needed(vpc_data, server_port, created_objects)
+        elb_id: str = self._create_elb(shield_subnets, target_group_id, security_group_id)
         return self._get_elb_info(elb_id)
 
     def _create_firewall_if_needed(self) -> str:
