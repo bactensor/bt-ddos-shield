@@ -1,8 +1,12 @@
 import base64
 import hashlib
 import json
+import requests
+
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from dataclasses import dataclass
+from http import HTTPStatus
 from types import MappingProxyType
 from typing import Any, Optional
 
@@ -30,7 +34,14 @@ class ManifestDeserializationException(ManifestManagerException):
     pass
 
 
-class ManifestNotFoundException(ManifestManagerException):
+class ManifestDownloadException(ManifestManagerException):
+    """
+    Exception thrown when error occurs during downloading manifest file.
+    """
+    pass
+
+
+class ManifestNotFoundException(ManifestDownloadException):
     """
     Exception thrown when manifest file is not found under given address.
     """
@@ -195,65 +206,45 @@ class AbstractManifestManager(ABC):
         pass
 
 
-class S3ManifestManager(AbstractManifestManager):
+ManifestS3Address = namedtuple('ManifestS3Address', ['region_name', 'bucket_name', 'file_key'])
+
+
+class ReadOnlyS3ManifestManager(AbstractManifestManager):
     """
-    Manifest manager using AWS S3 service to manage file.
+    Manifest manager only for getting file uploaded by S3ManifestManager.
     """
 
     MANIFEST_FILE_NAME: str = "miner_manifest.json"
 
-    bucket_name: Optional[str]
-    aws_client_factory: AWSClientFactory
-    _s3_client: Optional[BaseClient]
-
     def __init__(self, address_serializer: AbstractAddressSerializer, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager,
-                 aws_client_factory: AWSClientFactory, bucket_name: Optional[str] = None):
-        """
-        Creates S3ManifestManager instance. bucket_name and aws_region_name inside aws_client_factory can be None when
-        used on Validator side and in such case these fields will be initialized from address when getting manifest
-        file.
-        """
+                 encryption_manager: AbstractEncryptionManager):
         super().__init__(address_serializer, manifest_serializer, encryption_manager)
-        self.aws_client_factory = aws_client_factory
-        self.bucket_name = bucket_name
-        self._s3_client = None
-
-    def _init_client_from_address(self, address: Address):
-        region_name, bucket_name, _ = self._deserialize_manifest_address(address)
-        if self.aws_client_factory.set_aws_region_name(region_name):
-            self._s3_client = None
-        self.bucket_name = bucket_name
-
-    @property
-    def s3_client(self):
-        if self._s3_client is None:
-            self._s3_client = self.aws_client_factory.boto3_client("s3")
-        return self._s3_client
-
-    def _put_manifest_file(self, data: bytes) -> Address:
-        file_key: str = self.MANIFEST_FILE_NAME
-        self.s3_client.put_object(Bucket=self.bucket_name, Key=file_key, Body=data)
-        serialized_address: str = self._serialize_manifest_address(self.aws_client_factory.aws_region_name,
-                                                                   self.bucket_name, file_key)
-        return Address(address_id=file_key, address_type=AddressType.S3, address=serialized_address, port=0)
 
     def _get_manifest_file(self, address: Address) -> bytes:
-        self._init_client_from_address(address)
+        s3_address: ManifestS3Address = self._deserialize_manifest_address(address)
+        url: str = f"https://{s3_address.bucket_name}.s3.{s3_address.region_name}.amazonaws.com/{s3_address.file_key}"
+
         try:
-            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=address.address_id)
-            return response['Body'].read()
-        except ClientError as e:
-            if e.response['Error']['Code'] == "NoSuchKey":
-                raise ManifestNotFoundException(f"File {address.address_id} not found")
-            raise e
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.content
+        except requests.HTTPError as e:
+            # S3 returns 403 Forbidden if file does not exist in bucket
+            if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
+                raise ManifestNotFoundException(f"File {url} not found")
+            raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
+        except requests.RequestException as e:
+            raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
+
+    def _put_manifest_file(self, data: bytes) -> Address:
+        raise NotImplementedError
 
     @classmethod
-    def _serialize_manifest_address(cls, region_name: str, bucket_name: str, file_key: str) -> str:
-        return f"{region_name}/{bucket_name}/{file_key}"
+    def _serialize_manifest_address(cls, s3_address: ManifestS3Address) -> str:
+        return f"{s3_address.region_name}/{s3_address.bucket_name}/{s3_address.file_key}"
 
     @classmethod
-    def _deserialize_manifest_address(cls, address: Address) -> tuple[str, str, str]:
+    def _deserialize_manifest_address(cls, address: Address) -> ManifestS3Address:
         if address.address_type != AddressType.S3:
             raise AddressDeserializationException(f"Invalid address type, address='{address}'")
         parts = address.address.split("/")
@@ -263,4 +254,44 @@ class S3ManifestManager(AbstractManifestManager):
         region_name = parts[0]
         bucket_name = parts[1]
         file_key = parts[2]
-        return region_name, bucket_name, file_key
+        return ManifestS3Address(region_name, bucket_name, file_key)
+
+
+class S3ManifestManager(ReadOnlyS3ManifestManager):
+    """
+    Manifest manager using AWS S3 service to manage file.
+    """
+
+    _bucket_name: str
+    _aws_client_factory: AWSClientFactory
+    _s3_client: Optional[BaseClient]
+
+    def __init__(self, address_serializer: AbstractAddressSerializer, manifest_serializer: AbstractManifestSerializer,
+                 encryption_manager: AbstractEncryptionManager, aws_client_factory: AWSClientFactory, bucket_name: str):
+        super().__init__(address_serializer, manifest_serializer, encryption_manager)
+        self._aws_client_factory = aws_client_factory
+        self._bucket_name = bucket_name
+        self._s3_client = None
+
+    @property
+    def s3_client(self):
+        if self._s3_client is None:
+            self._s3_client = self._aws_client_factory.boto3_client("s3")
+        return self._s3_client
+
+    def _get_manifest_file(self, address: Address) -> bytes:
+        try:
+            response = self.s3_client.get_object(Bucket=self._bucket_name, Key=address.address_id)
+            return response['Body'].read()
+        except ClientError as e:
+            if e.response['Error']['Code'] == "NoSuchKey":
+                raise ManifestNotFoundException(f"File {address.address_id} not found")
+            raise ManifestDownloadException(f"Failed to download file {address.address_id} from S3: {e}") from e
+
+    def _put_manifest_file(self, data: bytes) -> Address:
+        file_key: str = self.MANIFEST_FILE_NAME
+        self.s3_client.put_object(Bucket=self._bucket_name, Key=file_key, Body=data, ACL='public-read')
+        s3_address: ManifestS3Address = ManifestS3Address(self._aws_client_factory.aws_region_name, self._bucket_name,
+                                                          file_key)
+        serialized_address: str = self._serialize_manifest_address(s3_address)
+        return Address(address_id=file_key, address_type=AddressType.S3, address=serialized_address, port=0)

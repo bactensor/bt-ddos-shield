@@ -287,6 +287,7 @@ dependencies = [
     { name = "pydantic", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pydantic-settings", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "python-dotenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "requests", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "route53", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "sqlalchemy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
@@ -313,12 +314,13 @@ type-check = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bittensor", specifier = ">=8.5.1" },
+    { name = "bittensor", specifier = "~=8.5.1" },
     { name = "boto3", specifier = "~=1.35.27" },
     { name = "eciespy", specifier = "~=0.4.2" },
-    { name = "pydantic", specifier = ">=2.10.5" },
-    { name = "pydantic-settings", specifier = ">=2.7.1" },
+    { name = "pydantic", specifier = "~=2.10.5" },
+    { name = "pydantic-settings", specifier = "~=2.7.1" },
     { name = "python-dotenv" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "route53", specifier = "~=1.0.1" },
     { name = "sqlalchemy", specifier = "~=2.0.36" },
 ]
@@ -1085,7 +1087,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/55/92/517c5c498c2980c1b6d6b9965dffbe31f3cd7f20f40d00ec4069559c5902/pycryptodome-3.21.0-cp36-abi3-musllinux_1_1_aarch64.whl", hash = "sha256:8898a66425a57bcf15e25fc19c12490b87bd939800f39a03ea2de2aea5e3611a", size = 2160509 },
     { url = "https://files.pythonhosted.org/packages/39/1f/c74288f54d80a20a78da87df1818c6464ac1041d10988bb7d982c4153fbc/pycryptodome-3.21.0-cp36-abi3-musllinux_1_2_i686.whl", hash = "sha256:932c905b71a56474bff8a9c014030bc3c882cee696b448af920399f730a650c2", size = 2329480 },
     { url = "https://files.pythonhosted.org/packages/39/1b/d0b013bf7d1af7cf0a6a4fce13f5fe5813ab225313755367b36e714a63f8/pycryptodome-3.21.0-cp36-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:18caa8cfbc676eaaf28613637a89980ad2fd96e00c564135bf90bc3f0b34dd93", size = 2254397 },
-    { url = "https://files.pythonhosted.org/packages/25/b3/09ff7072e6d96c9939c24cf51d3c389d7c345bf675420355c22402f71b68/pycryptodome-3.21.0-pp27-pypy_73-manylinux2010_x86_64.whl", hash = "sha256:2cb635b67011bc147c257e61ce864879ffe6d03342dc74b6045059dfbdedafca", size = 1691593 },
 ]
 
 [[package]]

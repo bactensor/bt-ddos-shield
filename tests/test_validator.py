@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import Hotkey
 from bt_ddos_shield.validator import MinerAddress, Validator, ValidatorFactory, ValidatorSettings
 from tests.conftest import ShieldTestSettings, ValidatorTestSettings
 from tests.test_encryption_manager import generate_key_pair

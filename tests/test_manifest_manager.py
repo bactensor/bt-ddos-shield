@@ -8,6 +8,7 @@ from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
     Manifest,
     ManifestNotFoundException,
+    ReadOnlyS3ManifestManager,
     S3ManifestManager,
 )
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
@@ -68,20 +69,21 @@ class TestManifestManager:
         retrieved_data: bytes = manifest_manager._get_manifest_file(address)
         assert retrieved_data == data
 
+        address.address_id = 'xxx'
+        with pytest.raises(ManifestNotFoundException):
+            manifest_manager._get_manifest_file(address)
+
         other_data: bytes = b'other_data'
         address: Address = manifest_manager._put_manifest_file(other_data)
         retrieved_data: bytes = manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 
-        validator_aws_client_factory: AWSClientFactory = AWSClientFactory(shield_settings.aws_access_key_id,
-                                                                          shield_settings.aws_secret_access_key)
-        validator_manifest_manager = S3ManifestManager(address_serializer=DefaultAddressSerializer(),
-                                                       manifest_serializer=JsonManifestSerializer(),
-                                                       encryption_manager=ECIESEncryptionManager(),
-                                                       aws_client_factory=validator_aws_client_factory)
+        validator_manifest_manager = ReadOnlyS3ManifestManager(address_serializer=DefaultAddressSerializer(),
+                                                               manifest_serializer=JsonManifestSerializer(),
+                                                               encryption_manager=ECIESEncryptionManager())
         retrieved_data: bytes = validator_manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 
-        address.address_id = 'xxx'
+        address.address += 'xxx'
         with pytest.raises(ManifestNotFoundException):
-            manifest_manager._get_manifest_file(address)
+            validator_manifest_manager._get_manifest_file(address)

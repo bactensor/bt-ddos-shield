@@ -15,9 +15,9 @@ from bt_ddos_shield.manifest_manager import (
     AbstractManifestSerializer,
     JsonManifestSerializer,
     Manifest,
-    S3ManifestManager,
+    ReadOnlyS3ManifestManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey
+from bt_ddos_shield.utils import Hotkey, PrivateKey
 
 
 @dataclass
@@ -69,8 +69,6 @@ class ValidatorFactoryException(Exception):
 
 
 class ValidatorSettings(BaseSettings):
-    aws_access_key_id: str = Field(min_length=1)
-    aws_secret_access_key: str = Field(min_length=1)
     miner_hotkey: str = Field(min_length=1)
     """Hotkey of shielded miner"""
     validator_hotkey: str = Field(min_length=1)
@@ -90,28 +88,22 @@ class ValidatorFactory:
 
     @classmethod
     def create_validator(cls, settings: ValidatorSettings) -> Validator:
-        aws_client_factory: AWSClientFactory = cls.create_aws_client_factory(settings)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
-        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager, aws_client_factory)
+        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings.miner_hotkey)
         options: ValidatorOptions = ValidatorOptions()
         return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
                          manifest_manager, options)
 
     @classmethod
-    def create_aws_client_factory(cls, settings: ValidatorSettings) -> AWSClientFactory:
-        return AWSClientFactory(settings.aws_access_key_id, settings.aws_secret_access_key)
-
-    @classmethod
     def create_encryption_manager(cls) -> AbstractEncryptionManager:
         return ECIESEncryptionManager()
 
     @classmethod
-    def create_manifest_manager(cls, encryption_manager: AbstractEncryptionManager,
-                                aws_client_factory: AWSClientFactory) -> AbstractManifestManager:
+    def create_manifest_manager(cls, encryption_manager: AbstractEncryptionManager) -> AbstractManifestManager:
         address_serializer: AbstractAddressSerializer = DefaultAddressSerializer()
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
-        return S3ManifestManager(address_serializer, manifest_serializer, encryption_manager, aws_client_factory)
+        return ReadOnlyS3ManifestManager(address_serializer, manifest_serializer, encryption_manager)
 
     @classmethod
     def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:
