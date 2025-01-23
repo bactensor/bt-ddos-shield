@@ -1,3 +1,4 @@
+import codecs
 import ipaddress
 import secrets
 import string
@@ -219,27 +220,23 @@ class AwsAddressManager(AbstractAddressManager):
     def create_address(self, hotkey: Hotkey) -> Address:
         self._validate_manager_state()
 
-        new_address_domain_id: str = f'{self._generate_subdomain(hotkey)}.{self.hosted_zone.name}'
-        new_address_domain: str = new_address_domain_id[:-1]  # Cut '.' from the end for working address
-        record_id: str = self._add_route53_record(new_address_domain_id, self.hosted_zone)
-
-        try:
-            self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
-        except Exception as e:
-            self._delete_route53_record_by_id(record_id, self.hosted_zone)
-            raise e
-
-        return Address(address_id=record_id, address_type=AddressType.DOMAIN,
+        subdomain: str = self._generate_subdomain(hotkey)
+        new_address_domain: str = f'{subdomain}.{self._get_hosted_zone_domain(self.hosted_zone)}'
+        self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
+        return Address(address_id=subdomain, address_type=AddressType.DOMAIN,
                        address=new_address_domain, port=self.miner_instance_port)
 
     @classmethod
     def _generate_subdomain(cls, hotkey: Hotkey) -> str:
         return f'{hotkey[:8]}_{secrets.token_urlsafe(16)}'.lower()
 
+    @classmethod
+    def _get_hosted_zone_domain(cls, hosted_zone: HostedZone) -> str:
+        return hosted_zone.name[:-1]  # Cut '.' from the end of hosted zone name
+
     def remove_address(self, address: Address):
         self._validate_manager_state()
         self._remove_domain_rule_from_firewall(self.waf_arn, address.address)
-        self._delete_route53_record_by_id(address.address_id, self.hosted_zone)
 
     def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
         if self._validate_manager_state():
@@ -248,16 +245,11 @@ class AwsAddressManager(AbstractAddressManager):
         if not addresses:
             return set()
 
-        zone_addresses_ids: set[str] = {record_set.name for record_set in self.hosted_zone.record_sets}
         waf_data: dict[str, Any] = self._get_firewall_info(self.waf_arn)
         rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
 
         invalid_hotkeys: set[Hotkey] = set()
         for hotkey, address in addresses.items():
-            if address.address_id not in zone_addresses_ids:
-                invalid_hotkeys.add(hotkey)
-                continue
-
             rule: Optional[dict[str, Any]] = self._find_rule(rules, address.address)
             if rule is None:
                 invalid_hotkeys.add(hotkey)
@@ -266,9 +258,12 @@ class AwsAddressManager(AbstractAddressManager):
     def _validate_manager_state(self) -> bool:
         """ Returns if we should invalidate all addresses created before. """
         ret: bool = self._handle_shielded_instance_change()
-        ret = self._handle_hosted_zone_change() or ret
         self.elb_data = self._create_elb_if_needed(self.miner_instance, self.miner_instance_port)
         self.waf_arn = self._create_firewall_if_needed()
+
+        ret = self._handle_hosted_zone_change() or ret
+        self._init_hosted_zone_if_needed()
+
         return ret
 
     def _handle_shielded_instance_change(self) -> bool:
@@ -314,11 +309,12 @@ class AwsAddressManager(AbstractAddressManager):
         if self.HOSTED_ZONE_ID_KEY in state.address_manager_state:
             old_zone_id: str = state.address_manager_state[self.HOSTED_ZONE_ID_KEY]
             if old_zone_id != self.hosted_zone_id:
-                # If hosted zone changed, we need to clean all previous route53 addresses
+                # If hosted zone changed, we need to clean all previous route53 addresses and WAF rules
                 self.event_processor.event('Route53 hosted zone changed from {old_id} to {new_id}',
                                            old_id=old_zone_id,
                                            new_id=self.hosted_zone_id)
                 self._delete_route53_records(old_zone_id)
+                self._clear_firewall_rules(self.waf_arn)
                 zone_changed = True
         else:
             zone_changed = True
@@ -352,7 +348,9 @@ class AwsAddressManager(AbstractAddressManager):
         return AwsSubnetData(subnet_id=subnet_id, availability_zone=subnet_data['AvailabilityZone'],
                              cidr_block=subnet_data['CidrBlock'])
 
-    def _add_route53_record(self, record_id: str, hosted_zone: HostedZone) -> str:
+    def _add_route53_record(self, subdomain: str, hosted_zone: HostedZone):
+        domain_name: str = f'{subdomain}.{hosted_zone.name}'
+
         # Route53Connection doesn't handle alias records properly, so we use boto3 client directly
         self.route53_boto_client.change_resource_record_sets(
             HostedZoneId=hosted_zone.id,
@@ -361,7 +359,7 @@ class AwsAddressManager(AbstractAddressManager):
                     {
                         'Action': 'CREATE',
                         'ResourceRecordSet': {
-                            'Name': record_id,
+                            'Name': domain_name,
                             'Type': 'A',
                             'AliasTarget': {
                                 'HostedZoneId': self.elb_data.hosted_zone_id,
@@ -373,20 +371,18 @@ class AwsAddressManager(AbstractAddressManager):
                 ]
             }
         )
-        self.event_processor.event('Added Route53 record {name} to hosted zone {zone_id}',
-                                   name=record_id, zone_id=hosted_zone.id)
+        self.event_processor.event('Added Route53 record {domain_name} to hosted zone {zone_id}',
+                                   domain_name=domain_name, zone_id=hosted_zone.id)
         try:
-            self.state_manager.add_address_manager_created_object(AwsObjectTypes.DNS_ENTRY.value, record_id)
+            # There is no ID for Route53 addresses, so we use domain name as an ID
+            self.state_manager.add_address_manager_created_object(AwsObjectTypes.DNS_ENTRY.value, domain_name)
         except Exception as e:
-            self._delete_route53_record_by_id(record_id, hosted_zone)
+            self._delete_route53_record_by_domain_name(domain_name, hosted_zone)
             raise e
 
-        # There is no ID for Route53 addresses, so we use domain name as an ID.
-        return record_id
-
-    def _delete_route53_record_by_id(self, record_id: str, hosted_zone: HostedZone):
+    def _delete_route53_record_by_domain_name(self, domain_name: str, hosted_zone: HostedZone):
         for record_set in hosted_zone.record_sets:
-            if record_set.name == record_id:
+            if codecs.decode(record_set.name, "unicode_escape") == domain_name:
                 self._delete_route53_record(record_set, hosted_zone)
                 return
 
@@ -583,10 +579,10 @@ class AwsAddressManager(AbstractAddressManager):
             self.state_manager.get_state().address_manager_created_objects[AwsObjectTypes.DNS_ENTRY.value]
         hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
         for record_set in hosted_zone.record_sets:
-            if record_set.name in created_entries:
+            if codecs.decode(record_set.name, "unicode_escape") in created_entries:
                 self._delete_route53_record(record_set, hosted_zone)
 
-        # Clean from state entries without working address
+        # Clean from state entries without working address (without corresponding record_set in hosted_zone)
         address_manager_created_objects = self.state_manager.get_state().address_manager_created_objects
         if AwsObjectTypes.DNS_ENTRY.value not in address_manager_created_objects:
             return
@@ -734,6 +730,14 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor.event('Removed rule {rule_name} from AWS WAF {waf_id}, domain={domain}',
                                    rule_name=rule['Name'], waf_id=waf_arn, domain=domain)
 
+    def _clear_firewall_rules(self, waf_arn: str):
+        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
+        self._update_web_acl(waf_data, [])
+
+    def _init_hosted_zone(self):
+        # Add wildcard subdomain to hosted zone - Host header validation is done by WAF
+        self._add_route53_record('*', self.hosted_zone)
+
     @classmethod
     def _find_rule(cls, rules: list[dict[str, Any]], domain: str) -> Optional[dict[str, Any]]:
         for rule in rules:
@@ -830,3 +834,12 @@ class AwsAddressManager(AbstractAddressManager):
             return next(iter(created_objects[AwsObjectTypes.WAF.value]))
 
         return self._create_firewall()
+
+    def _init_hosted_zone_if_needed(self):
+        created_objects: MappingProxyType[str, frozenset[str]] = \
+            self.state_manager.get_state().address_manager_created_objects
+        if AwsObjectTypes.DNS_ENTRY.value in created_objects:
+            assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1, "only one entry should be created"
+            return
+
+        self._init_hosted_zone()
