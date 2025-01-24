@@ -1,3 +1,4 @@
+import pickle
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import datetime
@@ -11,6 +12,7 @@ from sqlalchemy import (
     Engine,
     ForeignKey,
     Integer,
+    PickleType,
     PrimaryKeyConstraint,
     String,
     create_engine,
@@ -19,6 +21,7 @@ from sqlalchemy.engine import url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from bt_ddos_shield.address import Address, AddressType
+from bt_ddos_shield.manifest_manager import ManifestAddress
 from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
@@ -26,12 +29,12 @@ class MinerShieldState:
     _known_validators: dict[Hotkey, PublicKey]
     _banned_validators: dict[Hotkey, datetime]
     _validators_addresses: dict[Hotkey, Address]
-    _manifest_address: Optional[Address]
+    _manifest_address: Optional[ManifestAddress]
     _address_manager_state: dict[str, str]
     _address_manager_created_objects: dict[str, frozenset[str]]
 
     def __init__(self, known_validators: dict[Hotkey, PublicKey], banned_validators: dict[Hotkey, datetime],
-                 validators_addresses: dict[Hotkey, Address], manifest_address: Optional[Address],
+                 validators_addresses: dict[Hotkey, Address], manifest_address: Optional[ManifestAddress],
                  address_manager_state: dict[str, str],
                  address_manager_created_objects: dict[str, frozenset[str]]):
         super().__setattr__('_known_validators', known_validators)
@@ -63,7 +66,7 @@ class MinerShieldState:
         return MappingProxyType(self._validators_addresses)
 
     @property
-    def manifest_address(self) -> Optional[Address]:
+    def manifest_address(self) -> Optional[ManifestAddress]:
         """
         Get manifest file address. If manifest file is not yet uploaded, return None.
         """
@@ -143,7 +146,7 @@ class AbstractMinerShieldStateManager(ABC):
         pass
 
     @abstractmethod
-    def set_manifest_address(self, manifest_address: Address):
+    def set_manifest_address(self, manifest_address: ManifestAddress):
         pass
 
     @abstractmethod
@@ -169,7 +172,7 @@ class AbstractMinerShieldStateManager(ABC):
                       known_validators: Optional[dict[Hotkey, PublicKey]] = None,
                       banned_validators: Optional[dict[Hotkey, datetime]] = None,
                       validators_addresses: Optional[dict[Hotkey, Address]] = None,
-                      manifest_address: Optional[Address] = None,
+                      manifest_address: Optional[ManifestAddress] = None,
                       address_manager_state: Optional[dict[str, str]] = None,
                       address_manager_created_objects: Optional[dict[str, frozenset[str]]] = None):
         """
@@ -234,7 +237,7 @@ class AbstractMinerShieldStateManager(ABC):
         validators_addresses.pop(validator_hotkey)
         self._update_state(known_validators=known_validators, validators_addresses=validators_addresses)
 
-    def _state_set_manifest_address(self, manifest_address: Address):
+    def _state_set_manifest_address(self, manifest_address: ManifestAddress):
         """
         Update manifest address in current state. Should be called only after updating state in storage.
         """
@@ -306,7 +309,7 @@ class SqlBannedValidator(MinerShieldStateDeclarativeBase):
 class SqlManifest(MinerShieldStateDeclarativeBase):
     __tablename__ = 'manifest'
     id = Column(Integer, primary_key=True, default=1)
-    address_id = Column(String, ForeignKey('addresses.address_id', ondelete='CASCADE'), nullable=False)
+    serialized_address = Column(PickleType, nullable=False)
     __table_args__ = (
         CheckConstraint('id = 1', name='single_row_check'),
     )
@@ -389,21 +392,14 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
 
         self._state_remove_validator(validator_hotkey)
 
-    def set_manifest_address(self, manifest_address: Address):
+    def set_manifest_address(self, manifest_address: ManifestAddress):
         with self.session_maker() as session:
+            serialized_address: bytes = pickle.dumps(manifest_address)
             manifest = session.query(SqlManifest).first()
-            if manifest is not None:
-                db_address = session.query(SqlAddress).filter_by(address_id=manifest.address_id).one()
-                session.delete(db_address)
-
-            session.add(SqlAddress(address_id=manifest_address.address_id,
-                                   address_type=manifest_address.address_type.value,
-                                   address=manifest_address.address, port=manifest_address.port))
-
             if manifest is None:
-                session.add(SqlManifest(address_id=manifest_address.address_id))
+                session.add(SqlManifest(serialized_address=serialized_address))
             else:
-                manifest.address_id = manifest_address.address_id
+                manifest.serialized_address = serialized_address
 
             session.commit()
 
@@ -451,11 +447,11 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
             validators_addresses: dict[Hotkey, Address] = \
                 {v.hotkey: self._load_address(session, v.address_id) for v in session.query(SqlValidator).all()}
 
-            manifest_address: Optional[Address] = None
-            manifest_record = session.query(SqlManifest).first()
+            manifest_address: Optional[ManifestAddress] = None
+            manifest_record: Optional[SqlManifest] = session.query(SqlManifest).first()
             if manifest_record is not None:
                 # noinspection PyTypeChecker
-                manifest_address = self._load_address(session, manifest_record.address_id)
+                manifest_address = pickle.loads(manifest_record.serialized_address)
 
             # noinspection PyTypeChecker
             address_manager_state: dict[str, str] = \

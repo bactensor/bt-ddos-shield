@@ -4,6 +4,7 @@ from typing import Optional
 
 import pytest
 from bt_ddos_shield.address import Address, AddressType
+from bt_ddos_shield.manifest_manager import ManifestAddress, ManifestS3Address
 from bt_ddos_shield.state_manager import (
     AbstractMinerShieldStateManager,
     MinerShieldState,
@@ -37,7 +38,7 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
     def remove_validator(self, validator_hotkey: Hotkey):
         self._state_remove_validator(validator_hotkey)
 
-    def set_manifest_address(self, manifest_address: Address):
+    def set_manifest_address(self, manifest_address: ManifestAddress):
         self._state_set_manifest_address(manifest_address)
 
     def update_address_manager_state(self, key: str, value: Optional[str]):
@@ -123,10 +124,10 @@ class TestMinerShieldStateManager:
         assert state == reloaded_state
 
     def test_manifest_address(self, shield_settings: ShieldTestSettings):
-        manifest_address1 = Address(address_id="manifest", address_type=AddressType.IP,
-                                    address="1.2.3.4", port=80)
-        manifest_address2 = Address(address_id="manifest", address_type=AddressType.IP,
-                                    address="2.3.4.5", port=81)
+        manifest_address1: ManifestS3Address = ManifestS3Address(region_name='reg1', bucket_name='buck1',
+                                                                 file_key='file1')
+        manifest_address2: ManifestS3Address = ManifestS3Address(region_name='reg2', bucket_name='buck2',
+                                                                 file_key='file2')
 
         state_manager = self.create_db_state_manager(shield_settings)
         state_manager.set_manifest_address(manifest_address1)

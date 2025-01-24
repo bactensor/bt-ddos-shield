@@ -1,13 +1,14 @@
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
-from bt_ddos_shield.address import Address, AddressType, DefaultAddressSerializer
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
     AbstractManifestManager,
     JsonManifestSerializer,
     Manifest,
+    ManifestAddress,
     ManifestNotFoundException,
+    ManifestS3Address,
     ReadOnlyS3ManifestManager,
     S3ManifestManager,
 )
@@ -16,23 +17,22 @@ from tests.conftest import ShieldTestSettings
 
 
 class MemoryManifestManager(AbstractManifestManager):
-    default_address: Address
+    default_address: ManifestAddress
     stored_file: Optional[bytes]
     put_counter: int
 
     def __init__(self):
-        super().__init__(DefaultAddressSerializer(), JsonManifestSerializer(), ECIESEncryptionManager())
-        self.default_address = Address(address_id='default_id', address_type=AddressType.DOMAIN,
-                                       address='manifest.com', port=80)
+        super().__init__(JsonManifestSerializer(), ECIESEncryptionManager())
+        self.default_address = ManifestS3Address(region_name='region', bucket_name='bucket', file_key='file')
         self.stored_file = None
         self.put_counter = 0
 
-    def _put_manifest_file(self, data: bytes) -> Address:
+    def _put_manifest_file(self, data: bytes) -> ManifestAddress:
         self.stored_file = data
         self.put_counter += 1
         return self.default_address
 
-    def _get_manifest_file(self, address: Address) -> bytes:
+    def _get_manifest_file(self, address: Union[str, ManifestAddress]) -> bytes:
         if self.stored_file is None or address != self.default_address:
             raise ManifestNotFoundException(f"Manifest file not found under address: {address}")
         return self.stored_file
@@ -50,7 +50,6 @@ class TestManifestManager:
         manifest: Manifest = Manifest(mapping, md5_hash)
         json_data: bytes = manifest_serializer.serialize(manifest)
         deserialized_manifest: Manifest = manifest_serializer.deserialize(json_data)
-
         assert manifest == deserialized_manifest
 
     def test_s3_put_get(self, shield_settings: ShieldTestSettings):
@@ -60,30 +59,36 @@ class TestManifestManager:
                                                                 shield_settings.aws_region_name)
         manifest_manager = S3ManifestManager(aws_client_factory=aws_client_factory,
                                              bucket_name=shield_settings.aws_s3_bucket_name,
-                                             address_serializer=DefaultAddressSerializer(),
                                              manifest_serializer=JsonManifestSerializer(),
                                              encryption_manager=ECIESEncryptionManager())
 
         data: bytes = b'some_data'
-        address: Address = manifest_manager._put_manifest_file(data)
+        address: ManifestAddress = manifest_manager._put_manifest_file(data)
         retrieved_data: bytes = manifest_manager._get_manifest_file(address)
         assert retrieved_data == data
+        retrieved_data: bytes = manifest_manager._get_manifest_file(address.get_url())
+        assert retrieved_data == data
 
-        address.address_id = 'xxx'
+        assert isinstance(address, ManifestS3Address)
+        s3_address: ManifestS3Address = address
+        s3_address.file_key = 'xxx'
         with pytest.raises(ManifestNotFoundException):
             manifest_manager._get_manifest_file(address)
 
         other_data: bytes = b'other_data'
-        address: Address = manifest_manager._put_manifest_file(other_data)
+        address: ManifestAddress = manifest_manager._put_manifest_file(other_data)
         retrieved_data: bytes = manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
 
-        validator_manifest_manager = ReadOnlyS3ManifestManager(address_serializer=DefaultAddressSerializer(),
-                                                               manifest_serializer=JsonManifestSerializer(),
+        validator_manifest_manager = ReadOnlyS3ManifestManager(manifest_serializer=JsonManifestSerializer(),
                                                                encryption_manager=ECIESEncryptionManager())
         retrieved_data: bytes = validator_manifest_manager._get_manifest_file(address)
         assert retrieved_data == other_data
+        retrieved_data: bytes = manifest_manager._get_manifest_file(address.get_url())
+        assert retrieved_data == other_data
 
-        address.address += 'xxx'
+        assert isinstance(address, ManifestS3Address)
+        s3_address: ManifestS3Address = address
+        s3_address.file_key = 'xxx'
         with pytest.raises(ManifestNotFoundException):
             validator_manifest_manager._get_manifest_file(address)

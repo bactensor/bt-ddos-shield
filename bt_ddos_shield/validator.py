@@ -1,5 +1,4 @@
 import asyncio
-from collections import namedtuple
 from dataclasses import dataclass
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -7,7 +6,6 @@ from typing import Optional
 
 from tests.test_blockchain_manager import MemoryBlockchainManager
 
-from bt_ddos_shield.address import AbstractAddressSerializer, Address, AddressType, DefaultAddressSerializer
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
@@ -24,9 +22,6 @@ from bt_ddos_shield.utils import Hotkey, PrivateKey
 class ValidatorOptions:
     retry_delay_sec: int = 10
     """ Time in seconds to wait before retrying fetching miner address. """
-
-
-MinerAddress = namedtuple('MinerAddress', ['domain', 'port'])
 
 
 class Validator:
@@ -49,19 +44,18 @@ class Validator:
         self._manifest_manager = manifest_manager
         self._options = options
 
-    async def fetch_miner_address(self) -> MinerAddress:
+    async def fetch_miner_address(self) -> str:
         while True:
-            miner_manifest_address: Optional[Address] = self._blockchain_manager.get_miner_manifest_address()
-            if miner_manifest_address is not None:
+            miner_manifest_url: Optional[str] = self._blockchain_manager.get_miner_manifest_address()
+            if miner_manifest_url is not None:
                 break
 
             await asyncio.sleep(self._options.retry_delay_sec)
 
-        manifest: Manifest = self._manifest_manager.get_manifest(miner_manifest_address)
-        address: Address = self._manifest_manager.get_address_for_validator(manifest, self._validator_hotkey,
-                                                                            self._validator_private_key)
-        assert address.address_type == AddressType.DOMAIN
-        return MinerAddress(domain=address.address, port=address.port)
+        manifest: Manifest = self._manifest_manager.get_manifest(miner_manifest_url)
+        url: str = self._manifest_manager.get_address_for_validator(manifest, self._validator_hotkey,
+                                                                    self._validator_private_key)
+        return url
 
 
 class ValidatorFactoryException(Exception):
@@ -101,9 +95,8 @@ class ValidatorFactory:
 
     @classmethod
     def create_manifest_manager(cls, encryption_manager: AbstractEncryptionManager) -> AbstractManifestManager:
-        address_serializer: AbstractAddressSerializer = DefaultAddressSerializer()
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
-        return ReadOnlyS3ManifestManager(address_serializer, manifest_serializer, encryption_manager)
+        return ReadOnlyS3ManifestManager(manifest_serializer, encryption_manager)
 
     @classmethod
     def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:

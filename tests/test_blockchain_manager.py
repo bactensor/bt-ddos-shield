@@ -5,7 +5,6 @@ from typing import Optional
 import pytest
 import websockets.exceptions
 
-from bt_ddos_shield.address import DefaultAddressSerializer
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
     BittensorBlockchainManager,
@@ -18,7 +17,6 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
     put_counter: int
 
     def __init__(self, miner_hotkey: Hotkey):
-        super().__init__(DefaultAddressSerializer())
         self.miner_hotkey = miner_hotkey
         self.known_data = {}
         self.put_counter = 0
@@ -59,7 +57,6 @@ def test_bittensor_get(wallet):
     )
 
     manager = BittensorBlockchainManager(
-        address_serializer=DefaultAddressSerializer(),
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
@@ -95,7 +92,6 @@ def test_bittensor_put(wallet):
     mock_substrate = mock_subtensor.substrate.__enter__.return_value
 
     manager = BittensorBlockchainManager(
-        address_serializer=DefaultAddressSerializer(),
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
@@ -149,7 +145,6 @@ def test_bittensor_retries(wallet):
     )
 
     manager = BittensorBlockchainManager(
-        address_serializer=DefaultAddressSerializer(),
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
