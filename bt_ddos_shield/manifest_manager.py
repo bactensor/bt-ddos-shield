@@ -216,16 +216,21 @@ class ReadOnlyS3ManifestManager(AbstractManifestManager):
 
     MANIFEST_FILE_NAME: str = "miner_manifest.json"
 
+    _requests_session: requests.Session
+    _download_timeout: int
+
     def __init__(self, address_serializer: AbstractAddressSerializer, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager):
+                 encryption_manager: AbstractEncryptionManager, download_timeout: int = 10):
         super().__init__(address_serializer, manifest_serializer, encryption_manager)
+        self._requests_session = requests.Session()
+        self._download_timeout = download_timeout
 
     def _get_manifest_file(self, address: Address) -> bytes:
         s3_address: ManifestS3Address = self._deserialize_manifest_address(address)
         url: str = f"https://{s3_address.bucket_name}.s3.{s3_address.region_name}.amazonaws.com/{s3_address.file_key}"
 
         try:
-            response = requests.get(url)
+            response = self._requests_session.get(url, timeout=self._download_timeout)
             response.raise_for_status()
             return response.content
         except requests.HTTPError as e:
