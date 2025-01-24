@@ -9,7 +9,7 @@ dependencies = [
     "eciespy~=0.4.2",
     "pydantic~=2.10.5",
     "pydantic-settings~=2.7.1",
-    "python-dotenv",
+    "python-dotenv~=1.0.1",
     "requests~=2.32.3",
     "route53~=1.0.1",
     "sqlalchemy~=2.0.36",

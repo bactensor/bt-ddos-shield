@@ -319,8 +319,8 @@ requires-dist = [
     { name = "eciespy", specifier = "~=0.4.2" },
     { name = "pydantic", specifier = "~=2.10.5" },
     { name = "pydantic-settings", specifier = "~=2.7.1" },
-    { name = "python-dotenv" },
-    { name = "requests", specifier = ">=2.32.3" },
+    { name = "python-dotenv", specifier = "~=1.0.1" },
+    { name = "requests", specifier = "~=2.32.3" },
     { name = "route53", specifier = "~=1.0.1" },
     { name = "sqlalchemy", specifier = "~=2.0.36" },
 ]
