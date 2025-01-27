@@ -7,12 +7,6 @@ from bittensor.core.extrinsics.serving import (
     get_metadata,
     publish_metadata,
 )
-
-from bt_ddos_shield.address import (
-    AbstractAddressSerializer,
-    Address,
-    AddressDeserializationException,
-)
 from bt_ddos_shield.utils import Hotkey
 
 
@@ -25,27 +19,22 @@ class AbstractBlockchainManager(ABC):
     Abstract base class for manager handling publishing address to blockchain.
     """
 
-    address_serializer: AbstractAddressSerializer
-
-    def __init__(self, address_serializer: AbstractAddressSerializer):
-        self.address_serializer = address_serializer
-
-    def put_miner_manifest_address(self, address: Address):
+    def put_miner_manifest_address(self, url: str):
         """
         Put miner manifest address to blockchain.
         """
-        self.put(self.address_serializer.serialize(address))
+        self.put(url.encode())
 
-    def get_miner_manifest_address(self) -> Optional[Address]:
+    def get_miner_manifest_address(self) -> Optional[str]:
         """
         Get miner manifest address from blockchain or None if not found or not valid.
         """
-        serialized_address: Optional[bytes] = self.get()
-        if serialized_address is None:
+        serialized_url: Optional[bytes] = self.get()
+        if serialized_url is None:
             return None
         try:
-            return self.address_serializer.deserialize(serialized_address)
-        except AddressDeserializationException:
+            return serialized_url.decode()
+        except UnicodeDecodeError:
             return None
 
     @abstractmethod
@@ -70,13 +59,10 @@ class ReadOnlyBittensorBlockchainManager(AbstractBlockchainManager):
 
     def __init__(
         self,
-        address_serializer: AbstractAddressSerializer,
         subtensor: bittensor.Subtensor,
         netuid: int,
         hotkey: Hotkey,
     ):
-        super().__init__(address_serializer)
-
         self.subtensor = subtensor
         self.netuid = netuid
         self.hotkey = hotkey

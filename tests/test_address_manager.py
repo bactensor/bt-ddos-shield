@@ -101,7 +101,7 @@ class TestAddressManager:
         assert len(created_objects[AwsObjectTypes.SUBNET.value]) == 1
         assert len(created_objects[AwsObjectTypes.TARGET_GROUP.value]) == 1
         assert len(created_objects[AwsObjectTypes.SECURITY_GROUP.value]) == 1
-        assert AwsObjectTypes.DNS_ENTRY.value not in created_objects
+        assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
 
         reloaded_state: MinerShieldState = self.state_manager.get_state(reload=True)
         assert reloaded_state == state
@@ -136,7 +136,7 @@ class TestAddressManager:
         state: MinerShieldState = self.state_manager.get_state()
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
-        assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 2
+        assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1, "only wildcard DNS entry should be created"
 
         address_manager.remove_address(address1)
         state = self.state_manager.get_state()
@@ -160,9 +160,10 @@ class TestAddressManager:
 
         state: MinerShieldState = self.state_manager.get_state()
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
-        assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
         elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
+        hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+        dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
 
         # Create new manager with different port - ELB should be recreated
         new_test_settings: ShieldTestSettings = copy.deepcopy(shield_settings)
@@ -173,10 +174,14 @@ class TestAddressManager:
 
         state = self.state_manager.get_state()
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
-        assert AwsObjectTypes.DNS_ENTRY.value not in created_objects, "DNS entry should be removed"
+        assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
         new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
         assert new_elb_id != elb_id
+        new_hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+        assert hosted_zone_id == new_hosted_zone_id
+        new_dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
+        assert dns_entry_id == new_dns_entry_id
 
     def test_hosted_zone_id_change(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
         """
@@ -195,17 +200,26 @@ class TestAddressManager:
         assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
         elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
+        hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+        dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
 
-        # Create new manager with different hosted zone - only addresses should be removed
-        new_test_settings: ShieldTestSettings = copy.deepcopy(shield_settings)
-        new_test_settings.aws_route53_hosted_zone_id = shield_settings.aws_route53_other_hosted_zone_id
-        address_manager = self.create_aws_address_manager(new_test_settings, create_state_manager=False)
-        invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
-        assert invalid_addresses == {hotkey}
+        try:
+            # Create new manager with different hosted zone - only addresses should be removed
+            new_test_settings: ShieldTestSettings = copy.deepcopy(shield_settings)
+            new_test_settings.aws_route53_hosted_zone_id = shield_settings.aws_route53_other_hosted_zone_id
+            address_manager = self.create_aws_address_manager(new_test_settings, create_state_manager=False)
+            invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
+            assert invalid_addresses == {hotkey}
 
-        state = self.state_manager.get_state()
-        created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
-        assert AwsObjectTypes.DNS_ENTRY.value not in created_objects, "DNS entry should be removed"
-        assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
-        new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
-        assert new_elb_id == elb_id
+            state = self.state_manager.get_state()
+            created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+            assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
+            assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
+            new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
+            assert new_elb_id == elb_id
+            new_hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+            assert hosted_zone_id != new_hosted_zone_id
+            new_dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
+            assert dns_entry_id != new_dns_entry_id
+        finally:
+            address_manager.clean_all()  # Needed to remove created DNS entry in new hosted zone

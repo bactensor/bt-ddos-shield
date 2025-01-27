@@ -6,6 +6,7 @@ from bt_ddos_shield.validator import ValidatorSettings
 
 class ShieldTestSettings(ShieldSettings):
     aws_route53_other_hosted_zone_id: str
+    miner_instance_port: int = 8080
 
     model_config = {
         'env_file': '.env.test',
@@ -20,6 +21,7 @@ def shield_settings() -> ShieldTestSettings:
 
 class ValidatorTestSettings(ValidatorSettings):
     validator_public_key: str
+    miner_instance_port: int = 8080
 
     model_config = {
         'env_file': '.env.test',
