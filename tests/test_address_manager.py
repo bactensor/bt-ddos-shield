@@ -181,7 +181,7 @@ class TestAddressManager:
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
         elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
-        hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+        hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_STATE_KEY]
         dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
 
         # Create new manager with different port - ELB should be recreated
@@ -198,7 +198,7 @@ class TestAddressManager:
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
         new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
         assert new_elb_id != elb_id
-        new_hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+        new_hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_STATE_KEY]
         assert hosted_zone_id == new_hosted_zone_id
         new_dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
         assert dns_entry_id == new_dns_entry_id
@@ -220,7 +220,7 @@ class TestAddressManager:
         assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "ELB should be created before adding address"
         elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
-        hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+        hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_STATE_KEY]
         dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
 
         try:
@@ -238,7 +238,7 @@ class TestAddressManager:
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
             new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
             assert new_elb_id == elb_id
-            new_hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_KEY]
+            new_hosted_zone_id: str = state.address_manager_state[address_manager.HOSTED_ZONE_ID_STATE_KEY]
             assert hosted_zone_id != new_hosted_zone_id
             new_dns_entry_id: str = next(iter(created_objects[AwsObjectTypes.DNS_ENTRY.value]))
             assert dns_entry_id != new_dns_entry_id
