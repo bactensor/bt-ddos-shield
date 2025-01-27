@@ -19,8 +19,7 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
     def __init__(self):
         super().__init__()
         self.current_miner_shield_state = MinerShieldState(known_validators={}, banned_validators={},
-                                                           validators_addresses={}, manifest_address=None,
-                                                           address_manager_state={},
+                                                           validators_addresses={}, address_manager_state={},
                                                            address_manager_created_objects={})
 
     def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address):
@@ -36,9 +35,6 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
 
     def remove_validator(self, validator_hotkey: Hotkey):
         self._state_remove_validator(validator_hotkey)
-
-    def set_manifest_address(self, manifest_address: Address):
-        self._state_set_manifest_address(manifest_address)
 
     def update_address_manager_state(self, key: str, value: Optional[str]):
         self._state_update_address_manager_state(key, value)
@@ -118,21 +114,6 @@ class TestMinerShieldStateManager:
 
         state: MinerShieldState = state_manager.get_state()
         assert state.banned_validators == {banned_validator_hotkey: ban_time}
-
-        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
-        assert state == reloaded_state
-
-    def test_manifest_address(self, shield_settings: ShieldTestSettings):
-        manifest_address1 = Address(address_id="manifest", address_type=AddressType.IP,
-                                    address="1.2.3.4", port=80)
-        manifest_address2 = Address(address_id="manifest", address_type=AddressType.IP,
-                                    address="2.3.4.5", port=81)
-
-        state_manager = self.create_db_state_manager(shield_settings)
-        state_manager.set_manifest_address(manifest_address1)
-        state_manager.set_manifest_address(manifest_address2)
-        state: MinerShieldState = state_manager.get_state()
-        assert state.manifest_address == manifest_address2
 
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
