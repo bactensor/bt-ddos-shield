@@ -1,12 +1,11 @@
 import asyncio
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, ParseResult
 
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import Hotkey
-from bt_ddos_shield.validator import MinerAddress, Validator, ValidatorFactory, ValidatorSettings
+from bt_ddos_shield.validator import Validator, ValidatorFactory, ValidatorSettings
 from tests.conftest import ShieldTestSettings, ValidatorTestSettings
 from tests.test_encryption_manager import generate_key_pair
 
@@ -44,9 +43,9 @@ class TestValidator:
         assert shield.run
 
         try:
-            miner_address: MinerAddress = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=180))
-            urlparse(miner_address.domain)
-            assert miner_address.port == shield_settings.miner_instance_port
+            miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=180))
+            parsed_url: ParseResult = urlparse('http://' + miner_url)
+            assert parsed_url.port == shield_settings.miner_instance_port
         finally:
             shield.disable()
             assert not shield.run

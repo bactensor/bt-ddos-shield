@@ -13,7 +13,7 @@ from typing import Optional
 
 from tests.test_blockchain_manager import MemoryBlockchainManager
 
-from bt_ddos_shield.address import AbstractAddressSerializer, Address, AddressType, DefaultAddressSerializer
+from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
@@ -282,11 +282,9 @@ class MinerShield:
         """
         try:
             current_state: MinerShieldState = self.state_manager.get_state()
-            if current_state.manifest_address is None:
-                return False
+            current_manifest: Manifest = self.manifest_manager.get_manifest(self.manifest_manager.get_manifest_url())
             new_manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
                                                                            current_state.known_validators)
-            current_manifest: Manifest = self.manifest_manager.get_manifest(current_state.manifest_address)
             same_content: bool = new_manifest.md5_hash == current_manifest.md5_hash
             self._event("Manifest file validation finished, same content={same_content}",
                         same_content=same_content)
@@ -295,7 +293,7 @@ class MinerShield:
             return False
         except Exception as e:
             self._event("Error during validating manifest file", e)
-            # if error happened, assume that manifest file is valid - it is only validation, and it will be called
+            # If error happened, assume that manifest file is valid - it is only validation, and it will be called
             # again by _ticker_function
             return True
 
@@ -414,21 +412,21 @@ class MinerShield:
         current_state: MinerShieldState = self.state_manager.get_state()
         manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
                                                                    current_state.known_validators)
-        address: Address = self.manifest_manager.upload_manifest(manifest)
-        self.state_manager.set_manifest_address(address)
-        self._event("Manifest updated, new address: {address}", address=address)
+        self.manifest_manager.upload_manifest(manifest)
+        self._event("Manifest updated, new address: {address}",
+                    address=self.manifest_manager.get_manifest_url())
         self._add_task(MinerShieldPublishManifestTask())
 
     def _handle_publish_manifest(self):
         """
         Publish info about current manifest file to blockchain if it is not already there.
         """
-        expected_address: Address = self.state_manager.get_state().manifest_address
-        current_address: Address = self.blockchain_manager.get_miner_manifest_address()
-        if current_address == expected_address:
+        expected_url: str = self.manifest_manager.get_manifest_url()
+        current_url: str = self.blockchain_manager.get_miner_manifest_address()
+        if current_url == expected_url:
             self._event("Manifest address already published")
         else:
-            self.blockchain_manager.put_miner_manifest_address(expected_address)
+            self.blockchain_manager.put_miner_manifest_address(expected_url)
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):
@@ -515,7 +513,7 @@ class ShieldSettings(BaseSettings):
     """Port on which miner server is listening"""
     sql_alchemy_db_url: str = Field('sqlite:///ddos_shield.db', min_length=1)
     """SQL Alchemy URL to database where shield state is stored"""
-    #TODO: replace with miner wallet
+    # TODO: replace with miner wallet
     miner_hotkey: str = Field(min_length=1)
     """Hotkey of shielded miner"""
     options: MinerShieldOptions = MinerShieldOptions()
@@ -608,9 +606,8 @@ class MinerShieldFactory:
     @classmethod
     def create_manifest_manager(cls, settings: ShieldSettings, encryption_manager: AbstractEncryptionManager,
                                 aws_client_factory: AWSClientFactory) -> AbstractManifestManager:
-        address_serializer: AbstractAddressSerializer = DefaultAddressSerializer()
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
-        return S3ManifestManager(address_serializer, manifest_serializer, encryption_manager, aws_client_factory,
+        return S3ManifestManager(manifest_serializer, encryption_manager, aws_client_factory,
                                  settings.aws_s3_bucket_name)
 
     @classmethod
