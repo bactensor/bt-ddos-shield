@@ -7,6 +7,7 @@ from bittensor.core.extrinsics.serving import (
     get_metadata,
     publish_metadata,
 )
+from bt_ddos_shield.utils import Hotkey
 
 
 class BlockchainManagerException(Exception):
@@ -51,20 +52,20 @@ class AbstractBlockchainManager(ABC):
         pass
 
 
-class BittensorBlockchainManager(AbstractBlockchainManager):
+class ReadOnlyBittensorBlockchainManager(AbstractBlockchainManager):
     """
-    Bittensor BlockchainManager implementation using commitments of knowledge as storage.
+    Read-only Bittensor BlockchainManager implementation using commitments of knowledge as storage.
     """
 
     def __init__(
         self,
         subtensor: bittensor.Subtensor,
-        wallet: bittensor_wallet.Wallet,
         netuid: int,
+        hotkey: Hotkey,
     ):
         self.subtensor = subtensor
-        self.wallet = wallet
         self.netuid = netuid
+        self.hotkey = hotkey
 
     def get(self) -> Optional[bytes]:
         """
@@ -74,7 +75,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
         metadata = get_metadata(
             self.subtensor,
             self.netuid,
-            self.wallet.hotkey.ss58_address,
+            self.hotkey,
         )
 
         try:
@@ -92,6 +93,31 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
         return bytes.fromhex(value[2:])
 
     def put(self, data: bytes):
+        raise NotImplementedError
+
+
+class BittensorBlockchainManager(ReadOnlyBittensorBlockchainManager):
+    """
+    Bittensor BlockchainManager implementation using commitments of knowledge as storage.
+    """
+
+    def __init__(
+        self,
+        address_serializer: AbstractAddressSerializer,
+        subtensor: bittensor.Subtensor,
+        netuid: int,
+        wallet: bittensor_wallet.Wallet,
+    ):
+        super().__init__(
+            address_serializer=address_serializer,
+            hotkey=wallet.hotkey.ss58_address,
+            netuid=netuid,
+            subtensor=subtensor,
+        )
+
+        self.wallet = wallet
+
+    def put(self, data: bytes):
         """
         Put data to blockchain for given user identified by hotkey.
         """
@@ -102,4 +128,6 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             self.netuid,
             f"Raw{len(data)}",
             data,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
         )

@@ -1,4 +1,5 @@
 import argparse
+import functools
 import logging
 import re
 import sys
@@ -11,11 +12,15 @@ from time import sleep
 from types import MappingProxyType
 from typing import Optional
 
-from tests.test_blockchain_manager import MemoryBlockchainManager
+import bittensor
+import bittensor_wallet
 
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager
-from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
+from bt_ddos_shield.blockchain_manager import (
+    AbstractBlockchainManager,
+    BittensorBlockchainManager,
+)
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
@@ -33,7 +38,7 @@ from bt_ddos_shield.state_manager import (
     SQLAlchemyMinerShieldStateManager,
 )
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
-from bt_ddos_shield.validators_manager import AbstractValidatorsManager, MemoryValidatorsManager
+from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 
 class MinerShieldOptions(BaseModel):
@@ -198,6 +203,8 @@ class MinerShield:
 
                     try_count += 1
                     sleep(self.options.retry_delay_sec)
+
+            self.task_queue.task_done()
 
         self._event("Stopping shield")
 
@@ -496,6 +503,28 @@ class MinerShieldPublishManifestTask(AbstractMinerShieldTask):
         miner_shield._handle_publish_manifest()
 
 
+class SubtensorSettings(BaseModel):
+    network: Optional[str] = None
+
+    @functools.cached_property
+    def client(self) -> bittensor.Subtensor:
+        return bittensor.Subtensor(
+            **self.model_dump()
+        )
+
+
+class WalletSettings(BaseModel):
+    name: Optional[str] = None
+    hotkey: Optional[str] = None
+    path: Optional[str] = None
+
+    @functools.cached_property
+    def instance(self) -> bittensor_wallet.Wallet:
+        return bittensor.Wallet(
+            **self.model_dump()
+        )
+
+
 class ShieldSettings(BaseSettings):
     aws_access_key_id: str = Field(min_length=1)
     aws_secret_access_key: str = Field(min_length=1)
@@ -518,6 +547,10 @@ class ShieldSettings(BaseSettings):
     """Hotkey of shielded miner"""
     options: MinerShieldOptions = MinerShieldOptions()
 
+    netuid: int
+    subtensor: SubtensorSettings = SubtensorSettings()
+    wallet: WalletSettings = WalletSettings()
+
     model_config = {
         'env_file': '.env',
         'env_nested_delimiter': '__',
@@ -537,7 +570,7 @@ class MinerShieldFactory:
             settings: ShieldSettings instance.
             validators: Dictionary containing validators hotkeys and their public keys.
         """
-        validators_manager: AbstractValidatorsManager = cls.create_validators_manager(validators)
+        validators_manager: AbstractValidatorsManager = cls.create_validators_manager(settings, validators)
         event_processor: AbstractMinerShieldEventProcessor = cls.create_event_processor()
         state_manager: AbstractMinerShieldStateManager = cls.create_state_manager(settings)
         aws_client_factory: AWSClientFactory = cls.create_aws_client_factory(settings)
@@ -546,7 +579,7 @@ class MinerShieldFactory:
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(settings, encryption_manager,
                                                                                 aws_client_factory)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings.miner_hotkey)
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings)
 
         if settings.options.auto_hide_original_server:
             raise MinerShieldException('Autohiding is not implemented yet')
@@ -555,10 +588,16 @@ class MinerShieldFactory:
                            blockchain_manager, state_manager, event_processor, settings.options)
 
     @classmethod
-    def create_validators_manager(cls, validators: Optional[dict[Hotkey, PublicKey]]) -> AbstractValidatorsManager:
-        if validators is None:
-            raise MinerShieldException("validators param is not set")
-        return MemoryValidatorsManager(validators)
+    def create_validators_manager(
+        cls,
+        settings: ShieldSettings,
+        validators: Optional[dict[Hotkey, PublicKey]] = None,
+    ) -> AbstractValidatorsManager:
+        return BittensorValidatorsManager(
+            subtensor=settings.subtensor.client,
+            netuid=settings.netuid,
+            validators=validators,
+        )
 
     @classmethod
     def create_event_processor(cls) -> AbstractMinerShieldEventProcessor:
@@ -613,9 +652,16 @@ class MinerShieldFactory:
                                  settings.aws_s3_bucket_name)
 
     @classmethod
-    def create_blockchain_manager(cls, miner_hotkey: Hotkey) -> AbstractBlockchainManager:
-        # TODO: waiting for implementation of blockchain manager
-        return MemoryBlockchainManager(miner_hotkey)
+    def create_blockchain_manager(
+        cls,
+        settings: ShieldSettings,
+    ) -> AbstractBlockchainManager:
+        return BittensorBlockchainManager(
+            address_serializer=DefaultAddressSerializer(),
+            netuid=settings.netuid,
+            subtensor=settings.subtensor.client,
+            wallet=settings.wallet.instance,
+        )
 
 
 def run_shield() -> int:
