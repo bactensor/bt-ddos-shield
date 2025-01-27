@@ -1,12 +1,12 @@
 import ipaddress
-import json
 import secrets
 import string
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict, is_dataclass
+from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
+from pydantic import BaseModel
 from types import MappingProxyType
 from typing import Any, Callable, Optional, Union
 
@@ -100,44 +100,24 @@ class AwsELBData:
     hosted_zone_id: str
 
 
-@dataclass
-class AwsEC2ServerLocation:
+class AwsEC2ServerLocation(BaseModel):
     vpc_id: str
     subnet_id: str
     server_id: str
 
 
-@dataclass
-class AwsShieldedServerData:
+class AwsShieldedServerData(BaseModel):
     server_address: Address
     """ Address of shielded server (IP or EC2 instance ID). """
     aws_location: Optional[AwsEC2ServerLocation]
     """ Location of server in AWS (only if it is EC2 instance). """
 
     def to_json(self) -> str:
-        class DataEncoder(json.JSONEncoder):
-            def default(self, obj: Any):
-                if isinstance(obj, Enum):
-                    return obj.value
-                elif is_dataclass(obj):
-                    return asdict(obj)
-                return super().default(obj)
-
-        return json.dumps(self, cls=DataEncoder)
+        return self.model_dump_json()
 
     @staticmethod
     def from_json(json_str: str) -> 'AwsShieldedServerData':
-        def data_object_hook(d: dict[str, Any]) -> Any:
-            if 'address_type' in d and isinstance(d['address_type'], str):
-                d['address_type'] = AddressType(d['address_type'])
-            if 'server_address' in d:
-                d['server_address'] = Address(**d['server_address'])
-            if 'aws_location' in d and d['aws_location'] is not None:
-                d['aws_location'] = AwsEC2ServerLocation(**d['aws_location'])
-            return d
-
-        data = json.loads(json_str, object_hook=data_object_hook)
-        return AwsShieldedServerData(**data)
+        return AwsShieldedServerData.model_validate_json(json_str)
 
 
 class AwsObjectTypes(Enum):
@@ -202,24 +182,29 @@ class AwsAddressManager(AbstractAddressManager):
         self.ec2_client = aws_client_factory.boto3_client('ec2')
         self._initialize_server_data(server_address)
 
+    @classmethod
+    def _is_ip_address(cls, address: str) -> bool:
+        try:
+            ipaddress.ip_address(address)
+            return True
+        except ValueError:
+            return False
+
     def _initialize_server_data(self, server_address: Address):
         server_aws_location: Optional[AwsEC2ServerLocation]
 
         if server_address.address_type == AddressType.EC2:
-            server_instance_id: str
-            try:
-                # For EC2 type user can pass private IP of the server or AWS instance ID
-                ipaddress.ip_address(server_address.address)
-                server_instance_id = self._find_ec2_instance_id_by_ip(server_address.address)
-            except ValueError:
-                server_instance_id = server_address.address
-
-            server_instance: AwsEC2InstanceData = self._get_ec2_instance_data(server_instance_id)
+            server_instance: AwsEC2InstanceData
+            # For EC2 type user can pass private IP of the server or AWS instance ID
+            if self._is_ip_address(server_address.address):
+                server_instance = self._get_ec2_instance_data(private_ip=server_address.address)
+            else:
+                server_instance = self._get_ec2_instance_data(instance_id=server_address.address)
             server_address = Address(address_id='', address_type=AddressType.EC2,
-                                     address=server_instance_id, port=server_address.port)
+                                     address=server_instance.instance_id, port=server_address.port)
             server_aws_location = AwsEC2ServerLocation(vpc_id=server_instance.vpc_id,
                                                        subnet_id=server_instance.subnet_id,
-                                                       server_id=server_instance_id)
+                                                       server_id=server_instance.instance_id)
 
         elif server_address.address_type in (AddressType.IP, AddressType.IPV6):
             # TODO: See comment in _create_target_group method what needs to be done.
@@ -232,13 +217,6 @@ class AwsAddressManager(AbstractAddressManager):
         server_address.address_id = 'server_address'
         self.shielded_server_data = AwsShieldedServerData(server_address=server_address,
                                                           aws_location=server_aws_location)
-
-    def _find_ec2_instance_id_by_ip(self, ip_address: str) -> str:
-        response: dict[str, Any] = self.ec2_client.describe_instances(Filters=[{'Name': 'private-ip-address',
-                                                                                'Values': [ip_address]}])
-        if not response['Reservations']:
-            raise AddressManagerException(f'No EC2 instance found with private IP address {ip_address}')
-        return response['Reservations'][0]['Instances'][0]['InstanceId']
 
     def clean_all(self):
         created_objects: MappingProxyType[str, frozenset[str]] = \
@@ -371,8 +349,15 @@ class AwsAddressManager(AbstractAddressManager):
             self.state_manager.update_address_manager_state(self.HOSTED_ZONE_ID_STATE_KEY, self.hosted_zone_id)
         return zone_changed
 
-    def _get_ec2_instance_data(self, instance_id: str) -> AwsEC2InstanceData:
-        response: dict[str, Any] = self.ec2_client.describe_instances(InstanceIds=[instance_id])
+    def _get_ec2_instance_data(self, instance_id: Optional[str] = None,
+                               private_ip: Optional[str] = None) -> AwsEC2InstanceData:
+        assert instance_id or private_ip
+        ec2_client_args: dict[str, Any] = {'InstanceIds': [instance_id]} if instance_id else \
+            {'Filters': [{'Name': 'private-ip-address', 'Values': [private_ip]}]}
+        response: dict[str, Any] = self.ec2_client.describe_instances(**ec2_client_args)
+        if not response['Reservations']:
+            raise AddressManagerException(
+                f'No EC2 instance found with instance_id={instance_id} or IP address {private_ip}')
         instance_data: dict[str, Any] = response['Reservations'][0]['Instances'][0]
         return AwsEC2InstanceData(instance_id=instance_id, vpc_id=instance_data['VpcId'],
                                   subnet_id=instance_data['SubnetId'], private_ip=instance_data['PrivateIpAddress'],

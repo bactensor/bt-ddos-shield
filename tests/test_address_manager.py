@@ -83,7 +83,6 @@ class TestAddressManager:
         yield manager
         manager.clean_all()
 
-
     def test_create_elb_for_ec2(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
         """
         Test creating ELB by AwsAddressManager class when shielding EC2 instance.
