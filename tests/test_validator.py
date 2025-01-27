@@ -7,7 +7,6 @@ from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.validator import Validator, ValidatorFactory, ValidatorSettings
 from tests.conftest import ShieldTestSettings, ValidatorTestSettings
-from tests.test_encryption_manager import generate_key_pair
 
 
 class TestValidator:
@@ -21,13 +20,11 @@ class TestValidator:
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
-        validator_private_key, validator_public_key = generate_key_pair()
 
-        os.environ["VALIDATOR_PRIVATE_KEY"] = validator_private_key
         validator_settings: ValidatorSettings = ValidatorTestSettings()
         validator: Validator = ValidatorFactory.create_validator(validator_settings)
 
-        validators = {validator_settings.validator_hotkey: validator_public_key}
+        validators = {validator_settings.validator_hotkey: ""}
         shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, validators)
 
         assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
@@ -36,11 +33,10 @@ class TestValidator:
 
         address_manager: AbstractAddressManager = shield.address_manager
 
-        # TODO: Connect blockchain managers because there is only MemoryBlockchainManager as for now
-        validator._blockchain_manager = shield.blockchain_manager
-
         shield.enable()
         assert shield.run
+
+        shield.task_queue.join()
 
         try:
             miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=180))

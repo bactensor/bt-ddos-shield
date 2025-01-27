@@ -121,7 +121,7 @@ def test_bittensor_put(wallet):
     )
     mock_subtensor.substrate.submit_extrinsic.assert_called_once_with(
         mock_substrate.create_signed_extrinsic.return_value,
-        wait_for_inclusion=False,
+        wait_for_inclusion=True,
         wait_for_finalization=True,
     )
 

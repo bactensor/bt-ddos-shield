@@ -20,6 +20,7 @@ def shield_settings() -> ShieldTestSettings:
 
 
 class ValidatorTestSettings(ValidatorSettings):
+    validator_public_key: str
     miner_instance_port: int = 8080
 
     model_config = {
