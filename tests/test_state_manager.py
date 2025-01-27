@@ -4,7 +4,6 @@ from typing import Optional
 
 import pytest
 from bt_ddos_shield.address import Address, AddressType
-from bt_ddos_shield.manifest_manager import ManifestAddress, ManifestS3Address
 from bt_ddos_shield.state_manager import (
     AbstractMinerShieldStateManager,
     MinerShieldState,
@@ -20,8 +19,7 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
     def __init__(self):
         super().__init__()
         self.current_miner_shield_state = MinerShieldState(known_validators={}, banned_validators={},
-                                                           validators_addresses={}, manifest_address=None,
-                                                           address_manager_state={},
+                                                           validators_addresses={}, address_manager_state={},
                                                            address_manager_created_objects={})
 
     def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address):
@@ -37,9 +35,6 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
 
     def remove_validator(self, validator_hotkey: Hotkey):
         self._state_remove_validator(validator_hotkey)
-
-    def set_manifest_address(self, manifest_address: ManifestAddress):
-        self._state_set_manifest_address(manifest_address)
 
     def update_address_manager_state(self, key: str, value: Optional[str]):
         self._state_update_address_manager_state(key, value)
@@ -119,21 +114,6 @@ class TestMinerShieldStateManager:
 
         state: MinerShieldState = state_manager.get_state()
         assert state.banned_validators == {banned_validator_hotkey: ban_time}
-
-        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
-        assert state == reloaded_state
-
-    def test_manifest_address(self, shield_settings: ShieldTestSettings):
-        manifest_address1: ManifestS3Address = ManifestS3Address(region_name='reg1', bucket_name='buck1',
-                                                                 file_key='file1')
-        manifest_address2: ManifestS3Address = ManifestS3Address(region_name='reg2', bucket_name='buck2',
-                                                                 file_key='file2')
-
-        state_manager = self.create_db_state_manager(shield_settings)
-        state_manager.set_manifest_address(manifest_address1)
-        state_manager.set_manifest_address(manifest_address2)
-        state: MinerShieldState = state_manager.get_state()
-        assert state.manifest_address == manifest_address2
 
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state

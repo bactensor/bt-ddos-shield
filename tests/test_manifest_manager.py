@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 
 import pytest
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
@@ -6,9 +6,7 @@ from bt_ddos_shield.manifest_manager import (
     AbstractManifestManager,
     JsonManifestSerializer,
     Manifest,
-    ManifestAddress,
     ManifestNotFoundException,
-    ManifestS3Address,
     ReadOnlyS3ManifestManager,
     S3ManifestManager,
 )
@@ -17,24 +15,26 @@ from tests.conftest import ShieldTestSettings
 
 
 class MemoryManifestManager(AbstractManifestManager):
-    default_address: ManifestAddress
+    _manifest_url: str
     stored_file: Optional[bytes]
     put_counter: int
 
     def __init__(self):
         super().__init__(JsonManifestSerializer(), ECIESEncryptionManager())
-        self.default_address = ManifestS3Address(region_name='region', bucket_name='bucket', file_key='file')
+        self._manifest_url = 'https://manifest.com'
         self.stored_file = None
         self.put_counter = 0
 
-    def _put_manifest_file(self, data: bytes) -> ManifestAddress:
+    def get_manifest_url(self) -> str:
+        return self._manifest_url
+
+    def _put_manifest_file(self, data: bytes):
         self.stored_file = data
         self.put_counter += 1
-        return self.default_address
 
-    def _get_manifest_file(self, address: Union[str, ManifestAddress]) -> bytes:
-        if self.stored_file is None or address != self.default_address:
-            raise ManifestNotFoundException(f"Manifest file not found under address: {address}")
+    def _get_manifest_file(self, url: str) -> bytes:
+        if self.stored_file is None or url != self._manifest_url:
+            raise ManifestNotFoundException(f"Manifest file not found under url: {url}")
         return self.stored_file
 
 
@@ -63,32 +63,20 @@ class TestManifestManager:
                                              encryption_manager=ECIESEncryptionManager())
 
         data: bytes = b'some_data'
-        address: ManifestAddress = manifest_manager._put_manifest_file(data)
-        retrieved_data: bytes = manifest_manager._get_manifest_file(address)
-        assert retrieved_data == data
-        retrieved_data: bytes = manifest_manager._get_manifest_file(address.get_url())
+        manifest_manager._put_manifest_file(data)
+        manifest_url: str = manifest_manager.get_manifest_url()
+        retrieved_data: bytes = manifest_manager._get_manifest_file(manifest_url)
         assert retrieved_data == data
 
-        assert isinstance(address, ManifestS3Address)
-        s3_address: ManifestS3Address = address
-        s3_address.file_key = 'xxx'
         with pytest.raises(ManifestNotFoundException):
-            manifest_manager._get_manifest_file(address)
+            manifest_manager._get_manifest_file(manifest_url + 'xxx')
 
         other_data: bytes = b'other_data'
-        address: ManifestAddress = manifest_manager._put_manifest_file(other_data)
-        retrieved_data: bytes = manifest_manager._get_manifest_file(address)
+        manifest_manager._put_manifest_file(other_data)
+        retrieved_data: bytes = manifest_manager._get_manifest_file(manifest_url)
         assert retrieved_data == other_data
 
         validator_manifest_manager = ReadOnlyS3ManifestManager(manifest_serializer=JsonManifestSerializer(),
                                                                encryption_manager=ECIESEncryptionManager())
-        retrieved_data: bytes = validator_manifest_manager._get_manifest_file(address)
+        retrieved_data: bytes = validator_manifest_manager._get_manifest_file(manifest_url)
         assert retrieved_data == other_data
-        retrieved_data: bytes = manifest_manager._get_manifest_file(address.get_url())
-        assert retrieved_data == other_data
-
-        assert isinstance(address, ManifestS3Address)
-        s3_address: ManifestS3Address = address
-        s3_address.file_key = 'xxx'
-        with pytest.raises(ManifestNotFoundException):
-            validator_manifest_manager._get_manifest_file(address)

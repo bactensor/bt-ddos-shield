@@ -23,7 +23,6 @@ from bt_ddos_shield.manifest_manager import (
     AbstractManifestSerializer,
     JsonManifestSerializer,
     Manifest,
-    ManifestAddress,
     ManifestDeserializationException,
     ManifestNotFoundException,
     S3ManifestManager,
@@ -283,11 +282,9 @@ class MinerShield:
         """
         try:
             current_state: MinerShieldState = self.state_manager.get_state()
-            if current_state.manifest_address is None:
-                return False
+            current_manifest: Manifest = self.manifest_manager.get_manifest(self.manifest_manager.get_manifest_url())
             new_manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
                                                                            current_state.known_validators)
-            current_manifest: Manifest = self.manifest_manager.get_manifest(current_state.manifest_address)
             same_content: bool = new_manifest.md5_hash == current_manifest.md5_hash
             self._event("Manifest file validation finished, same content={same_content}",
                         same_content=same_content)
@@ -296,7 +293,7 @@ class MinerShield:
             return False
         except Exception as e:
             self._event("Error during validating manifest file", e)
-            # if error happened, assume that manifest file is valid - it is only validation, and it will be called
+            # If error happened, assume that manifest file is valid - it is only validation, and it will be called
             # again by _ticker_function
             return True
 
@@ -415,21 +412,21 @@ class MinerShield:
         current_state: MinerShieldState = self.state_manager.get_state()
         manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
                                                                    current_state.known_validators)
-        address: ManifestAddress = self.manifest_manager.upload_manifest(manifest)
-        self.state_manager.set_manifest_address(address)
-        self._event("Manifest updated, new address: {address}", address=address)
+        self.manifest_manager.upload_manifest(manifest)
+        self._event("Manifest updated, new address: {address}",
+                    address=self.manifest_manager.get_manifest_url())
         self._add_task(MinerShieldPublishManifestTask())
 
     def _handle_publish_manifest(self):
         """
         Publish info about current manifest file to blockchain if it is not already there.
         """
-        expected_address: ManifestAddress = self.state_manager.get_state().manifest_address
+        expected_url: str = self.manifest_manager.get_manifest_url()
         current_url: str = self.blockchain_manager.get_miner_manifest_address()
-        if current_url == expected_address.get_url():
+        if current_url == expected_url:
             self._event("Manifest address already published")
         else:
-            self.blockchain_manager.put_miner_manifest_address(expected_address.get_url())
+            self.blockchain_manager.put_miner_manifest_address(expected_url)
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):

@@ -7,11 +7,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from botocore.client import BaseClient
-from botocore.exceptions import ClientError
-
 from bt_ddos_shield.address import (
     Address,
 )
@@ -124,19 +122,9 @@ class JsonManifestSerializer(AbstractManifestSerializer):
         return json_mapping
 
 
-@dataclass
-class ManifestAddress:
-    """ Address where manifest is stored. """
-
-    @abstractmethod
-    def get_url(self) -> str:
-        """ Returns public URL for accessing manifest. """
-        pass
-
-
 class AbstractManifestManager(ABC):
     """
-    Abstract base class for manager handling publishing manifest file containing encrypted addresses for validators.
+    Abstract base class for manager handling manifest file containing encrypted addresses for validators.
     """
 
     manifest_serializer: AbstractManifestSerializer
@@ -147,7 +135,7 @@ class AbstractManifestManager(ABC):
         self.manifest_serializer = manifest_serializer
         self.encryption_manager = encryption_manager
 
-    def upload_manifest(self, manifest: Manifest) -> ManifestAddress:
+    def upload_manifest(self, manifest: Manifest):
         data: bytes = self.manifest_serializer.serialize(manifest)
         return self._put_manifest_file(data)
 
@@ -176,12 +164,12 @@ class AbstractManifestManager(ABC):
 
         return Manifest(encrypted_address_mapping, md5_hash.hexdigest())
 
-    def get_manifest(self, address: Union[str, ManifestAddress]) -> Manifest:
+    def get_manifest(self, url: str) -> Manifest:
         """
-        Get manifest file from given address (either url or ManifestAddress object) and deserialize it.
+        Get manifest file from given url and deserialize it.
         Throws ManifestDeserializationException if data format is not recognized.
         """
-        raw_data: bytes = self._get_manifest_file(address)
+        raw_data: bytes = self._get_manifest_file(url)
         return self.manifest_serializer.deserialize(raw_data)
 
     def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
@@ -194,32 +182,25 @@ class AbstractManifestManager(ABC):
         return decrypted_url.decode()
 
     @abstractmethod
-    def _put_manifest_file(self, data: bytes) -> ManifestAddress:
+    def get_manifest_url(self) -> str:
         """
-        Put manifest file into the storage. Should overwrite manifest file if it exists.
-
-        Returns:
-            ManifestAddress: Address for accessing file.
+        Return URL where manifest file is stored.
         """
         pass
 
     @abstractmethod
-    def _get_manifest_file(self, address: Union[str, ManifestAddress]) -> bytes:
+    def _put_manifest_file(self, data: bytes):
         """
-        Get manifest file from given address (either url or ManifestAddress object).
-        Should throw ManifestNotFoundException if file is not found.
+        Put manifest file into the storage. Should overwrite manifest file if it exists.
         """
         pass
 
-
-@dataclass
-class ManifestS3Address(ManifestAddress):
-    region_name: str
-    bucket_name: str
-    file_key: str
-
-    def get_url(self) -> str:
-        return f"https://{self.bucket_name}.s3.{self.region_name}.amazonaws.com/{self.file_key}"
+    @abstractmethod
+    def _get_manifest_file(self, url: str) -> bytes:
+        """
+        Get manifest file from given url. Should throw ManifestNotFoundException if file is not found.
+        """
+        pass
 
 
 class ReadOnlyS3ManifestManager(AbstractManifestManager):
@@ -236,22 +217,24 @@ class ReadOnlyS3ManifestManager(AbstractManifestManager):
         self._requests_session = requests.Session()
         self._download_timeout = download_timeout
 
-    def _get_manifest_file(self, address: Union[str, ManifestAddress]) -> bytes:
-        url: str = address.get_url() if isinstance(address, ManifestAddress) else address
-
+    def _get_manifest_file(self, url: str) -> bytes:
         try:
             response = self._requests_session.get(url, timeout=self._download_timeout)
             response.raise_for_status()
             return response.content
         except requests.HTTPError as e:
-            # S3 returns 403 Forbidden if file does not exist in bucket
             if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
-                raise ManifestNotFoundException(f"File {url} not found")
+                # ManifestNotFoundException should be returned for non-retryable errors.
+                # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
+                raise ManifestNotFoundException(f"File {url} not found, status code={e.response.status_code}") from e
             raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
         except requests.RequestException as e:
             raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
 
-    def _put_manifest_file(self, data: bytes) -> ManifestAddress:
+    def get_manifest_url(self) -> str:
+        raise NotImplementedError
+
+    def _put_manifest_file(self, data: bytes):
         raise NotImplementedError
 
 
@@ -279,21 +262,9 @@ class S3ManifestManager(ReadOnlyS3ManifestManager):
             self._s3_client = self._aws_client_factory.boto3_client("s3")
         return self._s3_client
 
-    def _get_manifest_file(self, address: Union[str, ManifestAddress]) -> bytes:
-        if isinstance(address, str):
-            return super()._get_manifest_file(address)
-
-        assert isinstance(address, ManifestS3Address)
-        s3_address: ManifestS3Address = address
-        try:
-            response = self.s3_client.get_object(Bucket=self._bucket_name, Key=s3_address.file_key)
-            return response['Body'].read()
-        except ClientError as e:
-            if e.response['Error']['Code'] == "NoSuchKey":
-                raise ManifestNotFoundException(f"File {s3_address.file_key} not found")
-            raise ManifestDownloadException(f"Failed to download file {s3_address.file_key} from S3: {e}") from e
-
-    def _put_manifest_file(self, data: bytes) -> ManifestAddress:
+    def _put_manifest_file(self, data: bytes):
         self.s3_client.put_object(Bucket=self._bucket_name, Key=self.MANIFEST_FILE_NAME, Body=data, ACL='public-read')
-        return ManifestS3Address(region_name=self._aws_client_factory.aws_region_name, bucket_name=self._bucket_name,
-                                 file_key=self.MANIFEST_FILE_NAME)
+
+    def get_manifest_url(self) -> str:
+        region_name: str = self._aws_client_factory.aws_region_name
+        return f"https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}"
