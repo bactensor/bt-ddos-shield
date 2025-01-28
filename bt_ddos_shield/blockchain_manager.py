@@ -103,13 +103,11 @@ class BittensorBlockchainManager(ReadOnlyBittensorBlockchainManager):
 
     def __init__(
         self,
-        address_serializer: AbstractAddressSerializer,
         subtensor: bittensor.Subtensor,
         netuid: int,
         wallet: bittensor_wallet.Wallet,
     ):
         super().__init__(
-            address_serializer=address_serializer,
             hotkey=wallet.hotkey.ss58_address,
             netuid=netuid,
             subtensor=subtensor,

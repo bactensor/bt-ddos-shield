@@ -657,7 +657,6 @@ class MinerShieldFactory:
         settings: ShieldSettings,
     ) -> AbstractBlockchainManager:
         return BittensorBlockchainManager(
-            address_serializer=DefaultAddressSerializer(),
             netuid=settings.netuid,
             subtensor=settings.subtensor.client,
             wallet=settings.wallet.instance,
