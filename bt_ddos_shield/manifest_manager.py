@@ -5,7 +5,7 @@ import json
 import requests
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from http import HTTPStatus
 from types import MappingProxyType
 from typing import Any
@@ -80,6 +80,8 @@ class JsonManifestSerializer(AbstractManifestSerializer):
     Manifest serializer implementation which serialize manifest to Json.
     """
 
+    MANIFEST_ROOT_JSON_KEY: str = "ddos_shield_manifest"
+
     encoding: str
 
     def __init__(self, encoding: str = "utf-8"):
@@ -91,8 +93,7 @@ class JsonManifestSerializer(AbstractManifestSerializer):
 
     def serialize(self, manifest: Manifest) -> bytes:
         data: dict = {
-            "encrypted_url_mapping": manifest.encrypted_url_mapping,
-            "md5_hash": manifest.md5_hash
+            self.MANIFEST_ROOT_JSON_KEY: asdict(manifest)  # type: ignore
         }
         json_str: str = json.dumps(data, default=self._custom_encoder)
         return json_str.encode(encoding=self.encoding)
@@ -101,7 +102,7 @@ class JsonManifestSerializer(AbstractManifestSerializer):
         try:
             json_str: str = serialized_data.decode(encoding=self.encoding)
             data = json.loads(json_str, object_hook=self._custom_decoder)
-            return Manifest(data["encrypted_url_mapping"], data["md5_hash"])
+            return Manifest(**data[self.MANIFEST_ROOT_JSON_KEY])
         except Exception as e:
             raise ManifestDeserializationException(f"Failed to deserialize manifest data: {e}") from e
 
