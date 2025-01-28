@@ -1,5 +1,4 @@
 import asyncio
-import os
 from urllib.parse import urlparse, ParseResult
 
 from bt_ddos_shield.address_manager import AbstractAddressManager
@@ -21,7 +20,7 @@ class TestValidator:
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
 
-        validator_settings: ValidatorSettings = ValidatorTestSettings()
+        validator_settings: ValidatorSettings = ValidatorTestSettings()  # type: ignore
         validator: Validator = ValidatorFactory.create_validator(validator_settings)
 
         validators = {validator_settings.validator_hotkey: ""}

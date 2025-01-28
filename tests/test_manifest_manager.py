@@ -7,7 +7,7 @@ from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
     Manifest,
     ManifestNotFoundException,
-    ReadOnlyS3ManifestManager,
+    ReadOnlyManifestManager,
     S3ManifestManager,
 )
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
@@ -76,7 +76,7 @@ class TestManifestManager:
         retrieved_data: bytes = manifest_manager._get_manifest_file(manifest_url)
         assert retrieved_data == other_data
 
-        validator_manifest_manager = ReadOnlyS3ManifestManager(manifest_serializer=JsonManifestSerializer(),
-                                                               encryption_manager=ECIESEncryptionManager())
+        validator_manifest_manager = ReadOnlyManifestManager(manifest_serializer=JsonManifestSerializer(),
+                                                             encryption_manager=ECIESEncryptionManager())
         retrieved_data: bytes = validator_manifest_manager._get_manifest_file(manifest_url)
         assert retrieved_data == other_data

@@ -1,4 +1,5 @@
 import base64
+import functools
 import hashlib
 import json
 import requests
@@ -7,7 +8,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import Any, Optional
+from typing import Any
 
 from botocore.client import BaseClient
 from bt_ddos_shield.address import (
@@ -122,18 +123,63 @@ class JsonManifestSerializer(AbstractManifestSerializer):
         return json_mapping
 
 
-class AbstractManifestManager(ABC):
+class ReadOnlyManifestManager(ABC):
     """
-    Abstract base class for manager handling manifest file containing encrypted addresses for validators.
+    Manifest manager only for getting file uploaded by ManifestManager.
     """
 
     manifest_serializer: AbstractManifestSerializer
     encryption_manager: AbstractEncryptionManager
+    _requests_session: requests.Session
+    _download_timeout: int
 
     def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager):
+                 encryption_manager: AbstractEncryptionManager, download_timeout: int = 10):
         self.manifest_serializer = manifest_serializer
         self.encryption_manager = encryption_manager
+        self._requests_session = requests.Session()
+        self._download_timeout = download_timeout
+
+    def get_manifest(self, url: str) -> Manifest:
+        """
+        Get manifest file from given url and deserialize it.
+        Throws ManifestNotFoundException if file is not found.
+        Throws ManifestDeserializationException if data format is not recognized.
+        """
+        raw_data: bytes = self._get_manifest_file(url)
+        return self.manifest_serializer.deserialize(raw_data)
+
+    def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
+                                  validator_private_key: PrivateKey) -> str:
+        """
+        Get URL for validator identified by hotkey from manifest. Decrypts address using validator's private key.
+        """
+        encrypted_url: bytes = manifest.encrypted_url_mapping[validator_hotkey]
+        decrypted_url: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_url)
+        return decrypted_url.decode()
+
+    def _get_manifest_file(self, url: str) -> bytes:
+        """
+        Get manifest file from given url. Throws ManifestNotFoundException if file is not found.
+        """
+        try:
+            response = self._requests_session.get(url, timeout=self._download_timeout)
+            response.raise_for_status()
+            return response.content
+        except requests.HTTPError as e:
+            if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
+                # ManifestNotFoundException should be returned for non-retryable errors.
+                # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
+                raise ManifestNotFoundException(f"File {url} not found, status code={e.response.status_code}") from e
+            raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
+        except requests.RequestException as e:
+            raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
+
+
+class AbstractManifestManager(ReadOnlyManifestManager):
+    """
+    Abstract base class for manager handling manifest file containing encrypted addresses for validators.
+    """
 
     def upload_manifest(self, manifest: Manifest):
         data: bytes = self.manifest_serializer.serialize(manifest)
@@ -164,23 +210,6 @@ class AbstractManifestManager(ABC):
 
         return Manifest(encrypted_address_mapping, md5_hash.hexdigest())
 
-    def get_manifest(self, url: str) -> Manifest:
-        """
-        Get manifest file from given url and deserialize it.
-        Throws ManifestDeserializationException if data format is not recognized.
-        """
-        raw_data: bytes = self._get_manifest_file(url)
-        return self.manifest_serializer.deserialize(raw_data)
-
-    def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
-                                  validator_private_key: PrivateKey) -> str:
-        """
-        Get URL for validator identified by hotkey from manifest. Decrypts address using validator's private key.
-        """
-        encrypted_url: bytes = manifest.encrypted_url_mapping[validator_hotkey]
-        decrypted_url: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_url)
-        return decrypted_url.decode()
-
     @abstractmethod
     def get_manifest_url(self) -> str:
         """
@@ -195,76 +224,31 @@ class AbstractManifestManager(ABC):
         """
         pass
 
-    @abstractmethod
-    def _get_manifest_file(self, url: str) -> bytes:
-        """
-        Get manifest file from given url. Should throw ManifestNotFoundException if file is not found.
-        """
-        pass
 
-
-class ReadOnlyS3ManifestManager(AbstractManifestManager):
-    """
-    Manifest manager only for getting file uploaded by S3ManifestManager.
-    """
-
-    _requests_session: requests.Session
-    _download_timeout: int
-
-    def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager, download_timeout: int = 10):
-        super().__init__(manifest_serializer, encryption_manager)
-        self._requests_session = requests.Session()
-        self._download_timeout = download_timeout
-
-    def _get_manifest_file(self, url: str) -> bytes:
-        try:
-            response = self._requests_session.get(url, timeout=self._download_timeout)
-            response.raise_for_status()
-            return response.content
-        except requests.HTTPError as e:
-            if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
-                # ManifestNotFoundException should be returned for non-retryable errors.
-                # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
-                raise ManifestNotFoundException(f"File {url} not found, status code={e.response.status_code}") from e
-            raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
-        except requests.RequestException as e:
-            raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
-
-    def get_manifest_url(self) -> str:
-        raise NotImplementedError
-
-    def _put_manifest_file(self, data: bytes):
-        raise NotImplementedError
-
-
-class S3ManifestManager(ReadOnlyS3ManifestManager):
+class S3ManifestManager(AbstractManifestManager):
     """
     Manifest manager using AWS S3 service to manage file.
     """
 
     MANIFEST_FILE_NAME: str = "shield_manifest.json"
 
-    _bucket_name: str
     _aws_client_factory: AWSClientFactory
-    _s3_client: Optional[BaseClient]
+    _bucket_name: str
 
     def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager, aws_client_factory: AWSClientFactory, bucket_name: str):
-        super().__init__(manifest_serializer, encryption_manager)
+                 encryption_manager: AbstractEncryptionManager, aws_client_factory: AWSClientFactory, bucket_name: str,
+                 download_timeout: int = 10):
+        super().__init__(manifest_serializer, encryption_manager, download_timeout)
         self._aws_client_factory = aws_client_factory
         self._bucket_name = bucket_name
-        self._s3_client = None
-
-    @property
-    def s3_client(self):
-        if self._s3_client is None:
-            self._s3_client = self._aws_client_factory.boto3_client("s3")
-        return self._s3_client
-
-    def _put_manifest_file(self, data: bytes):
-        self.s3_client.put_object(Bucket=self._bucket_name, Key=self.MANIFEST_FILE_NAME, Body=data, ACL='public-read')
 
     def get_manifest_url(self) -> str:
         region_name: str = self._aws_client_factory.aws_region_name
         return f"https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}"
+
+    @functools.cached_property
+    def _s3_client(self) -> BaseClient:
+        return self._aws_client_factory.boto3_client("s3")
+
+    def _put_manifest_file(self, data: bytes):
+        self._s3_client.put_object(Bucket=self._bucket_name, Key=self.MANIFEST_FILE_NAME, Body=data, ACL='public-read')

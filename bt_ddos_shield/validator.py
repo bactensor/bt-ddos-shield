@@ -13,11 +13,10 @@ from bt_ddos_shield.blockchain_manager import (
 )
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
-    AbstractManifestManager,
     AbstractManifestSerializer,
     JsonManifestSerializer,
     Manifest,
-    ReadOnlyS3ManifestManager,
+    ReadOnlyManifestManager,
 )
 from bt_ddos_shield.utils import Hotkey, PrivateKey
 
@@ -36,11 +35,11 @@ class Validator:
     _validator_hotkey: Hotkey
     _validator_private_key: PrivateKey
     _blockchain_manager: AbstractBlockchainManager
-    _manifest_manager: AbstractManifestManager
+    _manifest_manager: ReadOnlyManifestManager
     _options: ValidatorOptions
 
     def __init__(self, validator_hotkey: Hotkey, validator_private_key: PrivateKey,
-                 blockchain_manager: AbstractBlockchainManager, manifest_manager: AbstractManifestManager,
+                 blockchain_manager: AbstractBlockchainManager, manifest_manager: ReadOnlyManifestManager,
                  options: ValidatorOptions):
         self._validator_hotkey = validator_hotkey
         self._validator_private_key = validator_private_key
@@ -101,7 +100,7 @@ class ValidatorFactory:
     @classmethod
     def create_validator(cls, settings: ValidatorSettings) -> Validator:
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
-        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager)
+        manifest_manager: ReadOnlyManifestManager = cls.create_manifest_manager(encryption_manager)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings)
         options: ValidatorOptions = ValidatorOptions()
         return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
@@ -112,9 +111,9 @@ class ValidatorFactory:
         return ECIESEncryptionManager()
 
     @classmethod
-    def create_manifest_manager(cls, encryption_manager: AbstractEncryptionManager) -> AbstractManifestManager:
+    def create_manifest_manager(cls, encryption_manager: AbstractEncryptionManager) -> ReadOnlyManifestManager:
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
-        return ReadOnlyS3ManifestManager(manifest_serializer, encryption_manager)
+        return ReadOnlyManifestManager(manifest_serializer, encryption_manager)
 
     @classmethod
     def create_blockchain_manager(
