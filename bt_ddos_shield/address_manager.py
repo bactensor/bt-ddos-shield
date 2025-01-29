@@ -249,7 +249,12 @@ class AwsAddressManager(AbstractAddressManager):
             return True
         cleaned: bool = True
         for object_id in created_objects[object_type.value]:
-            cleaned = remove_method(object_id) and cleaned
+            try:
+                cleaned = remove_method(object_id) and cleaned
+            except Exception as e:
+                cls.event_processor.event('Failed to remove {object_type} AWS object with id={id}',
+                                          exception=e, object_type=object_type.value, id=object_id)
+                cleaned = False
         return cleaned
 
     def create_address(self, hotkey: Hotkey) -> Address:
