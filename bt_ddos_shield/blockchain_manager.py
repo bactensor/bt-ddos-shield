@@ -72,7 +72,7 @@ class ReadOnlyBittensorBlockchainManager(AbstractBlockchainManager):
         Get data from blockchain for given user identified by hotkey or None if not found.
         """
 
-        metadata = get_metadata(
+        metadata: dict = get_metadata(  # type: ignore
             self.subtensor,
             self.netuid,
             self.hotkey,
