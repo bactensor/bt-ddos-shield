@@ -131,8 +131,10 @@ class TestMinerShield:
         shield.enable()
         assert shield.run
 
-        # Give some time to make sure everything is initialized and validate is called
+        # Wait for initialization and ...
         shield.task_queue.join()
+        # ... make sure validate is called
+        sleep(2 * shield.options.validate_interval_sec)
 
         try:
             state: MinerShieldState = state_manager.get_state()
