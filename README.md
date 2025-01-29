@@ -55,10 +55,6 @@ Validator -> Miner: Send request using decrypted Miner address
 
 ![](./assets/diagrams/CommunicationFlow.svg)
 
-## Installation
-```
-pip install bt-ddos-shield
-```
 
 ## Contribution Guidelines
 
@@ -83,7 +79,17 @@ Then activate venv with source .venv/bin/activate and run the following command 
 pytest
 ```
 
-### 4. Run Shield locally:
+## Running shield on server (Miner) side
+
+### 1. Requirements:
+
+* Shield can only be used for hiding AWS EC2 server as for now.
+* To run shield, first Route53 hosted zone needs to be created and configured. Some external domain owned by user is needed
+for it.
+* User needs to manually block traffic from all sources except shield. This can be done using some firewall like UFW or 
+by configuring security group in AWS. Autohiding is not yet implemented.
+
+### 2. Run Shield locally:
 
 First create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
 Then activate venv with source .venv/bin/activate and run the following command to run the shield:
@@ -91,16 +97,16 @@ Then activate venv with source .venv/bin/activate and run the following command 
 bin/run_shield.sh
 ```
 
-## Docker Usage
+### 3. Docker usage
 
-### Creating Docker Image
+#### Creating Docker Image
 
 To create a docker image, run the following command:
 ```bash
 cd docker && ./build_image.sh
 ```
 
-### Running Docker Image
+#### Running Docker Image
 
 To run created docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
 Then run the following command:
@@ -112,6 +118,10 @@ If one wants to clean objects created by shield run the following command:
 ```bash
 cd docker && ./run_image.sh clean
 ```
+
+## Running shield on client (Validator) side
+
+TODO
 
 ## License
 

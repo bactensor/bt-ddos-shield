@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
@@ -121,7 +122,6 @@ class ValidatorFactory:
         settings: ValidatorSettings,
     ) -> AbstractBlockchainManager:
         return ReadOnlyBittensorBlockchainManager(
-            address_serializer=DefaultAddressSerializer(),
             hotkey=settings.miner_hotkey,
             netuid=settings.netuid,
             subtensor=settings.subtensor.client,

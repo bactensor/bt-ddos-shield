@@ -563,7 +563,8 @@ class MinerShieldFactory:
     """
 
     @classmethod
-    def create_miner_shield(cls, settings: ShieldSettings, validators: Optional[dict[Hotkey, PublicKey]] = None) -> MinerShield:
+    def create_miner_shield(cls, settings: ShieldSettings,
+                            validators: Optional[dict[Hotkey, PublicKey]] = None) -> MinerShield:
         """
         Args:
             settings: ShieldSettings instance.
@@ -580,8 +581,11 @@ class MinerShieldFactory:
                                                                                 aws_client_factory)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings)
 
-        return MinerShield(settings.miner_hotkey, validators_manager, address_manager, manifest_manager, blockchain_manager,
-                           state_manager, event_processor, settings.options)
+        if settings.options.auto_hide_original_server:
+            raise MinerShieldException('Autohiding is not implemented yet')
+
+        return MinerShield(settings.miner_hotkey, validators_manager, address_manager, manifest_manager,
+                           blockchain_manager, state_manager, event_processor, settings.options)
 
     @classmethod
     def create_validators_manager(
@@ -611,14 +615,12 @@ class MinerShieldFactory:
     def load_miner_aws_address(cls, settings: ShieldSettings):
         if settings.aws_miner_instance_id:
             address = settings.aws_miner_instance_id
-            address_type = AddressType.EC2
         elif settings.aws_miner_instance_ip:
             address = settings.aws_miner_instance_ip
-            address_type = AddressType.IP
         else:
             raise MinerShieldException("AWS_MINER_INSTANCE_ID or AWS_MINER_INSTANCE_IP env is not set")
 
-        return Address(address_id="miner", address_type=address_type, address=address,
+        return Address(address_id="miner", address_type=AddressType.EC2, address=address,
                        port=settings.miner_instance_port)
 
     @classmethod
@@ -655,7 +657,6 @@ class MinerShieldFactory:
         settings: ShieldSettings,
     ) -> AbstractBlockchainManager:
         return BittensorBlockchainManager(
-            address_serializer=DefaultAddressSerializer(),
             netuid=settings.netuid,
             subtensor=settings.subtensor.client,
             wallet=settings.wallet.instance,
@@ -691,7 +692,7 @@ def run_shield() -> int:
             miner_shield.disable()
             return 0
         except MinerShieldException:
-            logging.exception(f"Error during enabling shield")
+            logging.exception("Error during enabling shield")
             return 1
 
 
