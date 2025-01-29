@@ -76,7 +76,7 @@ Run `setup-dev.sh` script to install the required dependencies and set up the de
 First create a `.env.test` file filling template file `envs/.env.test.template`. Stub should be made by `setup-dev.sh` script.
 Then activate venv with source .venv/bin/activate and run the following command to execute the tests:
 ```bash
-pytest
+PYTHONPATH=./ pytest
 ```
 
 ## Running shield on server (Miner) side
