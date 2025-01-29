@@ -59,6 +59,7 @@ def test_bittensor_get(wallet):
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
+        event_processor=unittest.mock.Mock(),
     )
 
     assert manager.get() is None
@@ -94,6 +95,7 @@ def test_bittensor_put(wallet):
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
+        event_processor=unittest.mock.Mock(),
     )
 
     manager.put(b"data")
@@ -147,6 +149,7 @@ def test_bittensor_retries(wallet):
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
+        event_processor=unittest.mock.Mock(),
     )
 
     assert manager.get() == b"data"

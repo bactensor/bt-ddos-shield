@@ -55,6 +55,12 @@ class MinerShieldOptions(BaseModel):
     auto_hide_delay_sec: int = 1200
     """ Time in seconds after which the original server will be hidden if auto_hide_original_server is set to True. """
 
+    retry_limit: Optional[int] = None
+    """
+    Limit of retries for failed tasks. If None, task will be retried forever. Should be changed only for testing.
+    Retrying can be also stopped by disabling shield (with Ctrl-C or calling disable).
+    """
+
     retry_delay_sec: int = 5
     """ Time in seconds to wait before retrying failed task. """
 
@@ -197,6 +203,10 @@ class MinerShield:
                     self._event("Error during handling task {task}", e, task=task)
 
                     if self.finishing:
+                        break
+
+                    if self.options.retry_limit and try_count > self.options.retry_limit:
+                        self._event("Retry limit reached for task {task}", task=task)
                         break
 
                     try_count += 1
@@ -574,7 +584,7 @@ class MinerShieldFactory:
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(settings, encryption_manager,
                                                                                 aws_client_factory)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings)
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
 
         if settings.options.auto_hide_original_server:
             raise MinerShieldException('Autohiding is not implemented yet')
@@ -650,11 +660,13 @@ class MinerShieldFactory:
     def create_blockchain_manager(
         cls,
         settings: ShieldSettings,
+        event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
         return BittensorBlockchainManager(
             netuid=settings.netuid,
             subtensor=settings.subtensor.client,
             wallet=settings.wallet.instance,
+            event_processor=event_processor,
         )
 
 
