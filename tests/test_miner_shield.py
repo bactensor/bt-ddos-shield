@@ -8,6 +8,7 @@ from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
+from bt_ddos_shield.validator import Validator, ValidatorFactory
 from bt_ddos_shield.validators_manager import (
     MemoryValidatorsManager,
     BittensorValidatorsManager,
@@ -118,8 +119,10 @@ class TestMinerShield:
         validators_manager: BittensorValidatorsManager = shield.validators_manager  # type: ignore
 
         manifest_manager: AbstractManifestManager = shield.manifest_manager
-        blockchain_manager: AbstractBlockchainManager = shield.blockchain_manager
         address_manager: AbstractAddressManager = shield.address_manager
+
+        validator: Validator = ValidatorFactory.create_validator(validator_settings)
+        blockchain_manager: AbstractBlockchainManager = validator._blockchain_manager
 
         # Shorten validate_interval_sec and retry_delay_sec to speed up tests
         shield.options.validate_interval_sec = 10
