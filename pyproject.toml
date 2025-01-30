@@ -19,6 +19,9 @@ dependencies = [
 prerelease = "allow"
 environments = ["sys_platform == 'linux'", "sys_platform == 'darwin'"]
 
+[tool.pytest.ini_options]
+addopts = "-s" # Shield tests run for a long time and user should see what is happening
+
 [dependency-groups]
 test = [
     "pytest",

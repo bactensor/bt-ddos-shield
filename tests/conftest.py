@@ -16,7 +16,9 @@ class ShieldTestSettings(ShieldSettings):
 
 @pytest.fixture
 def shield_settings() -> ShieldTestSettings:
-    return ShieldTestSettings()  # type: ignore
+    settings: ShieldTestSettings = ShieldTestSettings()  # type: ignore
+    settings.options.retry_limit = 1  # Do not retry forever as tests can hang
+    return settings
 
 
 class ValidatorTestSettings(ValidatorSettings):
