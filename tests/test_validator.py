@@ -38,7 +38,9 @@ class TestValidator:
         shield.task_queue.join()
 
         try:
-            miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=20))
+            miner_hotkey: str = shield_settings.wallet.instance.hotkey.ss58_address
+            miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(miner_hotkey),
+                                                          timeout=20))
             parsed_url: ParseResult = urlparse('http://' + miner_url)
             assert parsed_url.port == shield_settings.miner_instance_port
         finally:

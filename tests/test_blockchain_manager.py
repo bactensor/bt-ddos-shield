@@ -22,12 +22,15 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
         self.put_counter = 0
         self._lock = threading.Lock()
 
-    def put(self, data: bytes):
+    def get_own_manifest_url(self) -> Optional[str]:
+        return self.get_manifest_url(self.miner_hotkey)
+
+    def put_metadata(self, data: bytes):
         with self._lock:
             self.known_data[self.miner_hotkey] = data
             self.put_counter += 1
 
-    def get(self) -> Optional[bytes]:
+    def get_metadata(self, hotkey: Hotkey) -> Optional[bytes]:
         with self._lock:
             return self.known_data.get(self.miner_hotkey)
 
@@ -62,7 +65,7 @@ def test_bittensor_get(wallet):
         event_processor=unittest.mock.Mock(),
     )
 
-    assert manager.get() is None
+    assert manager.get_metadata(manager.get_hotkey()) is None
 
     mock_substrate.query.assert_called_once_with(
         module="Commitments",
@@ -84,7 +87,7 @@ def test_bittensor_get(wallet):
         },
     )
 
-    assert manager.get() == b"data"
+    assert manager.get_metadata(manager.get_hotkey()) == b"data"
 
 
 def test_bittensor_put(wallet):
@@ -98,7 +101,7 @@ def test_bittensor_put(wallet):
         event_processor=unittest.mock.Mock(),
     )
 
-    manager.put(b"data")
+    manager.put_metadata(b"data")
 
     mock_substrate.compose_call.assert_called_once_with(
         call_module="Commitments",
@@ -152,7 +155,7 @@ def test_bittensor_retries(wallet):
         event_processor=unittest.mock.Mock(),
     )
 
-    assert manager.get() == b"data"
+    assert manager.get_metadata(manager.get_hotkey()) == b"data"
     assert mock_substrate.query.call_count == 2
 
     mock_subtensor.substrate.submit_extrinsic.side_effect = (
@@ -160,6 +163,6 @@ def test_bittensor_retries(wallet):
         unittest.mock.Mock(),
     )
 
-    manager.put(b"data")
+    manager.put_metadata(b"data")
 
     assert mock_subtensor.substrate.submit_extrinsic.call_count == 2

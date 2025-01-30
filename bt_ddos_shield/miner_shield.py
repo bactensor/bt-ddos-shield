@@ -437,11 +437,11 @@ class MinerShield:
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_url: str = self.manifest_manager.get_manifest_url()
-        current_url: str = self.blockchain_manager.get_miner_manifest_address()
+        current_url: str = self.blockchain_manager.get_own_manifest_url()
         if current_url == expected_url:
             self._event("Manifest address already published")
         else:
-            self.blockchain_manager.put_miner_manifest_address(expected_url)
+            self.blockchain_manager.put_manifest_url(expected_url)
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):
@@ -516,9 +516,7 @@ class SubtensorSettings(BaseModel):
 
     @functools.cached_property
     def client(self) -> bittensor.Subtensor:
-        return bittensor.Subtensor(
-            **self.model_dump()
-        )
+        return bittensor.Subtensor(**self.model_dump())
 
 
 class WalletSettings(BaseModel):
@@ -528,9 +526,7 @@ class WalletSettings(BaseModel):
 
     @functools.cached_property
     def instance(self) -> bittensor_wallet.Wallet:
-        return bittensor.Wallet(
-            **self.model_dump()
-        )
+        return bittensor.Wallet(**self.model_dump())
 
 
 class ShieldSettings(BaseSettings):

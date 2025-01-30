@@ -49,9 +49,9 @@ class Validator:
         self._manifest_manager = manifest_manager
         self._options = options
 
-    async def fetch_miner_address(self) -> str:
+    async def fetch_miner_address(self, hotkey: Hotkey) -> str:
         while True:
-            miner_manifest_url: Optional[str] = self._blockchain_manager.get_miner_manifest_address()
+            miner_manifest_url: Optional[str] = self._blockchain_manager.get_manifest_url(hotkey)
             if miner_manifest_url is not None:
                 break
 
@@ -78,8 +78,6 @@ class SubtensorSettings(BaseModel):
 
 
 class ValidatorSettings(BaseSettings):
-    miner_hotkey: str = Field(min_length=1)
-    """Hotkey of shielded miner"""
     validator_hotkey: str = Field(min_length=1)
     """Hotkey of validator"""
     validator_private_key: str = Field(min_length=1)
@@ -129,7 +127,6 @@ class ValidatorFactory:
         event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
         return ReadOnlyBittensorBlockchainManager(
-            hotkey=settings.miner_hotkey,
             netuid=settings.netuid,
             subtensor=settings.subtensor.client,
             event_processor=event_processor
