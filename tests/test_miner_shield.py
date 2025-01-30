@@ -8,6 +8,7 @@ from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
+from bt_ddos_shield.validator import Validator, ValidatorFactory
 from bt_ddos_shield.validators_manager import (
     MemoryValidatorsManager,
     BittensorValidatorsManager,
@@ -52,9 +53,8 @@ class TestMinerShield:
         self.manifest_manager: MemoryManifestManager = MemoryManifestManager()
         self.blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager(self.MINER_HOTKEY)
         self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
-        self.shield = MinerShield(self.MINER_HOTKEY, self.validators_manager, self.address_manager,
-                                  self.manifest_manager, self.blockchain_manager, self.state_manager,
-                                  PrintingMinerShieldEventProcessor(),
+        self.shield = MinerShield(self.validators_manager, self.address_manager, self.manifest_manager,
+                                  self.blockchain_manager, self.state_manager, PrintingMinerShieldEventProcessor(),
                                   MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec))
         self.shield.enable()
         assert self.shield.run
@@ -66,9 +66,9 @@ class TestMinerShield:
         state_manager = None  # set state_manager to None to force exception during initialization
 
         # noinspection PyTypeChecker
-        shield = MinerShield(self.MINER_HOTKEY, self.create_memory_validators_manager(), MemoryAddressManager(),
-                             MemoryManifestManager(), MemoryBlockchainManager(self.MINER_HOTKEY),
-                             state_manager, PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay_sec=1))
+        shield = MinerShield(self.create_memory_validators_manager(), MemoryAddressManager(), MemoryManifestManager(),
+                             MemoryBlockchainManager(self.MINER_HOTKEY), state_manager,
+                             PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay_sec=1))
         shield.enable()
         assert shield.run
         sleep(1)
@@ -118,8 +118,10 @@ class TestMinerShield:
         validators_manager: BittensorValidatorsManager = shield.validators_manager  # type: ignore
 
         manifest_manager: AbstractManifestManager = shield.manifest_manager
-        blockchain_manager: AbstractBlockchainManager = shield.blockchain_manager
         address_manager: AbstractAddressManager = shield.address_manager
+
+        validator: Validator = ValidatorFactory.create_validator(validator_settings)
+        blockchain_manager: AbstractBlockchainManager = validator._blockchain_manager
 
         # Shorten validate_interval_sec and retry_delay_sec to speed up tests
         shield.options.validate_interval_sec = 10
@@ -128,8 +130,10 @@ class TestMinerShield:
         shield.enable()
         assert shield.run
 
-        # Give some time to make sure everything is initialized and validate is called
+        # Wait for initialization and ...
         shield.task_queue.join()
+        # ... make sure validate is called
+        sleep(2 * shield.options.validate_interval_sec)
 
         try:
             state: MinerShieldState = state_manager.get_state()
@@ -147,9 +151,9 @@ class TestMinerShield:
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
 
-            # Remove all validators to clean up everything (except S3 file) and check if validate loop is running.
+            # Remove all validators to clean up everything (except S3 file) - wait for validate loop to apply changes
             validators_manager.validators = frozenset([None])
-            sleep(10 + shield.options.validate_interval_sec)
+            sleep(2 * shield.options.validate_interval_sec)
 
             state = state_manager.get_state()
             assert state.known_validators == {}

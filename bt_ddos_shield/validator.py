@@ -1,6 +1,8 @@
 import asyncio
 import functools
 from dataclasses import dataclass
+
+from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor, AbstractMinerShieldEventProcessor
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from typing import Optional
@@ -99,12 +101,17 @@ class ValidatorFactory:
 
     @classmethod
     def create_validator(cls, settings: ValidatorSettings) -> Validator:
+        event_processor: AbstractMinerShieldEventProcessor = cls.create_event_processor()
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
-        manifest_manager: ReadOnlyManifestManager = cls.create_manifest_manager(encryption_manager)
-        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings)
+        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager)
+        blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
         options: ValidatorOptions = ValidatorOptions()
         return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
                          manifest_manager, options)
+
+    @classmethod
+    def create_event_processor(cls) -> AbstractMinerShieldEventProcessor:
+        return PrintingMinerShieldEventProcessor()
 
     @classmethod
     def create_encryption_manager(cls) -> AbstractEncryptionManager:
@@ -119,9 +126,11 @@ class ValidatorFactory:
     def create_blockchain_manager(
         cls,
         settings: ValidatorSettings,
+        event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
         return ReadOnlyBittensorBlockchainManager(
             hotkey=settings.miner_hotkey,
             netuid=settings.netuid,
             subtensor=settings.subtensor.client,
+            event_processor=event_processor
         )

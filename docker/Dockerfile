@@ -21,9 +21,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY ./bt_ddos_shield /root/src/bt_ddos_shield
 COPY ./docker/entrypoint.sh /root/src/
 
-# TODO: To be removed - needed as for now because of still using MemoryBlockchainManager
-COPY ./tests /root/src/tests
-
 RUN --mount=type=cache,target=/root/.cache/uv \
 	uv sync --frozen --no-dev --no-editable
 

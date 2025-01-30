@@ -33,15 +33,14 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
 
 
 @pytest.fixture
-def hotkey():
+def wallet_hotkey():
     return "5EU2xVWC7qffsUNGtvakp5WCj7WGJMPkwG1dsm3qnU2Kqvee"
 
 
 @pytest.fixture
-def wallet(hotkey):
+def wallet(wallet_hotkey):
     mock_wallet = unittest.mock.Mock()
-    mock_wallet.hotkey.ss58_address = hotkey
-
+    mock_wallet.hotkey.ss58_address = wallet_hotkey
     return mock_wallet
 
 
@@ -60,6 +59,7 @@ def test_bittensor_get(wallet):
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
+        event_processor=unittest.mock.Mock(),
     )
 
     assert manager.get() is None
@@ -95,6 +95,7 @@ def test_bittensor_put(wallet):
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
+        event_processor=unittest.mock.Mock(),
     )
 
     manager.put(b"data")
@@ -148,6 +149,7 @@ def test_bittensor_retries(wallet):
         subtensor=mock_subtensor,
         wallet=wallet,
         netuid=1,
+        event_processor=unittest.mock.Mock(),
     )
 
     assert manager.get() == b"data"

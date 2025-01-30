@@ -56,6 +56,9 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
     class CertificateAlgorithmEnum(enum.IntEnum):
         SECP256K1 = 4
 
+    # 1000 tao is needed to set weights and miners typically don't hold staked tao on their own hotkeys as it provides
+    # no value. Therefore, we assume that any neuron with at least 1000 tao staked is a validator. It is simple
+    # heuristic, which can be not valid for all subnets, but as for now is sufficient.
     MIN_VALIDATOR_STAKE = 1000
 
     def __init__(
