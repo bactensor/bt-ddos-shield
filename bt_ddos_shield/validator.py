@@ -103,7 +103,7 @@ class ValidatorFactory:
     def create_validator(cls, settings: ValidatorSettings) -> Validator:
         event_processor: AbstractMinerShieldEventProcessor = cls.create_event_processor()
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
-        manifest_manager: AbstractManifestManager = cls.create_manifest_manager(encryption_manager)
+        manifest_manager: ReadOnlyManifestManager = cls.create_manifest_manager(encryption_manager)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
         options: ValidatorOptions = ValidatorOptions()
         return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
