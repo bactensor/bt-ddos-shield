@@ -10,10 +10,9 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from time import sleep
 from types import MappingProxyType
-from typing import Optional
+from typing import Optional, Iterable
 
 import bittensor
-import bittensor_wallet
 
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager
@@ -37,7 +36,7 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 
@@ -519,16 +518,6 @@ class SubtensorSettings(BaseModel):
         return bittensor.Subtensor(**self.model_dump())
 
 
-class WalletSettings(BaseModel):
-    name: Optional[str] = None
-    hotkey: Optional[str] = None
-    path: Optional[str] = None
-
-    @functools.cached_property
-    def instance(self) -> bittensor_wallet.Wallet:
-        return bittensor.Wallet(**self.model_dump())
-
-
 class ShieldSettings(BaseSettings):
     aws_access_key_id: str = Field(min_length=1)
     aws_secret_access_key: str = Field(min_length=1)
@@ -565,7 +554,7 @@ class MinerShieldFactory:
 
     @classmethod
     def create_miner_shield(cls, settings: ShieldSettings,
-                            validators: Optional[dict[Hotkey, PublicKey]] = None) -> MinerShield:
+                            validators: Optional[Iterable[Hotkey]] = None) -> MinerShield:
         """
         Args:
             settings: ShieldSettings instance.
@@ -592,7 +581,7 @@ class MinerShieldFactory:
     def create_validators_manager(
         cls,
         settings: ShieldSettings,
-        validators: Optional[dict[Hotkey, PublicKey]] = None,
+        validators: Optional[Iterable[Hotkey]] = None,
     ) -> AbstractValidatorsManager:
         return BittensorValidatorsManager(
             subtensor=settings.subtensor.client,
@@ -675,7 +664,7 @@ def run_shield() -> int:
     args = parser.parse_args()
 
     settings: ShieldSettings = ShieldSettings()  # type: ignore
-    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings, {})
+    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings)
 
     if args.command == 'clean':
         logging.info("Cleaning shield objects")

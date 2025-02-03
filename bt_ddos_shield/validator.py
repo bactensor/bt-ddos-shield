@@ -2,12 +2,14 @@ import asyncio
 import functools
 from dataclasses import dataclass
 
+import bittensor
+import bittensor_wallet
+
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor, AbstractMinerShieldEventProcessor
+from bt_ddos_shield.miner_shield import WalletSettings
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from typing import Optional
-
-import bittensor
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
@@ -72,17 +74,13 @@ class SubtensorSettings(BaseModel):
 
     @functools.cached_property
     def client(self) -> bittensor.Subtensor:
-        return bittensor.Subtensor(
-            **self.model_dump()
-        )
+        return bittensor.Subtensor(**self.model_dump())
 
 
 class ValidatorSettings(BaseSettings):
-    validator_hotkey: str = Field(min_length=1)
-    """Hotkey of validator"""
+    validator_wallet: WalletSettings = WalletSettings()
     validator_private_key: str = Field(min_length=1)
-    """Hex representation of secp256k1 private key of validator"""
-
+    """ Hex representation of secp256k1 private key of validator """
     netuid: int
     subtensor: SubtensorSettings = SubtensorSettings()
 
@@ -99,13 +97,14 @@ class ValidatorFactory:
 
     @classmethod
     def create_validator(cls, settings: ValidatorSettings) -> Validator:
+        wallet: bittensor_wallet.Wallet = settings.validator_wallet.instance
+        validator_hotkey: Hotkey = wallet.hotkey.ss58_address
         event_processor: AbstractMinerShieldEventProcessor = cls.create_event_processor()
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: ReadOnlyManifestManager = cls.create_manifest_manager(encryption_manager)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
         options: ValidatorOptions = ValidatorOptions()
-        return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
-                         manifest_manager, options)
+        return Validator(validator_hotkey, settings.validator_private_key, blockchain_manager, manifest_manager, options)
 
     @classmethod
     def create_event_processor(cls) -> AbstractMinerShieldEventProcessor:
