@@ -1,5 +1,4 @@
 import argparse
-import functools
 import logging
 import re
 import sys
@@ -11,8 +10,6 @@ from pydantic_settings import BaseSettings
 from time import sleep
 from types import MappingProxyType
 from typing import Optional, Iterable
-
-import bittensor
 
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager
@@ -36,7 +33,7 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, WalletSettings
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, SubtensorSettings, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 
@@ -508,14 +505,6 @@ class MinerShieldPublishManifestTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
         # noinspection PyProtectedMember
         miner_shield._handle_publish_manifest()
-
-
-class SubtensorSettings(BaseModel):
-    network: Optional[str] = None
-
-    @functools.cached_property
-    def client(self) -> bittensor.Subtensor:
-        return bittensor.Subtensor(**self.model_dump())
 
 
 class ShieldSettings(BaseSettings):
