@@ -13,7 +13,7 @@ from typing import Optional
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
-    ReadOnlyBittensorBlockchainManager,
+    BittensorBlockchainManager,
 )
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
@@ -125,8 +125,9 @@ class ValidatorFactory:
         settings: ValidatorSettings,
         event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
-        return ReadOnlyBittensorBlockchainManager(
-            netuid=settings.netuid,
+        return BittensorBlockchainManager(
             subtensor=settings.subtensor.client,
+            netuid=settings.netuid,
+            wallet=settings.validator_wallet.instance,
             event_processor=event_processor
         )

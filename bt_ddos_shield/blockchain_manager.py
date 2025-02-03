@@ -17,7 +17,7 @@ class BlockchainManagerException(Exception):
 
 class AbstractBlockchainManager(ABC):
     """
-    Abstract base class for manager handling publishing address to blockchain.
+    Abstract base class for manager handling publishing manifest address to blockchain.
     """
 
     def put_manifest_url(self, url: str):
@@ -38,6 +38,12 @@ class AbstractBlockchainManager(ABC):
         except UnicodeDecodeError:
             return None
 
+    def get_own_manifest_url(self) -> Optional[str]:
+        """
+        Get manifest url for wallet owner. Returns None if url is not found.
+        """
+        return self.get_manifest_url(self.get_hotkey())
+
     @abstractmethod
     def put_metadata(self, data: bytes):
         """
@@ -53,30 +59,31 @@ class AbstractBlockchainManager(ABC):
         pass
 
     @abstractmethod
-    def get_own_manifest_url(self) -> Optional[str]:
-        """
-        Get manifest url for wallet owner. Returns None if url is not found.
-        """
+    def get_hotkey(self) -> Hotkey:
+        """ Returns hotkey of the wallet owner. """
         pass
 
 
-class ReadOnlyBittensorBlockchainManager(AbstractBlockchainManager):
+class BittensorBlockchainManager(AbstractBlockchainManager):
     """
-    Read-only Bittensor BlockchainManager implementation using commitments of knowledge as storage.
+    Bittensor BlockchainManager implementation using commitments of knowledge as storage.
     """
 
     subtensor: bittensor.Subtensor
     netuid: int
+    wallet: bittensor_wallet.Wallet
     event_processor: AbstractMinerShieldEventProcessor
 
     def __init__(
         self,
         subtensor: bittensor.Subtensor,
         netuid: int,
+        wallet: bittensor_wallet.Wallet,
         event_processor: AbstractMinerShieldEventProcessor,
     ):
         self.subtensor = subtensor
         self.netuid = netuid
+        self.wallet = wallet
         self.event_processor = event_processor
 
     def get_metadata(self, hotkey: Hotkey) -> Optional[bytes]:
@@ -113,40 +120,7 @@ class ReadOnlyBittensorBlockchainManager(AbstractBlockchainManager):
         except LookupError:
             return None
 
-    def get_own_manifest_url(self) -> Optional[str]:
-        raise NotImplementedError
-
     def put_metadata(self, data: bytes):
-        raise NotImplementedError
-
-
-class BittensorBlockchainManager(ReadOnlyBittensorBlockchainManager):
-    """
-    Bittensor BlockchainManager implementation using commitments of knowledge as storage.
-    """
-
-    wallet: bittensor_wallet.Wallet
-
-    def __init__(
-        self,
-        subtensor: bittensor.Subtensor,
-        netuid: int,
-        wallet: bittensor_wallet.Wallet,
-        event_processor: AbstractMinerShieldEventProcessor,
-    ):
-        super().__init__(
-            netuid=netuid,
-            subtensor=subtensor,
-            event_processor=event_processor,
-        )
-
-        self.wallet = wallet
-
-    def put_metadata(self, data: bytes):
-        """
-        Put data to blockchain for given user identified by hotkey.
-        """
-
         try:
             publish_metadata(
                 self.subtensor,
@@ -164,6 +138,3 @@ class BittensorBlockchainManager(ReadOnlyBittensorBlockchainManager):
 
     def get_hotkey(self) -> Hotkey:
         return self.wallet.hotkey.ss58_address
-
-    def get_own_manifest_url(self) -> Optional[str]:
-        return self.get_manifest_url(self.get_hotkey())

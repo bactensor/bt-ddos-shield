@@ -22,8 +22,8 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
         self.put_counter = 0
         self._lock = threading.Lock()
 
-    def get_own_manifest_url(self) -> Optional[str]:
-        return self.get_manifest_url(self.miner_hotkey)
+    def get_hotkey(self) -> Hotkey:
+        return self.miner_hotkey
 
     def put_metadata(self, data: bytes):
         with self._lock:
