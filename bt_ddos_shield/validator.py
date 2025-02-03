@@ -2,16 +2,18 @@ import asyncio
 import functools
 from dataclasses import dataclass
 
+import bittensor
+import bittensor_wallet
+
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor, AbstractMinerShieldEventProcessor
+from bt_ddos_shield.miner_shield import WalletSettings
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from typing import Optional
 
-import bittensor
-
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
-    ReadOnlyBittensorBlockchainManager,
+    BittensorBlockchainManager,
 )
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
@@ -49,9 +51,9 @@ class Validator:
         self._manifest_manager = manifest_manager
         self._options = options
 
-    async def fetch_miner_address(self) -> str:
+    async def fetch_miner_address(self, hotkey: Hotkey) -> str:
         while True:
-            miner_manifest_url: Optional[str] = self._blockchain_manager.get_miner_manifest_address()
+            miner_manifest_url: Optional[str] = self._blockchain_manager.get_manifest_url(hotkey)
             if miner_manifest_url is not None:
                 break
 
@@ -72,19 +74,13 @@ class SubtensorSettings(BaseModel):
 
     @functools.cached_property
     def client(self) -> bittensor.Subtensor:
-        return bittensor.Subtensor(
-            **self.model_dump()
-        )
+        return bittensor.Subtensor(**self.model_dump())
 
 
 class ValidatorSettings(BaseSettings):
-    miner_hotkey: str = Field(min_length=1)
-    """Hotkey of shielded miner"""
-    validator_hotkey: str = Field(min_length=1)
-    """Hotkey of validator"""
+    validator_wallet: WalletSettings = WalletSettings()
     validator_private_key: str = Field(min_length=1)
-    """Hex representation of secp256k1 private key of validator"""
-
+    """ Hex representation of secp256k1 private key of validator """
     netuid: int
     subtensor: SubtensorSettings = SubtensorSettings()
 
@@ -101,13 +97,14 @@ class ValidatorFactory:
 
     @classmethod
     def create_validator(cls, settings: ValidatorSettings) -> Validator:
+        wallet: bittensor_wallet.Wallet = settings.validator_wallet.instance
+        validator_hotkey: Hotkey = wallet.hotkey.ss58_address
         event_processor: AbstractMinerShieldEventProcessor = cls.create_event_processor()
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: ReadOnlyManifestManager = cls.create_manifest_manager(encryption_manager)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
         options: ValidatorOptions = ValidatorOptions()
-        return Validator(settings.validator_hotkey, settings.validator_private_key, blockchain_manager,
-                         manifest_manager, options)
+        return Validator(validator_hotkey, settings.validator_private_key, blockchain_manager, manifest_manager, options)
 
     @classmethod
     def create_event_processor(cls) -> AbstractMinerShieldEventProcessor:
@@ -128,9 +125,9 @@ class ValidatorFactory:
         settings: ValidatorSettings,
         event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
-        return ReadOnlyBittensorBlockchainManager(
-            hotkey=settings.miner_hotkey,
-            netuid=settings.netuid,
+        return BittensorBlockchainManager(
             subtensor=settings.subtensor.client,
+            netuid=settings.netuid,
+            wallet=settings.validator_wallet.instance,
             event_processor=event_processor
         )

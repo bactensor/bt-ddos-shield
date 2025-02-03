@@ -10,10 +10,9 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from time import sleep
 from types import MappingProxyType
-from typing import Optional
+from typing import Optional, Iterable
 
 import bittensor
-import bittensor_wallet
 
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager
@@ -37,7 +36,7 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 
@@ -437,11 +436,11 @@ class MinerShield:
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_url: str = self.manifest_manager.get_manifest_url()
-        current_url: str = self.blockchain_manager.get_miner_manifest_address()
+        current_url: str = self.blockchain_manager.get_own_manifest_url()
         if current_url == expected_url:
             self._event("Manifest address already published")
         else:
-            self.blockchain_manager.put_miner_manifest_address(expected_url)
+            self.blockchain_manager.put_manifest_url(expected_url)
             self._event("Manifest published")
 
     def _event(self, template: str, exception: Exception = None, **kwargs):
@@ -516,21 +515,7 @@ class SubtensorSettings(BaseModel):
 
     @functools.cached_property
     def client(self) -> bittensor.Subtensor:
-        return bittensor.Subtensor(
-            **self.model_dump()
-        )
-
-
-class WalletSettings(BaseModel):
-    name: Optional[str] = None
-    hotkey: Optional[str] = None
-    path: Optional[str] = None
-
-    @functools.cached_property
-    def instance(self) -> bittensor_wallet.Wallet:
-        return bittensor.Wallet(
-            **self.model_dump()
-        )
+        return bittensor.Subtensor(**self.model_dump())
 
 
 class ShieldSettings(BaseSettings):
@@ -569,7 +554,7 @@ class MinerShieldFactory:
 
     @classmethod
     def create_miner_shield(cls, settings: ShieldSettings,
-                            validators: Optional[dict[Hotkey, PublicKey]] = None) -> MinerShield:
+                            validators: Optional[Iterable[Hotkey]] = None) -> MinerShield:
         """
         Args:
             settings: ShieldSettings instance.
@@ -596,7 +581,7 @@ class MinerShieldFactory:
     def create_validators_manager(
         cls,
         settings: ShieldSettings,
-        validators: Optional[dict[Hotkey, PublicKey]] = None,
+        validators: Optional[Iterable[Hotkey]] = None,
     ) -> AbstractValidatorsManager:
         return BittensorValidatorsManager(
             subtensor=settings.subtensor.client,
@@ -679,7 +664,7 @@ def run_shield() -> int:
     args = parser.parse_args()
 
     settings: ShieldSettings = ShieldSettings()  # type: ignore
-    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings, {})
+    miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings)
 
     if args.command == 'clean':
         logging.info("Cleaning shield objects")

@@ -1,8 +1,12 @@
+import functools
 from typing import Optional, TypeAlias
 
+import bittensor
+import bittensor_wallet
 import boto3
 import route53
 from botocore.client import BaseClient
+from pydantic import BaseModel
 from route53.connection import Route53Connection
 
 Hotkey: TypeAlias = str
@@ -39,3 +43,13 @@ class AWSClientFactory:
 
     def route53_client(self) -> Route53Connection:
         return route53.connect(self.aws_access_key_id, self.aws_secret_access_key)
+
+
+class WalletSettings(BaseModel):
+    name: Optional[str] = None
+    hotkey: Optional[str] = None
+    path: Optional[str] = None
+
+    @functools.cached_property
+    def instance(self) -> bittensor_wallet.Wallet:
+        return bittensor.Wallet(**self.model_dump())

@@ -1,9 +1,11 @@
 import asyncio
 from urllib.parse import urlparse, ParseResult
 
+import bittensor_wallet
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
+from bt_ddos_shield.utils import Hotkey
 from bt_ddos_shield.validator import Validator, ValidatorFactory, ValidatorSettings
 from tests.conftest import ShieldTestSettings, ValidatorTestSettings
 
@@ -23,7 +25,9 @@ class TestValidator:
         validator_settings: ValidatorSettings = ValidatorTestSettings()  # type: ignore
         validator: Validator = ValidatorFactory.create_validator(validator_settings)
 
-        validators = {validator_settings.validator_hotkey: ""}
+        validator_wallet: bittensor_wallet.Wallet = validator_settings.validator_wallet.instance
+        validator_hotkey: Hotkey = validator_wallet.hotkey.ss58_address
+        validators = {validator_hotkey}
         shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, validators)
 
         assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
@@ -38,7 +42,9 @@ class TestValidator:
         shield.task_queue.join()
 
         try:
-            miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(), timeout=20))
+            miner_hotkey: str = shield_settings.wallet.instance.hotkey.ss58_address
+            miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(miner_hotkey),
+                                                          timeout=20))
             parsed_url: ParseResult = urlparse('http://' + miner_url)
             assert parsed_url.port == shield_settings.miner_instance_port
         finally:

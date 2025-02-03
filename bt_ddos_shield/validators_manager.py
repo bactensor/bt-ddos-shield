@@ -1,10 +1,10 @@
-from abc import ABC, abstractmethod
 import enum
+from abc import ABC, abstractmethod
 from types import MappingProxyType
-from typing import Iterable
+from typing import Any, Iterable
 
 import bittensor
-
+from substrateinterface.base import QueryMapResult  # noqa
 from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
@@ -53,13 +53,19 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
     Validators Manager using Bittensor Neurons' Certificates.
     """
 
+    # These constants are taken from Bittensor internals.
     class CertificateAlgorithmEnum(enum.IntEnum):
-        SECP256K1 = 4
+        ECDSA_SECP256K1 = 4  # ECDSA using secp256k1 curve
 
     # 1000 tao is needed to set weights and miners typically don't hold staked tao on their own hotkeys as it provides
     # no value. Therefore, we assume that any neuron with at least 1000 tao staked is a validator. It is simple
     # heuristic, which can be not valid for all subnets, but as for now is sufficient.
     MIN_VALIDATOR_STAKE = 1000
+
+    subtensor: bittensor.Subtensor
+    netuid: int
+    validators: frozenset[Hotkey]
+    certificates: dict[Hotkey, PublicKey]
 
     def __init__(
         self,
@@ -76,52 +82,36 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         return MappingProxyType(self.certificates)
 
     def reload_validators(self):
+        validators: frozenset[Hotkey]
         if self.validators:
             validators = self.validators
         else:
-            neurons = self.subtensor.neurons_lite(
-                self.netuid,
-            )
-            validators = frozenset(
-                neuron.hotkey for neuron in neurons if self.is_validator(neuron)
-            )
+            neurons: list[bittensor.NeuronInfoLite] = self.subtensor.neurons_lite(self.netuid)
+            validators = frozenset(neuron.hotkey for neuron in neurons if self.is_validator(neuron))
 
         self.certificates = self.fetch_certificates(validators)
 
-    def fetch_certificates(
-        self, validators: frozenset[Hotkey]
-    ) -> dict[Hotkey, PublicKey]:
+    def fetch_certificates(self, validators: frozenset[Hotkey]) -> dict[Hotkey, PublicKey]:
         """
-        Fetch Validators' Certificates (PublicKey) from Subtensor.
-
-        Args:
-            validators: frozenset of Hotkeys.
+        Fetch Validators' Certificates (PublicKey) from Subtensor for given validators identified by hotkeys.
         """
-
-        certificates = self.subtensor.query_map(
+        query_certificates: QueryMapResult = self.subtensor.query_map(
             module="SubtensorModule",
             name="NeuronCertificates",
             params=[self.netuid],
         )
-        certificates = {
-            hotkey.serialize(): certificate.serialize()
-            for hotkey, certificate in certificates
+        certificates: dict[Hotkey, dict[str, Any]] = {
+            hotkey.serialize(): certificate.serialize() for hotkey, certificate in query_certificates
         }
-
         return {
-            hotkey: certificate["public_key"][2:]
+            hotkey: certificate["public_key"][2:]  # Key is prefixed with '0x'
             for hotkey, certificate in certificates.items()
-            if hotkey in validators
-            and certificate["algorithm"]
-            == BittensorValidatorsManager.CertificateAlgorithmEnum.SECP256K1
+                if hotkey in validators
+                    and certificate["algorithm"] == self.CertificateAlgorithmEnum.ECDSA_SECP256K1
         }
 
     def is_validator(self, neuron: bittensor.NeuronInfoLite) -> bool:
         """
         Determine whether provided Neuron is a Validator or not.
-
-        Args:
-            neuron: Neuron to test.
         """
-
         return neuron.stake >= self.MIN_VALIDATOR_STAKE

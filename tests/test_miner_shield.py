@@ -1,6 +1,7 @@
 from time import sleep
 from typing import Optional
 
+import bittensor_wallet
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
@@ -95,7 +96,7 @@ class TestMinerShield:
             manifest_url: str = self.manifest_manager.get_manifest_url()
             manifest: Manifest = self.manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert self.blockchain_manager.get_miner_manifest_address() == manifest_url
+            assert self.blockchain_manager.get_own_manifest_url() == manifest_url
             assert self.blockchain_manager.put_counter == 1
         finally:
             self.shield.disable()
@@ -123,6 +124,12 @@ class TestMinerShield:
         validator: Validator = ValidatorFactory.create_validator(validator_settings)
         blockchain_manager: AbstractBlockchainManager = validator._blockchain_manager
 
+        validator_wallet: bittensor_wallet.Wallet = validator_settings.validator_wallet.instance
+        validator_hotkey: Hotkey = validator_wallet.hotkey.ss58_address
+
+        miner_wallet: bittensor_wallet.Wallet = shield_settings.wallet.instance
+        miner_hotkey: Hotkey = miner_wallet.hotkey.ss58_address
+
         # Shorten validate_interval_sec and retry_delay_sec to speed up tests
         shield.options.validate_interval_sec = 10
         shield.options.retry_delay_sec = 1
@@ -138,7 +145,7 @@ class TestMinerShield:
         try:
             state: MinerShieldState = state_manager.get_state()
             assert validators_manager.get_validators() == {
-                validator_settings.validator_hotkey: validator_settings.validator_public_key,
+                validator_hotkey: validator_settings.validator_public_key
             }
             assert state.known_validators == validators_manager.get_validators()
             assert state.banned_validators == {}
@@ -146,7 +153,7 @@ class TestMinerShield:
             manifest_url: str = manifest_manager.get_manifest_url()
             manifest: Manifest = manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert blockchain_manager.get_miner_manifest_address() == manifest_url
+            assert blockchain_manager.get_manifest_url(miner_hotkey) == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -160,7 +167,7 @@ class TestMinerShield:
             assert state.validators_addresses == {}
             manifest: Manifest = manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping == {}
-            assert blockchain_manager.get_miner_manifest_address() == manifest_url
+            assert blockchain_manager.get_manifest_url(miner_hotkey) == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state

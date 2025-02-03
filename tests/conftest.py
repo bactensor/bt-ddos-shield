@@ -1,4 +1,5 @@
 import pytest
+from pydantic import Field
 
 from bt_ddos_shield.miner_shield import ShieldSettings
 from bt_ddos_shield.validator import ValidatorSettings
@@ -22,7 +23,8 @@ def shield_settings() -> ShieldTestSettings:
 
 
 class ValidatorTestSettings(ValidatorSettings):
-    validator_public_key: str
+    validator_public_key: str = Field(min_length=1)
+    """ Hex representation of secp256k1 public key of validator """
     miner_instance_port: int = 8080
 
     model_config = {
