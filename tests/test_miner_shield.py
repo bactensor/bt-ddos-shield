@@ -9,7 +9,7 @@ from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
-from bt_ddos_shield.validator import ShieldMetagraph, ShieldMetagraphFactory
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph, ShieldMetagraphFactory
 from bt_ddos_shield.validators_manager import (
     MemoryValidatorsManager,
     BittensorValidatorsManager,

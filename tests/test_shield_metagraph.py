@@ -6,7 +6,7 @@ from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey
-from bt_ddos_shield.validator import ShieldMetagraph, ShieldMetagraphFactory
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph, ShieldMetagraphFactory
 from tests.conftest import ShieldTestSettings
 
 
