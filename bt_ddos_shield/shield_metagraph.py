@@ -121,6 +121,8 @@ class ShieldMetagraphFactory:
             netuid: int,
             lite: bool = True,
             block: Optional[int] = None,
+            blockchain_manager: Optional[AbstractBlockchainManager] = None,
+            manifest_manager: Optional[ReadOnlyManifestManager] = None,
     ) -> ShieldMetagraph:
         """
         This method is copy of subtensor.metagraph method, but creates ShieldMetagraph instead of basic Metagraph.
@@ -134,6 +136,8 @@ class ShieldMetagraphFactory:
             lite=lite,
             sync=False,
             subtensor=subtensor,
+            blockchain_manager=blockchain_manager,
+            manifest_manager=manifest_manager,
         )
         metagraph.sync(block=block, lite=lite, subtensor=subtensor)
         return metagraph
