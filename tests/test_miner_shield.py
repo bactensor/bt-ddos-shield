@@ -9,12 +9,12 @@ from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
-from bt_ddos_shield.validator import Validator, ValidatorFactory
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.validators_manager import (
     MemoryValidatorsManager,
     BittensorValidatorsManager,
 )
-from tests.conftest import ShieldTestSettings, ValidatorTestSettings
+from tests.conftest import ShieldTestSettings
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
 from tests.test_encryption_manager import generate_key_pair
@@ -102,7 +102,7 @@ class TestMinerShield:
             self.shield.disable()
             assert not self.shield.run
 
-    def test_integration(self, shield_settings: ShieldTestSettings, validator_settings: ValidatorTestSettings):
+    def test_integration(self, shield_settings: ShieldTestSettings):
         """
         Test if shield is properly starting from scratch and fully enabling protection using real managers.
 
@@ -121,14 +121,19 @@ class TestMinerShield:
         manifest_manager: AbstractManifestManager = shield.manifest_manager
         address_manager: AbstractAddressManager = shield.address_manager
 
-        validator: Validator = ValidatorFactory.create_validator(validator_settings)
-        blockchain_manager: AbstractBlockchainManager = validator._blockchain_manager
-
-        validator_wallet: bittensor_wallet.Wallet = validator_settings.validator_wallet.instance
+        validator_wallet: bittensor_wallet.Wallet = shield_settings.validator_wallet.instance
         validator_hotkey: Hotkey = validator_wallet.hotkey.ss58_address
 
         miner_wallet: bittensor_wallet.Wallet = shield_settings.wallet.instance
         miner_hotkey: Hotkey = miner_wallet.hotkey.ss58_address
+
+        metagraph: ShieldMetagraph = ShieldMetagraph(
+            wallet=validator_wallet,
+            private_key=shield_settings.validator_private_key,
+            subtensor=shield_settings.subtensor.create_client(),
+            netuid=shield_settings.netuid,
+        )
+        blockchain_manager: AbstractBlockchainManager = metagraph.blockchain_manager
 
         # Shorten validate_interval_sec and retry_delay_sec to speed up tests
         shield.options.validate_interval_sec = 10
@@ -145,7 +150,7 @@ class TestMinerShield:
         try:
             state: MinerShieldState = state_manager.get_state()
             assert validators_manager.get_validators() == {
-                validator_hotkey: validator_settings.validator_public_key
+                validator_hotkey: shield_settings.validator_public_key
             }
             assert state.known_validators == validators_manager.get_validators()
             assert state.banned_validators == {}
@@ -158,8 +163,9 @@ class TestMinerShield:
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
 
-            # Remove all validators to clean up everything (except S3 file) - wait for validate loop to apply changes
-            validators_manager.validators = frozenset([None])
+            # Set unknown validator manually to clean up everything (except S3 file) ...
+            validators_manager.validators = frozenset([Hotkey('unknown_hotkey')])
+            # ... and wait for validate loop to apply changes
             sleep(2 * shield.options.validate_interval_sec)
 
             state = state_manager.get_state()

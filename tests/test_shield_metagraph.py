@@ -6,8 +6,8 @@ from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey
-from bt_ddos_shield.validator import Validator, ValidatorFactory, ValidatorSettings
-from tests.conftest import ShieldTestSettings, ValidatorTestSettings
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph
+from tests.conftest import ShieldTestSettings
 
 
 class TestValidator:
@@ -21,11 +21,14 @@ class TestValidator:
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
+        validator_wallet: bittensor_wallet.Wallet = shield_settings.validator_wallet.instance
+        metagraph: ShieldMetagraph = ShieldMetagraph(
+            wallet=validator_wallet,
+            private_key=shield_settings.validator_private_key,
+            subtensor=shield_settings.subtensor.create_client(),
+            netuid=shield_settings.netuid,
+        )
 
-        validator_settings: ValidatorSettings = ValidatorTestSettings()  # type: ignore
-        validator: Validator = ValidatorFactory.create_validator(validator_settings)
-
-        validator_wallet: bittensor_wallet.Wallet = validator_settings.validator_wallet.instance
         validator_hotkey: Hotkey = validator_wallet.hotkey.ss58_address
         validators = {validator_hotkey}
         shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, validators)
@@ -43,7 +46,7 @@ class TestValidator:
 
         try:
             miner_hotkey: str = shield_settings.wallet.instance.hotkey.ss58_address
-            miner_url: str = asyncio.run(asyncio.wait_for(validator.fetch_miner_address(miner_hotkey),
+            miner_url: str = asyncio.run(asyncio.wait_for(metagraph.fetch_miner_address(miner_hotkey),
                                                           timeout=20))
             parsed_url: ParseResult = urlparse('http://' + miner_url)
             assert parsed_url.port == shield_settings.miner_instance_port

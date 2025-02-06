@@ -53,3 +53,14 @@ class WalletSettings(BaseModel):
     @functools.cached_property
     def instance(self) -> bittensor_wallet.Wallet:
         return bittensor.Wallet(**self.model_dump())
+
+
+class SubtensorSettings(BaseModel):
+    network: Optional[str] = None
+
+    @functools.cached_property
+    def client(self) -> bittensor.Subtensor:
+        return self.create_client()
+
+    def create_client(self) -> bittensor.Subtensor:
+        return bittensor.Subtensor(**self.model_dump())
