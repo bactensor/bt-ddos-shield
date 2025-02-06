@@ -5,7 +5,7 @@ import bittensor
 import bittensor_wallet
 from bittensor.core.metagraph import Metagraph
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from typing import Optional
+from typing import Optional, Dict
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
@@ -96,13 +96,12 @@ class ShieldMetagraph(Metagraph):
             event_processor=PrintingMinerShieldEventProcessor(),
         )
 
-    async def fetch_miner_address(self, miner_hotkey: Hotkey) -> str:
-        while True:
-            miner_manifest_url: Optional[str] = await self.blockchain_manager.get_manifest_url(miner_hotkey)
-            if miner_manifest_url is not None:
-                break
-
-            await asyncio.sleep(self.options.retry_delay_sec)
+    async def fetch_miner_address(self, miner_hotkey: Hotkey) -> Optional[str]:
+        miner_manifest_urls: Dict[Hotkey, Optional[str]] = \
+            await self.blockchain_manager.get_manifest_urls([miner_hotkey])
+        miner_manifest_url: Optional[str] = miner_manifest_urls.get(miner_hotkey)
+        if miner_manifest_url is None:
+            return None
 
         manifest: Manifest = self.manifest_manager.get_manifest(miner_manifest_url)
         url: str = self.manifest_manager.get_address_for_validator(manifest, self.wallet.hotkey.ss58_address,

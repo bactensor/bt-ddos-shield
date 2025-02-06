@@ -1,6 +1,6 @@
 import asyncio
 from time import sleep
-from typing import Optional
+from typing import Optional, Dict
 
 import bittensor_wallet
 from bt_ddos_shield.address_manager import AbstractAddressManager
@@ -159,7 +159,8 @@ class TestMinerShield:
             manifest_url: str = manifest_manager.get_manifest_url()
             manifest: Manifest = manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert asyncio.run(blockchain_manager.get_manifest_url(miner_hotkey)) == manifest_url
+            urls: Dict[Hotkey, Optional[str]] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
+            assert urls[miner_hotkey] == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -174,7 +175,8 @@ class TestMinerShield:
             assert state.validators_addresses == {}
             manifest: Manifest = manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping == {}
-            assert asyncio.run(blockchain_manager.get_manifest_url(miner_hotkey)) == manifest_url
+            urls = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
+            assert urls[miner_hotkey] == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
