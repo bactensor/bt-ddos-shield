@@ -9,7 +9,7 @@ from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
-from bt_ddos_shield.shield_metagraph import ShieldMetagraph, ShieldMetagraphFactory
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.validators_manager import (
     MemoryValidatorsManager,
     BittensorValidatorsManager,
@@ -127,7 +127,7 @@ class TestMinerShield:
         miner_wallet: bittensor_wallet.Wallet = shield_settings.wallet.instance
         miner_hotkey: Hotkey = miner_wallet.hotkey.ss58_address
 
-        metagraph: ShieldMetagraph = ShieldMetagraphFactory.metagraph(
+        metagraph: ShieldMetagraph = ShieldMetagraph(
             wallet=validator_wallet,
             private_key=shield_settings.validator_private_key,
             subtensor=shield_settings.subtensor.create_client(),

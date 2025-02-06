@@ -6,7 +6,7 @@ from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey
-from bt_ddos_shield.shield_metagraph import ShieldMetagraph, ShieldMetagraphFactory
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from tests.conftest import ShieldTestSettings
 
 
@@ -22,7 +22,7 @@ class TestValidator:
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
         validator_wallet: bittensor_wallet.Wallet = shield_settings.validator_wallet.instance
-        metagraph: ShieldMetagraph = ShieldMetagraphFactory.metagraph(
+        metagraph: ShieldMetagraph = ShieldMetagraph(
             wallet=validator_wallet,
             private_key=shield_settings.validator_private_key,
             subtensor=shield_settings.subtensor.create_client(),
