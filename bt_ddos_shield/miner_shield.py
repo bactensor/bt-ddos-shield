@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import re
 import sys
@@ -433,7 +434,7 @@ class MinerShield:
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_url: str = self.manifest_manager.get_manifest_url()
-        current_url: str = self.blockchain_manager.get_own_manifest_url()
+        current_url: str = asyncio.run(self.blockchain_manager.get_own_manifest_url())
         if current_url == expected_url:
             self._event("Manifest address already published")
         else:

@@ -1,3 +1,4 @@
+import asyncio
 from time import sleep
 from typing import Optional
 
@@ -96,7 +97,7 @@ class TestMinerShield:
             manifest_url: str = self.manifest_manager.get_manifest_url()
             manifest: Manifest = self.manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert self.blockchain_manager.get_own_manifest_url() == manifest_url
+            assert asyncio.run(self.blockchain_manager.get_own_manifest_url()) == manifest_url
             assert self.blockchain_manager.put_counter == 1
         finally:
             self.shield.disable()
@@ -158,7 +159,7 @@ class TestMinerShield:
             manifest_url: str = manifest_manager.get_manifest_url()
             manifest: Manifest = manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert blockchain_manager.get_manifest_url(miner_hotkey) == manifest_url
+            assert asyncio.run(blockchain_manager.get_manifest_url(miner_hotkey)) == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -173,7 +174,7 @@ class TestMinerShield:
             assert state.validators_addresses == {}
             manifest: Manifest = manifest_manager.get_manifest(manifest_url)
             assert manifest.encrypted_url_mapping == {}
-            assert blockchain_manager.get_manifest_url(miner_hotkey) == manifest_url
+            assert asyncio.run(blockchain_manager.get_manifest_url(miner_hotkey)) == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state

@@ -98,7 +98,7 @@ class ShieldMetagraph(Metagraph):
 
     async def fetch_miner_address(self, miner_hotkey: Hotkey) -> str:
         while True:
-            miner_manifest_url: Optional[str] = self.blockchain_manager.get_manifest_url(miner_hotkey)
+            miner_manifest_url: Optional[str] = await self.blockchain_manager.get_manifest_url(miner_hotkey)
             if miner_manifest_url is not None:
                 break
 
