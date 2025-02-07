@@ -1,8 +1,8 @@
+import aiohttp
 import asyncio
 import base64
 import functools
 import hashlib
-import httpx
 import json
 
 from abc import ABC, abstractmethod
@@ -150,7 +150,8 @@ class ReadOnlyManifestManager(ABC):
         Throws ManifestNotFoundException if file is not found.
         Throws ManifestDeserializationException if data format is not recognized.
         """
-        raw_data: Optional[bytes] = await self._get_manifest_file(url)
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
+            raw_data: Optional[bytes] = await self._get_manifest_file(session, url)
         if raw_data is None:
             raise ManifestDownloadException(f"Manifest file not found at {url}")
         return self.manifest_serializer.deserialize(raw_data)
@@ -185,30 +186,30 @@ class ReadOnlyManifestManager(ABC):
         decrypted_url: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_url)
         return decrypted_url.decode()
 
-    async def _get_manifest_file(self, url: Optional[str]) -> Optional[bytes]:
+    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: Optional[str]) -> Optional[bytes]:
         if url is None:
             return None
 
-        async with httpx.AsyncClient() as client:
-            try:
-                response: httpx.Response = await client.get(url, timeout=self._download_timeout)
-                response.raise_for_status()
-                return response.content
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
-                    # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
-                    self.event_processor.event('Manifest file not found, url={url}, status code={status_code}',
-                                               url=url, status_code=e.response.status_code)
-                    return None
-                raise ManifestDownloadException(f'HTTP error when downloading file from {url}: {e}') from e
-            except httpx.RequestError as e:
-                raise ManifestDownloadException(f'Failed to download file from {url}: {e}') from e
-
-    async def _get_manifest_file_with_retry(self, url: Optional[str]) -> Optional[bytes]:
         try:
-            return await self._get_manifest_file(url)
+            async with http_session.get(url) as response:
+                response.raise_for_status()
+                return await response.read()
+        except aiohttp.ClientResponseError as e:
+            if e.status in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
+                # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
+                self.event_processor.event('Manifest file not found, url={url}, status code={status_code}',
+                                           url=url, status_code=e.status)
+                return None
+            raise ManifestDownloadException(f'HTTP error when downloading file from {url}: {e}') from e
+        except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
+            raise ManifestDownloadException(f'Failed to download file from {url}: {e}') from e
+
+    async def _get_manifest_file_with_retry(self, http_session: aiohttp.ClientSession,
+                                            url: Optional[str]) -> Optional[bytes]:
+        try:
+            return await self._get_manifest_file(http_session, url)
         except ManifestDownloadException:
-            return await self._get_manifest_file(url)  # Retry once
+            return await self._get_manifest_file(http_session, url)  # Retry once
 
     async def _get_manifest_files(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[bytes]]:
         """
@@ -218,8 +219,9 @@ class ReadOnlyManifestManager(ABC):
         Args:
             urls: Dictionary with urls for neurons (neuron HotKey -> url).
         """
-        tasks = [self._get_manifest_file_with_retry(url) for url in urls.values()]
-        results = await asyncio.gather(*tasks)
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
+            tasks = [self._get_manifest_file_with_retry(session, url) for url in urls.values()]
+            results = await asyncio.gather(*tasks)
         return dict(zip(urls.keys(), results))
 
 

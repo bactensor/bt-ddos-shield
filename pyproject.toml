@@ -7,7 +7,6 @@ dependencies = [
     "bittensor~=8.5.1",
     "boto3~=1.35.27",
     "eciespy~=0.4.2",
-    "httpx~=0.28.1",
     "pydantic~=2.10.5",
     "pydantic-settings~=2.7.1",
     "python-dotenv~=1.0.1",
