@@ -16,6 +16,7 @@ from bt_ddos_shield.address import (
     Address,
 )
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
+from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey
 
 
@@ -132,12 +133,15 @@ class ReadOnlyManifestManager(ABC):
 
     manifest_serializer: AbstractManifestSerializer
     encryption_manager: AbstractEncryptionManager
+    event_processor: AbstractMinerShieldEventProcessor
     _download_timeout: int
 
     def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager, download_timeout: int = 10):
+                 encryption_manager: AbstractEncryptionManager,
+                 event_processor: AbstractMinerShieldEventProcessor, download_timeout: int = 10):
         self.manifest_serializer = manifest_serializer
         self.encryption_manager = encryption_manager
+        self.event_processor = event_processor
         self._download_timeout = download_timeout
 
     async def get_manifest(self, url: str) -> Manifest:
@@ -167,8 +171,8 @@ class ReadOnlyManifestManager(ABC):
                 try:
                     manifest = self.manifest_serializer.deserialize(raw_data)
                 except ManifestDeserializationException:
-                    # TODO: emit event about invalid manifest
-                    pass
+                    self.event_processor.event('Manifest file corrupted for hotkey={hotkey}, url={url}',
+                                               hotkey=hotkey, url=urls[hotkey])
             manifests[hotkey] = manifest
         return manifests
 
@@ -187,19 +191,24 @@ class ReadOnlyManifestManager(ABC):
 
         async with httpx.AsyncClient() as client:
             try:
-                # TODO add retry
                 response: httpx.Response = await client.get(url, timeout=self._download_timeout)
                 response.raise_for_status()
                 return response.content
             except httpx.HTTPStatusError as e:
                 if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
                     # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
-                    # TODO emit event about manifest not found
-                    #    f"File {url} not found, status code={e.response.status_code}")
+                    self.event_processor.event('Manifest file not found, url={url}, status code={status_code}',
+                                               url=url, status_code=e.response.status_code)
                     return None
-                raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
+                raise ManifestDownloadException(f'HTTP error when downloading file from {url}: {e}') from e
             except httpx.RequestError as e:
-                raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
+                raise ManifestDownloadException(f'Failed to download file from {url}: {e}') from e
+
+    async def _get_manifest_file_with_retry(self, url: Optional[str]) -> Optional[bytes]:
+        try:
+            return await self._get_manifest_file(url)
+        except ManifestDownloadException:
+            return await self._get_manifest_file(url)  # Retry once
 
     async def _get_manifest_files(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[bytes]]:
         """
@@ -209,7 +218,7 @@ class ReadOnlyManifestManager(ABC):
         Args:
             urls: Dictionary with urls for neurons (neuron HotKey -> url).
         """
-        tasks = [self._get_manifest_file(url) for url in urls.values()]
+        tasks = [self._get_manifest_file_with_retry(url) for url in urls.values()]
         results = await asyncio.gather(*tasks)
         return dict(zip(urls.keys(), results))
 
@@ -274,9 +283,9 @@ class S3ManifestManager(AbstractManifestManager):
     _bucket_name: str
 
     def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager, aws_client_factory: AWSClientFactory, bucket_name: str,
-                 download_timeout: int = 10):
-        super().__init__(manifest_serializer, encryption_manager, download_timeout)
+                 encryption_manager: AbstractEncryptionManager, event_processor: AbstractMinerShieldEventProcessor,
+                 aws_client_factory: AWSClientFactory, bucket_name: str, download_timeout: int = 10):
+        super().__init__(manifest_serializer, encryption_manager, event_processor, download_timeout)
         self._aws_client_factory = aws_client_factory
         self._bucket_name = bucket_name
 

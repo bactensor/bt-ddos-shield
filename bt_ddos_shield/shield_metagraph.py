@@ -79,7 +79,8 @@ class ShieldMetagraph(Metagraph):
 
     @classmethod
     def create_default_manifest_manager(cls) -> ReadOnlyManifestManager:
-        return ReadOnlyManifestManager(JsonManifestSerializer(), ECIESEncryptionManager())
+        return ReadOnlyManifestManager(JsonManifestSerializer(), ECIESEncryptionManager(),
+                                       PrintingMinerShieldEventProcessor())
 
     @classmethod
     def create_default_blockchain_manager(

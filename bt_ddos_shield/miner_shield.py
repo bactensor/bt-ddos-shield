@@ -559,7 +559,7 @@ class MinerShieldFactory:
                                                                              event_processor, state_manager)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(settings, encryption_manager,
-                                                                                aws_client_factory)
+                                                                                aws_client_factory, event_processor)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
 
         if settings.options.auto_hide_original_server:
@@ -627,9 +627,10 @@ class MinerShieldFactory:
 
     @classmethod
     def create_manifest_manager(cls, settings: ShieldSettings, encryption_manager: AbstractEncryptionManager,
-                                aws_client_factory: AWSClientFactory) -> AbstractManifestManager:
+                                aws_client_factory: AWSClientFactory,
+                                event_processor: AbstractMinerShieldEventProcessor) -> AbstractManifestManager:
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
-        return S3ManifestManager(manifest_serializer, encryption_manager, aws_client_factory,
+        return S3ManifestManager(manifest_serializer, encryption_manager, event_processor, aws_client_factory,
                                  settings.aws_s3_bucket_name)
 
     @classmethod
