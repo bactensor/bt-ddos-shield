@@ -70,7 +70,8 @@ class TestManifestManager:
             data: bytes = b'some_data'
             manifest_manager._put_manifest_file(data)
             manifest_url: str = manifest_manager.get_manifest_url()
-            retrieved_data: Optional[bytes] = asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url))
+            retrieved_data: Optional[bytes] = asyncio.run(manifest_manager._get_manifest_file(http_session,
+                                                                                              manifest_url))
             assert retrieved_data == data
             assert asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url + 'xxx')) is None
 

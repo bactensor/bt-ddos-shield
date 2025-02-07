@@ -178,13 +178,24 @@ class ReadOnlyManifestManager(ABC):
         return manifests
 
     def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
-                                  validator_private_key: PrivateKey) -> str:
+                                  validator_private_key: PrivateKey) -> Optional[tuple[str, int]]:
         """
-        Get URL for validator identified by hotkey from manifest. Decrypts address using validator's private key.
+        Get URL and port for validator identified by hotkey from manifest or None if not found.
+        Decrypts address using validator's private key.
+        Throws ManifestDeserializationException if address format is invalid.
         """
-        encrypted_url: bytes = manifest.encrypted_url_mapping[validator_hotkey]
-        decrypted_url: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_url)
-        return decrypted_url.decode()
+        encrypted_url: Optional[bytes] = manifest.encrypted_url_mapping.get(validator_hotkey)
+        if encrypted_url is None:
+            return None
+        try:
+            decrypted_url: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_url)
+            url: str = decrypted_url.decode()
+            parts: list[str] = url.split(':')
+            return parts[0], int(parts[1])
+        except Exception as e:
+            raise ManifestDeserializationException(
+                f"Invalid address format for validator {validator_hotkey}: {e}"
+            ) from e
 
     async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: Optional[str]) -> Optional[bytes]:
         if url is None:

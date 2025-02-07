@@ -1,9 +1,10 @@
+import asyncio
 from dataclasses import dataclass
 
 import bittensor
 import bittensor_wallet
 from bittensor.core.metagraph import Metagraph
-from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
+from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from typing import Optional, Dict
 
 from bt_ddos_shield.blockchain_manager import (
@@ -14,6 +15,7 @@ from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
     Manifest,
+    ManifestDeserializationException,
     ReadOnlyManifestManager,
 )
 from bt_ddos_shield.utils import Hotkey, PrivateKey
@@ -39,6 +41,7 @@ class ShieldMetagraph(Metagraph):
     """ Validator's wallet. """
     private_key: PrivateKey
     """ Private key used to decipher addresses generated for Validator by Miners. """
+    event_processor: AbstractMinerShieldEventProcessor
     blockchain_manager: AbstractBlockchainManager
     manifest_manager: ReadOnlyManifestManager
     options: ShieldMetagraphOptions
@@ -53,6 +56,7 @@ class ShieldMetagraph(Metagraph):
             sync: bool = True,
             block: Optional[int] = None,
             subtensor: Optional[bittensor.Subtensor] = None,
+            event_processor: Optional[AbstractMinerShieldEventProcessor] = None,
             blockchain_manager: Optional[AbstractBlockchainManager] = None,
             manifest_manager: Optional[ReadOnlyManifestManager] = None,
             options: ShieldMetagraphOptions = ShieldMetagraphOptions(),
@@ -68,9 +72,11 @@ class ShieldMetagraph(Metagraph):
         self.wallet = wallet
         self.private_key = private_key
         self.options = options
-        self.blockchain_manager = blockchain_manager or self.create_default_blockchain_manager(subtensor, netuid,
-                                                                                               wallet)
-        self.manifest_manager = manifest_manager or self.create_default_manifest_manager()
+        self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
+        self.blockchain_manager = \
+            blockchain_manager or self.create_default_blockchain_manager(subtensor, netuid, wallet,
+                                                                         self.event_processor)
+        self.manifest_manager = manifest_manager or self.create_default_manifest_manager(self.event_processor)
 
         if sync:
             self.sync(block=block, lite=lite, subtensor=subtensor)
@@ -78,9 +84,9 @@ class ShieldMetagraph(Metagraph):
             raise ValueError('Block argument is valid only when sync is True')
 
     @classmethod
-    def create_default_manifest_manager(cls) -> ReadOnlyManifestManager:
-        return ReadOnlyManifestManager(JsonManifestSerializer(), ECIESEncryptionManager(),
-                                       PrintingMinerShieldEventProcessor())
+    def create_default_manifest_manager(cls,
+                                        event_processor: AbstractMinerShieldEventProcessor) -> ReadOnlyManifestManager:
+        return ReadOnlyManifestManager(JsonManifestSerializer(), ECIESEncryptionManager(), event_processor)
 
     @classmethod
     def create_default_blockchain_manager(
@@ -88,25 +94,31 @@ class ShieldMetagraph(Metagraph):
             subtensor: bittensor.Subtensor,
             netuid: int,
             wallet: bittensor_wallet.Wallet,
+            event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
         return BittensorBlockchainManager(
             subtensor=subtensor,
             netuid=netuid,
             wallet=wallet,
-            event_processor=PrintingMinerShieldEventProcessor(),
+            event_processor=event_processor,
         )
 
-    async def fetch_miner_address(self, miner_hotkey: Hotkey) -> Optional[str]:
-        miner_manifest_urls: Dict[Hotkey, Optional[str]] = \
-            await self.blockchain_manager.get_manifest_urls([miner_hotkey])
-        miner_manifest_url: Optional[str] = miner_manifest_urls.get(miner_hotkey)
-        if miner_manifest_url is None:
-            return None
-
-        manifests: Dict[Hotkey, Optional[Manifest]] = await self.manifest_manager.get_manifests(miner_manifest_urls)
-        manifest: Optional[Manifest] = manifests.get(miner_hotkey)
-        if manifest is None:
-            return None
-        url: str = self.manifest_manager.get_address_for_validator(manifest, self.wallet.hotkey.ss58_address,
-                                                                   self.private_key)
-        return url
+    def sync(self, block: Optional[int] = None, lite: bool = True, subtensor: Optional[bittensor.Subtensor] = None):
+        super().sync(block=block, lite=lite, subtensor=subtensor)
+        hotkeys: list[str] = self.hotkeys
+        urls: Dict[Hotkey, Optional[str]] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))
+        manifests: Dict[Hotkey, Optional[Manifest]] = asyncio.run(self.manifest_manager.get_manifests(urls))
+        own_hotkey: Hotkey = Hotkey(self.wallet.hotkey.ss58_address)
+        for axon in self.axons:
+            manifest: Optional[Manifest] = manifests.get(axon.hotkey)
+            if manifest is not None:
+                try:
+                    shield_address: Optional[tuple[str, int]] = \
+                        self.manifest_manager.get_address_for_validator(manifest, own_hotkey, self.private_key)
+                except ManifestDeserializationException as e:
+                    self.event_processor.event('Error while getting shield address for miner {hotkey}',
+                                               exception=e, axon=axon.hotkey)
+                    continue
+                if shield_address is not None:
+                    axon.ip = shield_address[0]
+                    axon.port = shield_address[1]

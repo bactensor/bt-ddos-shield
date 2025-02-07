@@ -25,14 +25,14 @@ class AbstractEncryptionManager(ABC):
     @abstractmethod
     def encrypt(self, public_key: PublicKey, data: bytes) -> bytes:
         """
-        Encrypts given data using the provided public key.
+        Encrypts given data using the provided public key. Throws EncryptionError if encryption fails.
         """
         pass
 
     @abstractmethod
     def decrypt(self, private_key: PrivateKey, data: bytes) -> bytes:
         """
-        Decrypts given data using the provided private key.
+        Decrypts given data using the provided private key. Throws DecryptionError if decryption fails.
         """
         pass
 
