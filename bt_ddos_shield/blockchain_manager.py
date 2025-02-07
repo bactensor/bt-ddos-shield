@@ -97,9 +97,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
     async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> Dict[Hotkey, Optional[bytes]]:
         try:
             async with bittensor.AsyncSubtensor(self.subtensor.chain_endpoint) as async_subtensor:
-                tasks = [
-                    self.get_single_metadata(async_subtensor, hotkey) for hotkey in hotkeys
-                ]
+                tasks = [self.get_single_metadata(async_subtensor, hotkey) for hotkey in hotkeys]
                 results = await asyncio.gather(*tasks)
             return dict(zip(hotkeys, results))
         except Exception as e:

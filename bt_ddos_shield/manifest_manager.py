@@ -1,14 +1,15 @@
+import asyncio
 import base64
 import functools
 import hashlib
+import httpx
 import json
-import requests
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Dict, Optional
 
 from botocore.client import BaseClient
 from bt_ddos_shield.address import (
@@ -131,24 +132,45 @@ class ReadOnlyManifestManager(ABC):
 
     manifest_serializer: AbstractManifestSerializer
     encryption_manager: AbstractEncryptionManager
-    _requests_session: requests.Session
     _download_timeout: int
 
     def __init__(self, manifest_serializer: AbstractManifestSerializer,
                  encryption_manager: AbstractEncryptionManager, download_timeout: int = 10):
         self.manifest_serializer = manifest_serializer
         self.encryption_manager = encryption_manager
-        self._requests_session = requests.Session()
         self._download_timeout = download_timeout
 
-    def get_manifest(self, url: str) -> Manifest:
+    async def get_manifest(self, url: str) -> Manifest:
         """
         Get manifest file from given url and deserialize it.
         Throws ManifestNotFoundException if file is not found.
         Throws ManifestDeserializationException if data format is not recognized.
         """
-        raw_data: bytes = self._get_manifest_file(url)
+        raw_data: Optional[bytes] = await self._get_manifest_file(url)
+        if raw_data is None:
+            raise ManifestDownloadException(f"Manifest file not found at {url}")
         return self.manifest_serializer.deserialize(raw_data)
+
+    async def get_manifests(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[Manifest]]:
+        """
+        Get manifest files from given urls and deserialize them. If url is None, None is returned in the result.
+        None is also returned if manifest file is not found or has invalid format.
+
+        Args:
+            urls: Dictionary with urls for neurons (neuron HotKey -> url).
+        """
+        raw_manifests_data: Dict[Hotkey, Optional[bytes]] = await self._get_manifest_files(urls)
+        manifests: Dict[Hotkey, Optional[Manifest]] = {}
+        for hotkey, raw_data in raw_manifests_data.items():
+            manifest: Optional[Manifest] = None
+            if raw_data is not None:
+                try:
+                    manifest = self.manifest_serializer.deserialize(raw_data)
+                except ManifestDeserializationException:
+                    # TODO: emit event about invalid manifest
+                    pass
+            manifests[hotkey] = manifest
+        return manifests
 
     def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
                                   validator_private_key: PrivateKey) -> str:
@@ -159,22 +181,37 @@ class ReadOnlyManifestManager(ABC):
         decrypted_url: bytes = self.encryption_manager.decrypt(validator_private_key, encrypted_url)
         return decrypted_url.decode()
 
-    def _get_manifest_file(self, url: str) -> bytes:
+    async def _get_manifest_file(self, url: Optional[str]) -> Optional[bytes]:
+        if url is None:
+            return None
+
+        async with httpx.AsyncClient() as client:
+            try:
+                # TODO add retry
+                response: httpx.Response = await client.get(url, timeout=self._download_timeout)
+                response.raise_for_status()
+                return response.content
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
+                    # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
+                    # TODO emit event about manifest not found
+                    #    f"File {url} not found, status code={e.response.status_code}")
+                    return None
+                raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
+            except httpx.RequestError as e:
+                raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
+
+    async def _get_manifest_files(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[bytes]]:
         """
-        Get manifest file from given url. Throws ManifestNotFoundException if file is not found.
+        Get manifest files from given urls. If url is None, None is returned in the result. None is also returned if
+        manifest file is not found.
+
+        Args:
+            urls: Dictionary with urls for neurons (neuron HotKey -> url).
         """
-        try:
-            response = self._requests_session.get(url, timeout=self._download_timeout)
-            response.raise_for_status()
-            return response.content
-        except requests.HTTPError as e:
-            if e.response.status_code in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
-                # ManifestNotFoundException should be returned for non-retryable errors.
-                # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
-                raise ManifestNotFoundException(f"File {url} not found, status code={e.response.status_code}") from e
-            raise ManifestDownloadException(f"HTTP error when downloading file from {url}: {e}") from e
-        except requests.RequestException as e:
-            raise ManifestDownloadException(f"Failed to download file from {url}: {e}") from e
+        tasks = [self._get_manifest_file(url) for url in urls.values()]
+        results = await asyncio.gather(*tasks)
+        return dict(zip(urls.keys(), results))
 
 
 class AbstractManifestManager(ReadOnlyManifestManager):
@@ -200,7 +237,7 @@ class AbstractManifestManager(ReadOnlyManifestManager):
 
         for hotkey, address in address_mapping.items():
             public_key: PublicKey = validators_public_keys[hotkey]
-            url: str = f"{address.address}:{address.port}"
+            url: str = f'{address.address}:{address.port}'
             serialized_url: bytes = url.encode()
             encrypted_address_mapping[hotkey] = self.encryption_manager.encrypt(public_key, serialized_url)
 

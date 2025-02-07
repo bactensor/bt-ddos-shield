@@ -294,7 +294,8 @@ class MinerShield:
         """
         try:
             current_state: MinerShieldState = self.state_manager.get_state()
-            current_manifest: Manifest = self.manifest_manager.get_manifest(self.manifest_manager.get_manifest_url())
+            current_manifest: Manifest = \
+                asyncio.run(self.manifest_manager.get_manifest(self.manifest_manager.get_manifest_url()))
             new_manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
                                                                            current_state.known_validators)
             same_content: bool = new_manifest.md5_hash == current_manifest.md5_hash

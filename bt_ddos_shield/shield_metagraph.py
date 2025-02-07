@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import dataclass
 
 import bittensor
@@ -103,7 +102,10 @@ class ShieldMetagraph(Metagraph):
         if miner_manifest_url is None:
             return None
 
-        manifest: Manifest = self.manifest_manager.get_manifest(miner_manifest_url)
+        manifests: Dict[Hotkey, Optional[Manifest]] = await self.manifest_manager.get_manifests(miner_manifest_urls)
+        manifest: Optional[Manifest] = manifests.get(miner_hotkey)
+        if manifest is None:
+            return None
         url: str = self.manifest_manager.get_address_for_validator(manifest, self.wallet.hotkey.ss58_address,
                                                                    self.private_key)
         return url

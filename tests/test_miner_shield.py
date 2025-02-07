@@ -95,7 +95,7 @@ class TestMinerShield:
             assert self.manifest_manager.stored_file is not None
             assert self.manifest_manager.put_counter == 1
             manifest_url: str = self.manifest_manager.get_manifest_url()
-            manifest: Manifest = self.manifest_manager.get_manifest(manifest_url)
+            manifest: Manifest = asyncio.run(self.manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
             assert asyncio.run(self.blockchain_manager.get_own_manifest_url()) == manifest_url
             assert self.blockchain_manager.put_counter == 1
@@ -157,7 +157,7 @@ class TestMinerShield:
             assert state.banned_validators == {}
             assert state.validators_addresses.keys() == validators_manager.get_validators().keys()
             manifest_url: str = manifest_manager.get_manifest_url()
-            manifest: Manifest = manifest_manager.get_manifest(manifest_url)
+            manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
             urls: Dict[Hotkey, Optional[str]] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
             assert urls[miner_hotkey] == manifest_url
@@ -173,7 +173,7 @@ class TestMinerShield:
             state = state_manager.get_state()
             assert state.known_validators == {}
             assert state.validators_addresses == {}
-            manifest: Manifest = manifest_manager.get_manifest(manifest_url)
+            manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping == {}
             urls = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
             assert urls[miner_hotkey] == manifest_url
