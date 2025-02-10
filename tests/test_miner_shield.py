@@ -5,6 +5,7 @@ from typing import Optional, Dict
 import bittensor_wallet
 from bt_ddos_shield.address_manager import AbstractAddressManager
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
+from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
@@ -18,7 +19,6 @@ from bt_ddos_shield.validators_manager import (
 from tests.conftest import ShieldTestSettings
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
-from tests.test_encryption_manager import generate_key_pair
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager
 
@@ -30,14 +30,14 @@ class TestMinerShield:
 
     MINER_HOTKEY: Hotkey = "miner"
     VALIDATOR_1_HOTKEY: Hotkey = "validator1"
-    VALIDATOR_1_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_1_PUBLICKEY: PublicKey = ECIESEncryptionManager.generate_certificate().public_key
     VALIDATOR_2_HOTKEY: Hotkey = "validator2"
-    VALIDATOR_2_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_2_PUBLICKEY: PublicKey = ECIESEncryptionManager.generate_certificate().public_key
     VALIDATOR_3_HOTKEY: Hotkey = "validator3"
-    VALIDATOR_3_PUBLICKEY: PublicKey = generate_key_pair()[1]
-    VALIDATOR_3_OTHER_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_3_PUBLICKEY: PublicKey = ECIESEncryptionManager.generate_certificate().public_key
+    VALIDATOR_3_OTHER_PUBLICKEY: PublicKey = ECIESEncryptionManager.generate_certificate().public_key
     VALIDATOR_4_HOTKEY: Hotkey = "validator4"
-    VALIDATOR_4_PUBLICKEY: PublicKey = generate_key_pair()[1]
+    VALIDATOR_4_PUBLICKEY: PublicKey = ECIESEncryptionManager.generate_certificate().public_key
     OTHER_VALIDATOR_HOTKEY: Hotkey = "other_validator"
     DEFAULT_VALIDATORS = {VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY, VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
                           VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY}

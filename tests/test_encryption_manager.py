@@ -1,20 +1,13 @@
+import os
+
 import pytest
 from bt_ddos_shield.encryption_manager import (
     DecryptionError,
     ECIESEncryptionManager,
+    EncryptionCertificate,
     EncryptionError,
 )
-from ecies.utils import generate_eth_key
-
-
-def generate_key_pair() -> tuple[str, str]:
-    """
-    Generate a pair of private and public Ethereum (secp256k1) keys in hex format.
-    """
-    eth_k = generate_eth_key()
-    private_key: str = eth_k.to_hex()
-    public_key: str = eth_k.public_key.to_hex()
-    return private_key, public_key
+from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
 
 # Sample test data
@@ -29,7 +22,7 @@ class TestEncryptionManager:
     """
 
     encryption_manager = ECIESEncryptionManager()
-    private_key, public_key = generate_key_pair()
+    private_key, public_key = encryption_manager.serialize_certificate(encryption_manager.generate_certificate())
 
     def test_encrypt_data_valid(self):
         """
@@ -70,3 +63,20 @@ class TestEncryptionManager:
         """
         with pytest.raises(DecryptionError):
             self.encryption_manager.decrypt(private_key=self.private_key, data=non_encrypted_bytes)
+
+    def test_save_and_load_certificate(self):
+        """
+        Test saving and loading a certificate to/from disk.
+        """
+        path: str = 'certificate_test.pem'
+        certificate: CoincurvePrivateKey = self.encryption_manager.generate_certificate()
+        try:
+            self.encryption_manager.save_certificate(certificate, path)
+            loaded_certificate: CoincurvePrivateKey = self.encryption_manager.load_certificate(path)
+            assert certificate.to_hex() == loaded_certificate.to_hex()
+            serialized_cert: EncryptionCertificate = self.encryption_manager.serialize_certificate(loaded_certificate)
+            encrypted_data = self.encryption_manager.encrypt(public_key=serialized_cert.public_key, data=valid_test_data)
+            decrypted_data = self.encryption_manager.decrypt(private_key=serialized_cert.private_key, data=encrypted_data)
+            assert decrypted_data == valid_test_data
+        finally:
+            os.remove(path)

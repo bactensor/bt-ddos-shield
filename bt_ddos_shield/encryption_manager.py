@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
+from typing import Generic, NamedTuple, TypeVar
 
 import ecies
-
 from bt_ddos_shield.utils import PrivateKey, PublicKey
+from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
 
 class EncryptionManagerException(Exception):
@@ -17,7 +18,15 @@ class DecryptionError(EncryptionManagerException):
     pass
 
 
-class AbstractEncryptionManager(ABC):
+class EncryptionCertificate(NamedTuple):
+    private_key: PrivateKey
+    public_key: PublicKey
+
+
+CertType = TypeVar('CertType')
+
+
+class AbstractEncryptionManager(ABC, Generic[CertType]):
     """
     Abstract base class for manager handling manifest file encryption.
     """
@@ -36,10 +45,42 @@ class AbstractEncryptionManager(ABC):
         """
         pass
 
+    @classmethod
+    @abstractmethod
+    def generate_certificate(cls) -> CertType:
+        """
+        Generates certificate object, which will be used for encryption of manifest data.
+        """
+        pass
 
-class ECIESEncryptionManager(AbstractEncryptionManager):
+    @classmethod
+    @abstractmethod
+    def serialize_certificate(cls, certificate: CertType) -> EncryptionCertificate:
+        """
+        Serialize certificate public and private key.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def save_certificate(cls, certificate: CertType, path: str):
+        """
+        Save certificate to disk.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def load_certificate(cls, path: str) -> CertType:
+        """
+        Load certificate from disk.
+        """
+        pass
+
+
+class ECIESEncryptionManager(AbstractEncryptionManager[CoincurvePrivateKey]):
     """
-    Encryption manager implementation using ECIES algorithm. Public and private keys are Ethereum (secp256k1) keys
+    Encryption manager implementation using ECIES algorithm. Public and private keys are Coincurve (secp256k1) keys
     in hex format.
     """
 
@@ -54,3 +95,23 @@ class ECIESEncryptionManager(AbstractEncryptionManager):
             return ecies.decrypt(private_key, data)
         except Exception as e:
             raise DecryptionError(f"Decryption failed: {e}") from e
+
+    @classmethod
+    def generate_certificate(cls) -> CertType:
+        return ecies.utils.generate_key()
+
+    @classmethod
+    def serialize_certificate(cls, certificate: CertType) -> EncryptionCertificate:
+        private_key: str = certificate.to_hex()
+        public_key: str = certificate.public_key.format().hex()
+        return EncryptionCertificate(private_key, public_key)
+
+    @classmethod
+    def save_certificate(cls, certificate: CertType, path: str):
+        with open(path, 'wb') as f:
+            f.write(certificate.to_pem())
+
+    @classmethod
+    def load_certificate(cls, path: str) -> CertType:
+        with open(path, 'rb') as f:
+            return CoincurvePrivateKey.from_pem(f.read())
