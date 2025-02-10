@@ -1,12 +1,14 @@
+import asyncio
 from typing import Optional
 
-import pytest
+import aiohttp
+
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
+from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
     AbstractManifestManager,
     JsonManifestSerializer,
     Manifest,
-    ManifestNotFoundException,
     ReadOnlyManifestManager,
     S3ManifestManager,
 )
@@ -20,7 +22,7 @@ class MemoryManifestManager(AbstractManifestManager):
     put_counter: int
 
     def __init__(self):
-        super().__init__(JsonManifestSerializer(), ECIESEncryptionManager())
+        super().__init__(JsonManifestSerializer(), ECIESEncryptionManager(), PrintingMinerShieldEventProcessor())
         self._manifest_url = 'https://manifest.com'
         self.stored_file = None
         self.put_counter = 0
@@ -32,9 +34,9 @@ class MemoryManifestManager(AbstractManifestManager):
         self.stored_file = data
         self.put_counter += 1
 
-    def _get_manifest_file(self, url: str) -> bytes:
+    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: Optional[str]) -> Optional[bytes]:
         if self.stored_file is None or url != self._manifest_url:
-            raise ManifestNotFoundException(f"Manifest file not found under url: {url}")
+            return None
         return self.stored_file
 
 
@@ -60,23 +62,28 @@ class TestManifestManager:
         manifest_manager = S3ManifestManager(aws_client_factory=aws_client_factory,
                                              bucket_name=shield_settings.aws_s3_bucket_name,
                                              manifest_serializer=JsonManifestSerializer(),
-                                             encryption_manager=ECIESEncryptionManager())
+                                             encryption_manager=ECIESEncryptionManager(),
+                                             event_processor=PrintingMinerShieldEventProcessor())
+        http_session: aiohttp.ClientSession = aiohttp.ClientSession(loop=asyncio.get_event_loop())
 
-        data: bytes = b'some_data'
-        manifest_manager._put_manifest_file(data)
-        manifest_url: str = manifest_manager.get_manifest_url()
-        retrieved_data: bytes = manifest_manager._get_manifest_file(manifest_url)
-        assert retrieved_data == data
+        try:
+            data: bytes = b'some_data'
+            manifest_manager._put_manifest_file(data)
+            manifest_url: str = manifest_manager.get_manifest_url()
+            retrieved_data: Optional[bytes] = asyncio.run(manifest_manager._get_manifest_file(http_session,
+                                                                                              manifest_url))
+            assert retrieved_data == data
+            assert asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url + 'xxx')) is None
 
-        with pytest.raises(ManifestNotFoundException):
-            manifest_manager._get_manifest_file(manifest_url + 'xxx')
+            other_data: bytes = b'other_data'
+            manifest_manager._put_manifest_file(other_data)
+            retrieved_data = asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url))
+            assert retrieved_data == other_data
 
-        other_data: bytes = b'other_data'
-        manifest_manager._put_manifest_file(other_data)
-        retrieved_data: bytes = manifest_manager._get_manifest_file(manifest_url)
-        assert retrieved_data == other_data
-
-        validator_manifest_manager = ReadOnlyManifestManager(manifest_serializer=JsonManifestSerializer(),
-                                                             encryption_manager=ECIESEncryptionManager())
-        retrieved_data: bytes = validator_manifest_manager._get_manifest_file(manifest_url)
-        assert retrieved_data == other_data
+            validator_manifest_manager = ReadOnlyManifestManager(manifest_serializer=JsonManifestSerializer(),
+                                                                 encryption_manager=ECIESEncryptionManager(),
+                                                                 event_processor=PrintingMinerShieldEventProcessor())
+            retrieved_data = asyncio.run(validator_manifest_manager._get_manifest_file(http_session, manifest_url))
+            assert retrieved_data == other_data
+        finally:
+            http_session.close()

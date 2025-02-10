@@ -1,12 +1,8 @@
-import asyncio
-from urllib.parse import urlparse, ParseResult
-
-import bittensor_wallet
-from bt_ddos_shield.address_manager import AbstractAddressManager
+from bittensor.core.chain_data import AxonInfo
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import Hotkey
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
+from bt_ddos_shield.validators_manager import BittensorValidatorsManager
 from tests.conftest import ShieldTestSettings
 
 
@@ -21,36 +17,43 @@ class TestValidator:
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
-        validator_wallet: bittensor_wallet.Wallet = shield_settings.validator_wallet.instance
-        metagraph: ShieldMetagraph = ShieldMetagraph(
-            wallet=validator_wallet,
-            private_key=shield_settings.validator_private_key,
-            subtensor=shield_settings.subtensor.create_client(),
-            netuid=shield_settings.netuid,
-        )
+        miner_hotkey: str = shield_settings.wallet.instance.hotkey.ss58_address
 
-        validator_hotkey: Hotkey = validator_wallet.hotkey.ss58_address
-        validators = {validator_hotkey}
+        # We need to add any validator to set, otherwise manifest addresses will be created for all validators in
+        # network including tested validator, what we don't want
+        validators = {'unknown_hotkey'}
         shield: MinerShield = MinerShieldFactory.create_miner_shield(shield_settings, validators)
 
         assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
-        state_manager: SQLAlchemyMinerShieldStateManager = shield.state_manager  # type: ignore
+        state_manager: SQLAlchemyMinerShieldStateManager = shield.state_manager
         state_manager.clear_tables()
 
-        address_manager: AbstractAddressManager = shield.address_manager
+        assert isinstance(shield.validators_manager, BittensorValidatorsManager)
+        validators_manager: BittensorValidatorsManager = shield.validators_manager
 
         shield.enable()
         assert shield.run
-
-        shield.task_queue.join()
+        shield.task_queue.join()  # Wait for full shield initialization - should create empty manifest
 
         try:
-            miner_hotkey: str = shield_settings.wallet.instance.hotkey.ss58_address
-            miner_url: str = asyncio.run(asyncio.wait_for(metagraph.fetch_miner_address(miner_hotkey),
-                                                          timeout=20))
-            parsed_url: ParseResult = urlparse('http://' + miner_url)
-            assert parsed_url.port == shield_settings.miner_instance_port
+            metagraph: ShieldMetagraph = ShieldMetagraph(
+                wallet=shield_settings.validator_wallet.instance,
+                private_key=shield_settings.validator_private_key,
+                subtensor=shield_settings.subtensor.create_client(),
+                netuid=shield_settings.netuid,
+            )
+            miner_axon: AxonInfo = next(axon for axon in metagraph.axons if axon.hotkey == miner_hotkey)
+
+            shield.disable()
+            validators_manager.validators = frozenset()
+            shield.enable()
+            shield.task_queue.join()  # Wait for full shield initialization - should add validator to manifest
+
+            metagraph.sync()
+            shielded_miner_axon: AxonInfo = next(axon for axon in metagraph.axons if axon.hotkey == miner_hotkey)
+            assert shielded_miner_axon.ip != miner_axon.ip
+            assert shielded_miner_axon.port == shield_settings.miner_instance_port
         finally:
             shield.disable()
             assert not shield.run
-            address_manager.clean_all()
+            shield.address_manager.clean_all()

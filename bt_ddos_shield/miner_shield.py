@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import re
 import sys
@@ -293,7 +294,8 @@ class MinerShield:
         """
         try:
             current_state: MinerShieldState = self.state_manager.get_state()
-            current_manifest: Manifest = self.manifest_manager.get_manifest(self.manifest_manager.get_manifest_url())
+            current_manifest: Manifest = \
+                asyncio.run(self.manifest_manager.get_manifest(self.manifest_manager.get_manifest_url()))
             new_manifest: Manifest = self.manifest_manager.create_manifest(current_state.validators_addresses,
                                                                            current_state.known_validators)
             same_content: bool = new_manifest.md5_hash == current_manifest.md5_hash
@@ -433,7 +435,7 @@ class MinerShield:
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_url: str = self.manifest_manager.get_manifest_url()
-        current_url: str = self.blockchain_manager.get_own_manifest_url()
+        current_url: str = asyncio.run(self.blockchain_manager.get_own_manifest_url())
         if current_url == expected_url:
             self._event("Manifest address already published")
         else:
@@ -557,7 +559,7 @@ class MinerShieldFactory:
                                                                              event_processor, state_manager)
         encryption_manager: AbstractEncryptionManager = cls.create_encryption_manager()
         manifest_manager: AbstractManifestManager = cls.create_manifest_manager(settings, encryption_manager,
-                                                                                aws_client_factory)
+                                                                                aws_client_factory, event_processor)
         blockchain_manager: AbstractBlockchainManager = cls.create_blockchain_manager(settings, event_processor)
 
         if settings.options.auto_hide_original_server:
@@ -625,9 +627,10 @@ class MinerShieldFactory:
 
     @classmethod
     def create_manifest_manager(cls, settings: ShieldSettings, encryption_manager: AbstractEncryptionManager,
-                                aws_client_factory: AWSClientFactory) -> AbstractManifestManager:
+                                aws_client_factory: AWSClientFactory,
+                                event_processor: AbstractMinerShieldEventProcessor) -> AbstractManifestManager:
         manifest_serializer: AbstractManifestSerializer = JsonManifestSerializer()
-        return S3ManifestManager(manifest_serializer, encryption_manager, aws_client_factory,
+        return S3ManifestManager(manifest_serializer, encryption_manager, event_processor, aws_client_factory,
                                  settings.aws_s3_bucket_name)
 
     @classmethod

@@ -1,5 +1,6 @@
+import asyncio
 from time import sleep
-from typing import Optional
+from typing import Optional, Dict
 
 import bittensor_wallet
 from bt_ddos_shield.address_manager import AbstractAddressManager
@@ -94,9 +95,9 @@ class TestMinerShield:
             assert self.manifest_manager.stored_file is not None
             assert self.manifest_manager.put_counter == 1
             manifest_url: str = self.manifest_manager.get_manifest_url()
-            manifest: Manifest = self.manifest_manager.get_manifest(manifest_url)
+            manifest: Manifest = asyncio.run(self.manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert self.blockchain_manager.get_own_manifest_url() == manifest_url
+            assert asyncio.run(self.blockchain_manager.get_own_manifest_url()) == manifest_url
             assert self.blockchain_manager.put_counter == 1
         finally:
             self.shield.disable()
@@ -156,9 +157,10 @@ class TestMinerShield:
             assert state.banned_validators == {}
             assert state.validators_addresses.keys() == validators_manager.get_validators().keys()
             manifest_url: str = manifest_manager.get_manifest_url()
-            manifest: Manifest = manifest_manager.get_manifest(manifest_url)
+            manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            assert blockchain_manager.get_manifest_url(miner_hotkey) == manifest_url
+            urls: Dict[Hotkey, Optional[str]] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
+            assert urls[miner_hotkey] == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -171,9 +173,10 @@ class TestMinerShield:
             state = state_manager.get_state()
             assert state.known_validators == {}
             assert state.validators_addresses == {}
-            manifest: Manifest = manifest_manager.get_manifest(manifest_url)
+            manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping == {}
-            assert blockchain_manager.get_manifest_url(miner_hotkey) == manifest_url
+            urls = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
+            assert urls[miner_hotkey] == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state

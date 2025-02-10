@@ -296,7 +296,6 @@ dependencies = [
     { name = "pydantic", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pydantic-settings", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "python-dotenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "requests", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "route53", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "sqlalchemy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
@@ -329,7 +328,6 @@ requires-dist = [
     { name = "pydantic", specifier = "~=2.10.5" },
     { name = "pydantic-settings", specifier = "~=2.7.1" },
     { name = "python-dotenv", specifier = "~=1.0.1" },
-    { name = "requests", specifier = "~=2.32.3" },
     { name = "route53", specifier = "~=1.0.1" },
     { name = "sqlalchemy", specifier = "~=2.0.36" },
 ]

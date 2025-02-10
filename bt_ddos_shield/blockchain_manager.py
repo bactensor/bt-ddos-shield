@@ -1,10 +1,10 @@
+import asyncio
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Iterable, Dict
 
 import bittensor
 import bittensor_wallet
 from bittensor.core.extrinsics.serving import (
-    get_metadata,
     publish_metadata,
 )
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
@@ -26,23 +26,30 @@ class AbstractBlockchainManager(ABC):
         """
         self.put_metadata(url.encode())
 
-    def get_manifest_url(self, hotkey: Hotkey) -> Optional[str]:
+    async def get_manifest_urls(self, hotkeys: Iterable[Hotkey]) -> Dict[Hotkey, Optional[str]]:
         """
-        Get manifest url for given neuron identified by hotkey. Returns None if url is not found.
+        Get manifest urls for given neurons identified by hotkeys.
+        Returns dictionary with urls for given neurons, filled with None if url is not found.
         """
-        serialized_url: Optional[bytes] = self.get_metadata(hotkey)
-        if serialized_url is None:
-            return None
-        try:
-            return serialized_url.decode()
-        except UnicodeDecodeError:
-            return None
+        serialized_urls: Dict[Hotkey, Optional[bytes]] = await self.get_metadata(hotkeys)
+        deserialized_urls: Dict[Hotkey, Optional[str]] = {}
+        for hotkey, serialized_url in serialized_urls.items():
+            url: Optional[str] = None
+            if serialized_url is not None:
+                try:
+                    url = serialized_url.decode()
+                except UnicodeDecodeError:
+                    pass
+            deserialized_urls[hotkey] = url
+        return deserialized_urls
 
-    def get_own_manifest_url(self) -> Optional[str]:
+    async def get_own_manifest_url(self) -> Optional[str]:
         """
         Get manifest url for wallet owner. Returns None if url is not found.
         """
-        return self.get_manifest_url(self.get_hotkey())
+        own_hotkey: Hotkey = self.get_hotkey()
+        urls: Dict[Hotkey, Optional[str]] = await self.get_manifest_urls([own_hotkey])
+        return urls.get(own_hotkey)
 
     @abstractmethod
     def put_metadata(self, data: bytes):
@@ -52,9 +59,10 @@ class AbstractBlockchainManager(ABC):
         pass
 
     @abstractmethod
-    def get_metadata(self, hotkey: Hotkey) -> Optional[bytes]:
+    async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> Dict[Hotkey, Optional[bytes]]:
         """
-        Get metadata from blockchain for given neuron identified by hotkey. Returns None if metadata is not found.
+        Get metadata from blockchain for given neurons identified by hotkeys.
+        Returns dictionary with metadata for given neurons, filled with None if metadata is not found.
         """
         pass
 
@@ -75,36 +83,48 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
     event_processor: AbstractMinerShieldEventProcessor
 
     def __init__(
-        self,
-        subtensor: bittensor.Subtensor,
-        netuid: int,
-        wallet: bittensor_wallet.Wallet,
-        event_processor: AbstractMinerShieldEventProcessor,
+            self,
+            subtensor: bittensor.Subtensor,
+            netuid: int,
+            wallet: bittensor_wallet.Wallet,
+            event_processor: AbstractMinerShieldEventProcessor,
     ):
         self.subtensor = subtensor
         self.netuid = netuid
         self.wallet = wallet
         self.event_processor = event_processor
 
-    def get_metadata(self, hotkey: Hotkey) -> Optional[bytes]:
+    async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> Dict[Hotkey, Optional[bytes]]:
         try:
-            metadata: dict = get_metadata(  # type: ignore
-                self.subtensor,
-                self.netuid,
-                hotkey,
-            )
+            async with bittensor.AsyncSubtensor(self.subtensor.chain_endpoint) as async_subtensor:
+                tasks = [self.get_single_metadata(async_subtensor, hotkey) for hotkey in hotkeys]
+                results = await asyncio.gather(*tasks)
+            return dict(zip(hotkeys, results))
         except Exception as e:
-            self.event_processor.event('Failed to get metadata for netuid={netuid}, hotkey={hotkey}',
-                                       exception=e, netuid=self.netuid, hotkey=hotkey)
+            self.event_processor.event('Failed to get metadata for netuid={netuid}',
+                                       exception=e, netuid=self.netuid)
             raise BlockchainManagerException(f'Failed to get metadata: {e}') from e
+
+    async def get_single_metadata(self, async_subtensor: bittensor.AsyncSubtensor, hotkey: Hotkey) -> Optional[bytes]:
+        metadata: dict = await async_subtensor.substrate.query(
+            module="Commitments",
+            storage_function="CommitmentOf",
+            params=[self.netuid, hotkey],
+        )
 
         try:
             # This structure is hardcoded in bittensor publish_metadata function, but corresponding get_metadata
             # function does not use it, so we need to extract the value manually.
-            fields: list[dict[str, str]] = metadata["info"]["fields"]
+
+            # Commented parts of the code shows how this extraction should look if async version will work properly,
+            # the same as sync version does. Now async version doesn't decode raw SCALE objects properly. I left this
+            # code as it will be easier one day to restore this proper parsing.
+            # fields: list[dict[str, str]] = metadata["info"]["fields"]
+            fields = metadata["info"]["fields"]
 
             # As for now there is only one field in metadata. Field contains map from type of data to data itself.
-            field: dict[str, str] = fields[0]
+            # field: dict[str, str] = fields[0]
+            field = fields[0][0]
 
             # Find data of 'Raw' type.
             for data_type, data in field.items():
@@ -114,7 +134,8 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
                 return None
 
             # Raw data is hex-encoded and prefixed with '0x'.
-            return bytes.fromhex(data[2:])
+            # return bytes.fromhex(data[2:])
+            return bytes(data[0])
         except TypeError:
             return None
         except LookupError:
