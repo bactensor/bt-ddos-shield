@@ -23,8 +23,12 @@ from bt_ddos_shield.utils import Hotkey, PrivateKey
 
 @dataclass
 class ShieldMetagraphOptions:
-    retry_delay_sec: int = 10
-    """ Time in seconds to wait before retrying fetching miner address. """
+    replace_ip_address_for_axon: bool = True
+    """
+    Determines how shield address is added to axon info in metagraph. If True, shield address will replace original one
+    in `ip` field, otherwise new field `shield_address` will be added. In both cases, port will be replaced with port
+    from shield.
+    """
 
 
 class ShieldMetagraph(Metagraph):
@@ -120,5 +124,8 @@ class ShieldMetagraph(Metagraph):
                                                exception=e, axon=axon.hotkey)
                     continue
                 if shield_address is not None:
-                    axon.ip = shield_address[0]
+                    if self.options.replace_ip_address_for_axon:
+                        axon.ip = shield_address[0]
+                    else:
+                        axon.shield_address = shield_address[0]
                     axon.port = shield_address[1]
