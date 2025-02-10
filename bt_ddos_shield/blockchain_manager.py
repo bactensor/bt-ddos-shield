@@ -1,4 +1,5 @@
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from typing import Optional, Iterable, Dict, Any
 
@@ -34,7 +35,12 @@ class AbstractBlockchainManager(ABC):
         Get manifest urls for given neurons identified by hotkeys.
         Returns dictionary with urls for given neurons, filled with None if url is not found.
         """
-        serialized_urls: Dict[Hotkey, Optional[bytes]] = await self.get_metadata(hotkeys)
+        try:
+            serialized_urls: Dict[Hotkey, Optional[bytes]] = await self.get_metadata(hotkeys)
+        except BlockchainManagerException:
+            # Retry once
+            time.sleep(3)
+            serialized_urls = await self.get_metadata(hotkeys)
         deserialized_urls: Dict[Hotkey, Optional[str]] = {}
         for hotkey, serialized_url in serialized_urls.items():
             url: Optional[str] = None

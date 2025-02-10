@@ -1,4 +1,5 @@
 import asyncio
+import time
 from dataclasses import dataclass
 
 import bittensor
@@ -10,7 +11,7 @@ from typing import Optional, Dict
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
-    BittensorBlockchainManager,
+    BittensorBlockchainManager, BlockchainManagerException,
 )
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager, AbstractEncryptionManager, EncryptionCertificate
 from bt_ddos_shield.manifest_manager import (
@@ -108,7 +109,12 @@ class ShieldMetagraph(Metagraph):
             self.encryption_manager.save_certificate(coincurve_cert, certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
 
-        self.blockchain_manager.upload_public_key(self.certificate.public_key)
+        try:
+            self.blockchain_manager.upload_public_key(self.certificate.public_key)
+        except BlockchainManagerException:
+            # Retry once
+            time.sleep(3)
+            self.blockchain_manager.upload_public_key(self.certificate.public_key)
 
     @classmethod
     def create_default_encryption_manager(cls):
