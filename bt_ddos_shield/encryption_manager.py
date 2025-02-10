@@ -1,3 +1,4 @@
+import enum
 from abc import ABC, abstractmethod
 from typing import Generic, NamedTuple, TypeVar
 
@@ -78,6 +79,12 @@ class AbstractEncryptionManager(ABC, Generic[CertType]):
         pass
 
 
+class CertificateAlgorithmEnum(enum.IntEnum):
+    """ Values are taken from coincurve.keys.PublicKey.__init__ method. """
+    ECDSA_SECP256K1_UNCOMPRESSED = 4
+    """ ECDSA using secp256k1 curve (uncompressed version) """
+
+
 class ECIESEncryptionManager(AbstractEncryptionManager[CoincurvePrivateKey]):
     """
     Encryption manager implementation using ECIES algorithm. Public and private keys are Coincurve (secp256k1) keys
@@ -103,8 +110,9 @@ class ECIESEncryptionManager(AbstractEncryptionManager[CoincurvePrivateKey]):
     @classmethod
     def serialize_certificate(cls, certificate: CertType) -> EncryptionCertificate:
         private_key: str = certificate.to_hex()
-        public_key: str = certificate.public_key.format().hex()
-        return EncryptionCertificate(private_key, public_key)
+        public_key: bytes = certificate.public_key.format(compressed=False)
+        assert public_key[0] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
+        return EncryptionCertificate(private_key, public_key.hex())
 
     @classmethod
     def save_certificate(cls, certificate: CertType, path: str):

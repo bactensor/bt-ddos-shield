@@ -75,8 +75,10 @@ class TestEncryptionManager:
             loaded_certificate: CoincurvePrivateKey = self.encryption_manager.load_certificate(path)
             assert certificate.to_hex() == loaded_certificate.to_hex()
             serialized_cert: EncryptionCertificate = self.encryption_manager.serialize_certificate(loaded_certificate)
-            encrypted_data = self.encryption_manager.encrypt(public_key=serialized_cert.public_key, data=valid_test_data)
-            decrypted_data = self.encryption_manager.decrypt(private_key=serialized_cert.private_key, data=encrypted_data)
+            encrypted_data = self.encryption_manager.encrypt(public_key=serialized_cert.public_key,
+                                                             data=valid_test_data)
+            decrypted_data = self.encryption_manager.decrypt(private_key=serialized_cert.private_key,
+                                                             data=encrypted_data)
             assert decrypted_data == valid_test_data
         finally:
             os.remove(path)

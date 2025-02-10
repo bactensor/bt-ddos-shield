@@ -1,14 +1,17 @@
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Optional, Iterable, Dict
+from typing import Optional, Iterable, Dict, Any
 
 import bittensor
 import bittensor_wallet
+from bittensor.core.chain_data.neuron_info import NeuronInfo
 from bittensor.core.extrinsics.serving import (
     publish_metadata,
+    serve_extrinsic,
 )
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-from bt_ddos_shield.utils import Hotkey
+from bt_ddos_shield.utils import Hotkey, PublicKey
+from scalecodec.base import ScaleType
 
 
 class BlockchainManagerException(Exception):
@@ -69,6 +72,16 @@ class AbstractBlockchainManager(ABC):
     @abstractmethod
     def get_hotkey(self) -> Hotkey:
         """ Returns hotkey of the wallet owner. """
+        pass
+
+    @abstractmethod
+    def get_own_public_key(self) -> PublicKey:
+        """ Returns public key for wallet owner. """
+        pass
+
+    @abstractmethod
+    def upload_public_key(self, public_key: PublicKey):
+        """ Uploads public key to blockchain for wallet owner. """
         pass
 
 
@@ -159,3 +172,48 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
 
     def get_hotkey(self) -> Hotkey:
         return self.wallet.hotkey.ss58_address
+
+    def get_own_public_key(self) -> Optional[PublicKey]:
+        certificate: ScaleType = self.subtensor.query_subtensor(
+            name="NeuronCertificates",
+            params=[self.netuid, self.get_hotkey()],
+        )
+        cert_value: Optional[dict[str, Any]] = certificate.serialize()
+        if cert_value is None or 'public_key' not in cert_value:
+            return None
+        cert_type: str = format(cert_value['algorithm'], '02x')
+        return cert_type + cert_value['public_key'][2:]  # public_key is prefixed with '0x'
+
+    def upload_public_key(self, public_key: PublicKey):
+        try:
+            # As for now there is no method for uploading only certificate to Subtensor, so we need to use
+            # serve_extrinsic function. Because of that we need to get current neuron info to not overwrite existing
+            # data - if there is not existing data, we will use default dummy values.
+            neuron: Optional[NeuronInfo] = self.subtensor.get_neuron_for_pubkey_and_subnet(
+                self.wallet.hotkey.ss58_address, netuid=self.netuid
+            )
+            new_ip: str = neuron.axon_info.ip if neuron is not None else '127.0.0.1'
+            new_port: int = neuron.axon_info.port if neuron is not None else 1
+            new_protocol: int = neuron.axon_info.protocol if neuron is not None else 0
+            # We need to change any field, otherwise extrinsic will not be sent, so use placeholder1 (increased by 1
+            # and modulo 256 as it is u8 field) to not modify any real data.
+            new_placeholder1: int = (neuron.axon_info.placeholder1 + 1) % 256 if neuron is not None else 0
+            # certificate param is of str type in library, but actually we need to pass bytes there
+            certificate_data: bytes = bytes.fromhex(public_key)
+
+            serve_extrinsic(
+                self.subtensor,
+                self.wallet,
+                new_ip,
+                new_port,
+                new_protocol,
+                self.netuid,
+                certificate=certificate_data,  # type: ignore
+                placeholder1=new_placeholder1,
+                wait_for_inclusion=True,
+                wait_for_finalization=True,
+            )
+        except Exception as e:
+            self.event_processor.event('Failed to upload public key for netuid={netuid}, wallet={wallet}',
+                                       exception=e, netuid=self.netuid, wallet=str(self.wallet))
+            raise BlockchainManagerException(f'Failed to upload public key: {e}') from e
