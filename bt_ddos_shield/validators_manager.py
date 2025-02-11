@@ -1,10 +1,11 @@
-import enum
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 from typing import Any, Iterable
 
 import bittensor
 from substrateinterface.base import QueryMapResult  # noqa
+
+from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
 from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
@@ -53,10 +54,6 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
     Validators Manager using Bittensor Neurons' Certificates.
     """
 
-    # These constants are taken from Bittensor internals.
-    class CertificateAlgorithmEnum(enum.IntEnum):
-        ECDSA_SECP256K1 = 4  # ECDSA using secp256k1 curve
-
     # 1000 tao is needed to set weights and miners typically don't hold staked tao on their own hotkeys as it provides
     # no value. Therefore, we assume that any neuron with at least 1000 tao staked is a validator. It is simple
     # heuristic, which can be not valid for all subnets, but as for now is sufficient.
@@ -103,11 +100,12 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         certificates: dict[Hotkey, dict[str, Any]] = {
             hotkey.serialize(): certificate.serialize() for hotkey, certificate in query_certificates
         }
+        cert_type: str = format(CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED, '02x')
         return {
-            hotkey: certificate["public_key"][2:]  # Key is prefixed with '0x'
+            hotkey: cert_type + certificate["public_key"][2:]  # Key is prefixed with '0x'
             for hotkey, certificate in certificates.items()
                 if hotkey in validators
-                    and certificate["algorithm"] == self.CertificateAlgorithmEnum.ECDSA_SECP256K1
+                    and certificate["algorithm"] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
         }
 
     def is_validator(self, neuron: bittensor.NeuronInfoLite) -> bool:

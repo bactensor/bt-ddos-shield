@@ -1,24 +1,26 @@
 import asyncio
+import time
 from dataclasses import dataclass
 
 import bittensor
 import bittensor_wallet
 from bittensor.core.metagraph import Metagraph
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
+from coincurve.keys import PrivateKey as CoincurvePrivateKey
 from typing import Optional, Dict
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
-    BittensorBlockchainManager,
+    BittensorBlockchainManager, BlockchainManagerException,
 )
-from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
+from bt_ddos_shield.encryption_manager import ECIESEncryptionManager, AbstractEncryptionManager, EncryptionCertificate
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
     Manifest,
     ManifestDeserializationException,
     ReadOnlyManifestManager,
 )
-from bt_ddos_shield.utils import Hotkey, PrivateKey
+from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 @dataclass
@@ -39,13 +41,18 @@ class ShieldMetagraph(Metagraph):
     To use this class in your code just replace your Metagraph instance with ShieldMetagraph instance. If you were
     using subtensor.metagraph() before, you should now use constructor with sync param set to True and other params
     set appropriately.
+
+    certificate_path argument is path to file where certificate is stored. If file does not exist, new certificate
+    will be generated and saved to this file. If file exists, certificate will be loaded from it.
     """
 
     wallet: bittensor_wallet.Wallet
     """ Validator's wallet. """
-    private_key: PrivateKey
-    """ Private key used to decipher addresses generated for Validator by Miners. """
+    certificate: EncryptionCertificate
+    """ Certificate used for encryption of addresses generated for Validator by Miners. """
     event_processor: AbstractMinerShieldEventProcessor
+
+    encryption_manager: AbstractEncryptionManager
     blockchain_manager: AbstractBlockchainManager
     manifest_manager: ReadOnlyManifestManager
     options: ShieldMetagraphOptions
@@ -53,7 +60,7 @@ class ShieldMetagraph(Metagraph):
     def __init__(
             self,
             wallet: bittensor_wallet.Wallet,
-            private_key: PrivateKey,
+            certificate_path: str,
             netuid: int,
             network: Optional[str] = None,
             lite: bool = True,
@@ -61,6 +68,7 @@ class ShieldMetagraph(Metagraph):
             block: Optional[int] = None,
             subtensor: Optional[bittensor.Subtensor] = None,
             event_processor: Optional[AbstractMinerShieldEventProcessor] = None,
+            encryption_manager: Optional[AbstractEncryptionManager] = None,
             blockchain_manager: Optional[AbstractBlockchainManager] = None,
             manifest_manager: Optional[ReadOnlyManifestManager] = None,
             options: ShieldMetagraphOptions = ShieldMetagraphOptions(),
@@ -74,23 +82,51 @@ class ShieldMetagraph(Metagraph):
         )
 
         self.wallet = wallet
-        self.private_key = private_key
         self.options = options
         self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
+        self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
         self.blockchain_manager = \
             blockchain_manager or self.create_default_blockchain_manager(subtensor, netuid, wallet,
                                                                          self.event_processor)
-        self.manifest_manager = manifest_manager or self.create_default_manifest_manager(self.event_processor)
+        self.manifest_manager = manifest_manager or self.create_default_manifest_manager(self.event_processor,
+                                                                                         self.encryption_manager)
+        self._init_certificate(certificate_path)
 
         if sync:
             self.sync(block=block, lite=lite, subtensor=subtensor)
         elif block is not None:
             raise ValueError('Block argument is valid only when sync is True')
 
+    def _init_certificate(self, certificate_path: str):
+        try:
+            coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
+            self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
+            public_key: PublicKey = self.blockchain_manager.get_own_public_key()
+            if self.certificate.public_key == public_key:
+                return
+        except FileNotFoundError:
+            coincurve_cert = self.encryption_manager.generate_certificate()
+            self.encryption_manager.save_certificate(coincurve_cert, certificate_path)
+            self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
+
+        try:
+            self.blockchain_manager.upload_public_key(self.certificate.public_key)
+        except BlockchainManagerException:
+            # Retry once
+            time.sleep(3)
+            self.blockchain_manager.upload_public_key(self.certificate.public_key)
+
     @classmethod
-    def create_default_manifest_manager(cls,
-                                        event_processor: AbstractMinerShieldEventProcessor) -> ReadOnlyManifestManager:
-        return ReadOnlyManifestManager(JsonManifestSerializer(), ECIESEncryptionManager(), event_processor)
+    def create_default_encryption_manager(cls):
+        return ECIESEncryptionManager()
+
+    @classmethod
+    def create_default_manifest_manager(
+            cls,
+            event_processor: AbstractMinerShieldEventProcessor,
+            encryption_manager: AbstractEncryptionManager,
+    ) -> ReadOnlyManifestManager:
+        return ReadOnlyManifestManager(JsonManifestSerializer(), encryption_manager, event_processor)
 
     @classmethod
     def create_default_blockchain_manager(
@@ -117,8 +153,9 @@ class ShieldMetagraph(Metagraph):
             manifest: Optional[Manifest] = manifests.get(axon.hotkey)
             if manifest is not None:
                 try:
-                    shield_address: Optional[tuple[str, int]] = \
-                        self.manifest_manager.get_address_for_validator(manifest, own_hotkey, self.private_key)
+                    shield_address: Optional[tuple[str, int]] = self.manifest_manager.get_address_for_validator(
+                        manifest, own_hotkey, self.certificate.private_key
+                    )
                 except ManifestDeserializationException as e:
                     self.event_processor.event('Error while getting shield address for miner {hotkey}',
                                                exception=e, axon=axon.hotkey)

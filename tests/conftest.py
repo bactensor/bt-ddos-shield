@@ -10,10 +10,8 @@ class ShieldTestSettings(ShieldSettings):
     miner_instance_port: int = 8080
 
     validator_wallet: WalletSettings = WalletSettings()
-    validator_public_key: str = Field(min_length=1)
-    """ Hex representation of secp256k1 public key of validator """
-    validator_private_key: str = Field(min_length=1)
-    """ Hex representation of secp256k1 private key of validator """
+    validator_cert_path: str = Field(min_length=1)
+    """ Path to file with certificate """
 
     model_config = {
         'env_file': '.env.test',

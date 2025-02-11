@@ -1,3 +1,5 @@
+import time
+
 import aiohttp
 import asyncio
 import base64
@@ -220,7 +222,9 @@ class ReadOnlyManifestManager(ABC):
         try:
             return await self._get_manifest_file(http_session, url)
         except ManifestDownloadException:
-            return await self._get_manifest_file(http_session, url)  # Retry once
+            # Retry once
+            time.sleep(1)
+            return await self._get_manifest_file(http_session, url)
 
     async def _get_manifest_files(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[bytes]]:
         """

@@ -4,7 +4,7 @@ from typing import Optional, Iterable, Dict
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
 )
-from bt_ddos_shield.utils import Hotkey
+from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 class MemoryBlockchainManager(AbstractBlockchainManager):
@@ -28,3 +28,9 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
     async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> Dict[Hotkey, Optional[bytes]]:
         with self._lock:
             return {hotkey: self.known_data.get(hotkey) for hotkey in hotkeys}
+
+    def get_own_public_key(self) -> PublicKey:
+        return 'public_key'
+
+    def upload_public_key(self, public_key: PublicKey):
+        pass
