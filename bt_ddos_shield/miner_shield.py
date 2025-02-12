@@ -172,11 +172,15 @@ class MinerShield:
             self.worker_thread.join()
             self.worker_thread = None
 
-        self.task_queue = Queue()  # Clear task queue
+        # Clear tasks possibly added after disabling shield - this is needed to allow ticker_thread to finish
+        self._clear_tasks()
 
         if self.ticker_thread is not None:
             self.ticker_thread.join()
             self.ticker_thread = None
+
+        # There is possibility that ticker_thread added validation task
+        self._clear_tasks()
 
     def ban_validator(self, validator_hotkey: Hotkey):
         """
@@ -189,10 +193,15 @@ class MinerShield:
         """
         Add task to task queue. It will be handled by _worker_function.
         """
-        if not self.run:
+        if not self.run or self.finishing:
             raise MinerShieldDisabledException()
 
         self.task_queue.put(task)
+
+    def _clear_tasks(self):
+        while not self.task_queue.empty():
+            self.task_queue.get()
+            self.task_queue.task_done()
 
     def _worker_function(self) -> None:
         """
@@ -230,6 +239,9 @@ class MinerShield:
 
     def _ticker_function(self):
         while not self.ticker.wait(self.options.validate_interval_sec):
+            # Wait for finishing previous tasks before adding new validation task. This is mostly to prevent
+            # having multiple validation tasks in the queue.
+            self.task_queue.join()
             self._add_task(MinerShieldValidateStateTask())
 
     def _handle_initialize(self):
