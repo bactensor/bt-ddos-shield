@@ -1,4 +1,5 @@
 import os
+from typing import TYPE_CHECKING
 
 import pytest
 from bt_ddos_shield.encryption_manager import (
@@ -7,7 +8,9 @@ from bt_ddos_shield.encryption_manager import (
     EncryptionCertificate,
     EncryptionError,
 )
-from coincurve.keys import PrivateKey as CoincurvePrivateKey
+
+if TYPE_CHECKING:
+    from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
 # Sample test data
 valid_test_data = b"encrypted_address"

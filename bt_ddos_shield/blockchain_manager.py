@@ -2,19 +2,21 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import bittensor
 import bittensor_wallet
-from bittensor.core.chain_data.neuron_info import NeuronInfo
 from bittensor.core.extrinsics.serving import (
     publish_metadata,
     serve_extrinsic,
 )
-from scalecodec.base import ScaleType
 
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.utils import Hotkey, PublicKey
+
+if TYPE_CHECKING:
+    from bittensor.core.chain_data.neuron_info import NeuronInfo
+    from scalecodec.base import ScaleType
 
 
 class BlockchainManagerException(Exception):

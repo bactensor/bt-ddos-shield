@@ -1,12 +1,9 @@
 import asyncio
 from time import sleep
+from typing import TYPE_CHECKING
 
-import bittensor_wallet
-from bt_ddos_shield.address_manager import AbstractAddressManager
-from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
@@ -20,6 +17,12 @@ from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager
+
+if TYPE_CHECKING:
+    import bittensor_wallet
+    from bt_ddos_shield.address_manager import AbstractAddressManager
+    from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
+    from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 
 
 def generate_test_public_key() -> PublicKey:
