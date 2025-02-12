@@ -48,6 +48,9 @@ security_check = [
     "bandit>=1.7.7",
 ]
 
+[tool.bandit]
+skips = ["B101"]
+
 [tool.ruff]
 line-length = 120
 

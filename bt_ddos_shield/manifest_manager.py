@@ -261,7 +261,7 @@ class AbstractManifestManager(ReadOnlyManifestManager):
             validators_public_keys: Dictionary containing public keys of validators (validator HotKey -> PublicKey).
         """
         encrypted_address_mapping: dict[Hotkey, bytes] = {}
-        md5_hash = hashlib.md5()
+        md5_hash = hashlib.md5(usedforsecurity=False)
 
         for hotkey, address in address_mapping.items():
             public_key: PublicKey = validators_public_keys[hotkey]
