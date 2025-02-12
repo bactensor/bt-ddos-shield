@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import datetime
 from types import MappingProxyType
-from typing import Optional, Union
 
 from sqlalchemy import (
     Column,
@@ -93,7 +92,7 @@ class AbstractMinerShieldStateManager(ABC):
     Abstract base class for manager handling state of MinerShield. Each change in state should be instantly
     saved to storage.
     """
-    current_miner_shield_state: Optional[MinerShieldState]
+    current_miner_shield_state: MinerShieldState | None
 
     def __init__(self):
         self.current_miner_shield_state = None
@@ -130,7 +129,7 @@ class AbstractMinerShieldStateManager(ABC):
         pass
 
     @abstractmethod
-    def update_address_manager_state(self, key: str, value: Optional[str]):
+    def update_address_manager_state(self, key: str, value: str | None):
         """
         Update address manager state (key -> value). If value is None, remove key from state.
         """
@@ -149,11 +148,11 @@ class AbstractMinerShieldStateManager(ABC):
         pass
 
     def _update_state(self,
-                      known_validators: Optional[dict[Hotkey, PublicKey]] = None,
-                      banned_validators: Optional[dict[Hotkey, datetime]] = None,
-                      validators_addresses: Optional[dict[Hotkey, Address]] = None,
-                      address_manager_state: Optional[dict[str, str]] = None,
-                      address_manager_created_objects: Optional[dict[str, frozenset[str]]] = None):
+                      known_validators: dict[Hotkey, PublicKey] | None = None,
+                      banned_validators: dict[Hotkey, datetime] | None = None,
+                      validators_addresses: dict[Hotkey, Address] | None = None,
+                      address_manager_state: dict[str, str] | None = None,
+                      address_manager_created_objects: dict[str, frozenset[str]] | None = None):
         """
         Create new updated state with given new values and set it as current state. If value for field is None,
         it is copied from current state.
@@ -215,7 +214,7 @@ class AbstractMinerShieldStateManager(ABC):
         validators_addresses.pop(validator_hotkey)
         self._update_state(known_validators=known_validators, validators_addresses=validators_addresses)
 
-    def _state_update_address_manager_state(self, key: str, value: Optional[str]):
+    def _state_update_address_manager_state(self, key: str, value: str | None):
         """
         Updates AddressManager state in current shield state. Should be called only after updating state in storage.
         """
@@ -300,7 +299,7 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
     engine: Engine
     session_maker: sessionmaker
 
-    def __init__(self, db_url: Union[str, url.URL]):
+    def __init__(self, db_url: str | url.URL):
         """
         Args:
             db_url: URL of database to connect to. Should be in format accepted by SQLAlchemy - see create_engine doc.
@@ -353,7 +352,7 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
 
         self._state_remove_validator(validator_hotkey)
 
-    def update_address_manager_state(self, key: str, value: Optional[str]):
+    def update_address_manager_state(self, key: str, value: str | None):
         with self.session_maker() as session:
             if value is None:
                 # Remove the key from the database if the value is None

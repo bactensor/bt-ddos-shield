@@ -1,6 +1,5 @@
 from datetime import datetime
 from time import sleep
-from typing import Optional
 
 import pytest
 from bt_ddos_shield.state_manager import (
@@ -10,7 +9,6 @@ from bt_ddos_shield.state_manager import (
 )
 from bt_ddos_shield.utils import Address, Hotkey, PublicKey
 from sqlalchemy.exc import IntegrityError, NoResultFound
-
 from tests.conftest import ShieldTestSettings
 
 
@@ -35,7 +33,7 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
     def remove_validator(self, validator_hotkey: Hotkey):
         self._state_remove_validator(validator_hotkey)
 
-    def update_address_manager_state(self, key: str, value: Optional[str]):
+    def update_address_manager_state(self, key: str, value: str | None):
         self._state_update_address_manager_state(key, value)
 
     def add_address_manager_created_object(self, obj_type: str, obj_id: str):

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from types import MappingProxyType
-from typing import Any, Iterable
+from typing import Any
 
 import bittensor
 from substrateinterface.base import QueryMapResult  # noqa

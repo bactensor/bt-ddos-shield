@@ -1,8 +1,6 @@
 import asyncio
-from typing import Optional
 
 import aiohttp
-
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
@@ -18,7 +16,7 @@ from tests.conftest import ShieldTestSettings
 
 class MemoryManifestManager(AbstractManifestManager):
     _manifest_url: str
-    stored_file: Optional[bytes]
+    stored_file: bytes | None
     put_counter: int
 
     def __init__(self):
@@ -34,7 +32,7 @@ class MemoryManifestManager(AbstractManifestManager):
         self.stored_file = data
         self.put_counter += 1
 
-    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: Optional[str]) -> Optional[bytes]:
+    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: str | None) -> bytes | None:
         if self.stored_file is None or url != self._manifest_url:
             return None
         return self.stored_file
@@ -70,8 +68,7 @@ class TestManifestManager:
             data: bytes = b'some_data'
             manifest_manager._put_manifest_file(data)
             manifest_url: str = manifest_manager.get_manifest_url()
-            retrieved_data: Optional[bytes] = asyncio.run(manifest_manager._get_manifest_file(http_session,
-                                                                                              manifest_url))
+            retrieved_data: bytes | None = asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url))
             assert retrieved_data == data
             assert asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url + 'xxx')) is None
 

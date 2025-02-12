@@ -3,8 +3,9 @@ from abc import ABC, abstractmethod
 from typing import Generic, NamedTuple, TypeVar
 
 import ecies
-from bt_ddos_shield.utils import PrivateKey, PublicKey
 from coincurve.keys import PrivateKey as CoincurvePrivateKey
+
+from bt_ddos_shield.utils import PrivateKey, PublicKey
 
 
 class EncryptionManagerException(Exception):

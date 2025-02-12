@@ -5,15 +5,15 @@ from dataclasses import dataclass
 import bittensor
 import bittensor_wallet
 from bittensor.core.metagraph import Metagraph
-from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from coincurve.keys import PrivateKey as CoincurvePrivateKey
-from typing import Optional, Dict
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
-    BittensorBlockchainManager, BlockchainManagerException,
+    BittensorBlockchainManager,
+    BlockchainManagerException,
 )
-from bt_ddos_shield.encryption_manager import ECIESEncryptionManager, AbstractEncryptionManager, EncryptionCertificate
+from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager, EncryptionCertificate
+from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
     Manifest,
@@ -62,15 +62,15 @@ class ShieldMetagraph(Metagraph):
             wallet: bittensor_wallet.Wallet,
             certificate_path: str,
             netuid: int,
-            network: Optional[str] = None,
+            network: str | None = None,
             lite: bool = True,
             sync: bool = True,
-            block: Optional[int] = None,
-            subtensor: Optional[bittensor.Subtensor] = None,
-            event_processor: Optional[AbstractMinerShieldEventProcessor] = None,
-            encryption_manager: Optional[AbstractEncryptionManager] = None,
-            blockchain_manager: Optional[AbstractBlockchainManager] = None,
-            manifest_manager: Optional[ReadOnlyManifestManager] = None,
+            block: int | None = None,
+            subtensor: bittensor.Subtensor | None = None,
+            event_processor: AbstractMinerShieldEventProcessor | None = None,
+            encryption_manager: AbstractEncryptionManager | None = None,
+            blockchain_manager: AbstractBlockchainManager | None = None,
+            manifest_manager: ReadOnlyManifestManager | None = None,
             options: ShieldMetagraphOptions = ShieldMetagraphOptions(),
     ):
         super().__init__(
@@ -143,17 +143,17 @@ class ShieldMetagraph(Metagraph):
             event_processor=event_processor,
         )
 
-    def sync(self, block: Optional[int] = None, lite: bool = True, subtensor: Optional[bittensor.Subtensor] = None):
+    def sync(self, block: int | None = None, lite: bool = True, subtensor: bittensor.Subtensor | None = None):
         super().sync(block=block, lite=lite, subtensor=subtensor)
         hotkeys: list[str] = self.hotkeys
-        urls: Dict[Hotkey, Optional[str]] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))
-        manifests: Dict[Hotkey, Optional[Manifest]] = asyncio.run(self.manifest_manager.get_manifests(urls))
+        urls: dict[Hotkey, str | None] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))
+        manifests: dict[Hotkey, Manifest | None] = asyncio.run(self.manifest_manager.get_manifests(urls))
         own_hotkey: Hotkey = Hotkey(self.wallet.hotkey.ss58_address)
         for axon in self.axons:
-            manifest: Optional[Manifest] = manifests.get(axon.hotkey)
+            manifest: Manifest | None = manifests.get(axon.hotkey)
             if manifest is not None:
                 try:
-                    shield_address: Optional[tuple[str, int]] = self.manifest_manager.get_address_for_validator(
+                    shield_address: tuple[str, int] | None = self.manifest_manager.get_address_for_validator(
                         manifest, own_hotkey, self.certificate.private_key
                     )
                 except ManifestDeserializationException as e:

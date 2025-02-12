@@ -5,12 +5,13 @@ import re
 import sys
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from queue import Queue
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
 from time import sleep
 from types import MappingProxyType
-from typing import Optional, Iterable
+
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
 
 from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, ShieldedServerLocation, \
     ShieldedServerLocationType
@@ -52,7 +53,7 @@ class MinerShieldOptions(BaseModel):
     auto_hide_delay_sec: int = 1200
     """ Time in seconds after which the original server will be hidden if auto_hide_original_server is set to True. """
 
-    retry_limit: Optional[int] = None
+    retry_limit: int | None = None
     """
     Limit of retries for failed tasks. If None, task will be retried forever. Should be changed only for testing.
     Retrying can be also stopped by disabling shield (with Ctrl-C or calling disable).
@@ -86,12 +87,12 @@ class MinerShield:
     schedule tasks to be executed asynchronously.
     """
 
-    worker_thread: Optional[threading.Thread]  # main thread executing tasks
+    worker_thread: threading.Thread | None  # main thread executing tasks
     task_queue: Queue['AbstractMinerShieldTask']  # queue of tasks to be executed
     run: bool  # flag meaning if shield is running
     finishing: bool  # flag meaning if shield should finish its work
     ticker: threading.Event  # ticker to be used in ticker_thread
-    ticker_thread: Optional[threading.Thread]  # thread used to schedule validate operation cyclically
+    ticker_thread: threading.Thread | None  # thread used to schedule validate operation cyclically
     validators_manager: AbstractValidatorsManager  # used to manage validators and their keys
     address_manager: AbstractAddressManager  # used to manage public IP/domain addresses assigned to validators
     manifest_manager: AbstractManifestManager  # used to manage publishing manifest file
@@ -545,7 +546,7 @@ class MinerShieldFactory:
 
     @classmethod
     def create_miner_shield(cls, settings: ShieldSettings,
-                            validators: Optional[Iterable[Hotkey]] = None) -> MinerShield:
+                            validators: Iterable[Hotkey] | None = None) -> MinerShield:
         """
         Args:
             settings: ShieldSettings instance.
@@ -572,7 +573,7 @@ class MinerShieldFactory:
     def create_validators_manager(
         cls,
         settings: ShieldSettings,
-        validators: Optional[Iterable[Hotkey]] = None,
+        validators: Iterable[Hotkey] | None = None,
     ) -> AbstractValidatorsManager:
         return BittensorValidatorsManager(
             subtensor=settings.subtensor.client,
@@ -609,7 +610,7 @@ class MinerShieldFactory:
                                       port=settings.miner_instance_port)
 
     @classmethod
-    def create_address_manager(cls, settings: ShieldSettings, aws_client_factory: Optional[AWSClientFactory],
+    def create_address_manager(cls, settings: ShieldSettings, aws_client_factory: AWSClientFactory | None,
                                event_processor: AbstractMinerShieldEventProcessor,
                                state_manager: AbstractMinerShieldStateManager) -> AbstractAddressManager:
         if aws_client_factory:

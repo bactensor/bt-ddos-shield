@@ -1,5 +1,5 @@
 import threading
-from typing import Optional, Iterable, Dict
+from collections.abc import Iterable
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
@@ -25,7 +25,7 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
             self.known_data[self.miner_hotkey] = data
             self.put_counter += 1
 
-    async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> Dict[Hotkey, Optional[bytes]]:
+    async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> dict[Hotkey, bytes | None]:
         with self._lock:
             return {hotkey: self.known_data.get(hotkey) for hotkey in hotkeys}
 

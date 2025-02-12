@@ -1,8 +1,7 @@
 import pytest
-from pydantic import Field
-
 from bt_ddos_shield.miner_shield import ShieldSettings
 from bt_ddos_shield.utils import WalletSettings
+from pydantic import Field
 
 
 class ShieldTestSettings(ShieldSettings):

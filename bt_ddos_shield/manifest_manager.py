@@ -1,18 +1,16 @@
-import time
-
-import aiohttp
 import asyncio
 import base64
 import functools
 import hashlib
 import json
-
+import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import Any, Dict, Optional
+from typing import Any
 
+import aiohttp
 from botocore.client import BaseClient
 
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
@@ -151,12 +149,12 @@ class ReadOnlyManifestManager(ABC):
         Throws ManifestDeserializationException if data format is not recognized.
         """
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
-            raw_data: Optional[bytes] = await self._get_manifest_file(session, url)
+            raw_data: bytes | None = await self._get_manifest_file(session, url)
         if raw_data is None:
             raise ManifestDownloadException(f"Manifest file not found at {url}")
         return self.manifest_serializer.deserialize(raw_data)
 
-    async def get_manifests(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[Manifest]]:
+    async def get_manifests(self, urls: dict[Hotkey, str | None]) -> dict[Hotkey, Manifest | None]:
         """
         Get manifest files from given urls and deserialize them. If url is None, None is returned in the result.
         None is also returned if manifest file is not found or has invalid format.
@@ -164,10 +162,10 @@ class ReadOnlyManifestManager(ABC):
         Args:
             urls: Dictionary with urls for neurons (neuron HotKey -> url).
         """
-        raw_manifests_data: Dict[Hotkey, Optional[bytes]] = await self._get_manifest_files(urls)
-        manifests: Dict[Hotkey, Optional[Manifest]] = {}
+        raw_manifests_data: dict[Hotkey, bytes | None] = await self._get_manifest_files(urls)
+        manifests: dict[Hotkey, Manifest | None] = {}
         for hotkey, raw_data in raw_manifests_data.items():
-            manifest: Optional[Manifest] = None
+            manifest: Manifest | None = None
             if raw_data is not None:
                 try:
                     manifest = self.manifest_serializer.deserialize(raw_data)
@@ -178,13 +176,13 @@ class ReadOnlyManifestManager(ABC):
         return manifests
 
     def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
-                                  validator_private_key: PrivateKey) -> Optional[tuple[str, int]]:
+                                  validator_private_key: PrivateKey) -> tuple[str, int] | None:
         """
         Get URL and port for validator identified by hotkey from manifest or None if not found.
         Decrypts address using validator's private key.
         Throws ManifestDeserializationException if address format is invalid.
         """
-        encrypted_url: Optional[bytes] = manifest.encrypted_url_mapping.get(validator_hotkey)
+        encrypted_url: bytes | None = manifest.encrypted_url_mapping.get(validator_hotkey)
         if encrypted_url is None:
             return None
         try:
@@ -197,7 +195,7 @@ class ReadOnlyManifestManager(ABC):
                 f"Invalid address format for validator {validator_hotkey}: {e}"
             ) from e
 
-    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: Optional[str]) -> Optional[bytes]:
+    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: str | None) -> bytes | None:
         if url is None:
             return None
 
@@ -212,11 +210,11 @@ class ReadOnlyManifestManager(ABC):
                                            url=url, status_code=e.status)
                 return None
             raise ManifestDownloadException(f'HTTP error when downloading file from {url}: {e}') from e
-        except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
+        except (TimeoutError, aiohttp.ClientConnectionError) as e:
             raise ManifestDownloadException(f'Failed to download file from {url}: {e}') from e
 
     async def _get_manifest_file_with_retry(self, http_session: aiohttp.ClientSession,
-                                            url: Optional[str]) -> Optional[bytes]:
+                                            url: str | None) -> bytes | None:
         try:
             return await self._get_manifest_file(http_session, url)
         except ManifestDownloadException:
@@ -224,7 +222,7 @@ class ReadOnlyManifestManager(ABC):
             time.sleep(1)
             return await self._get_manifest_file(http_session, url)
 
-    async def _get_manifest_files(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[bytes]]:
+    async def _get_manifest_files(self, urls: dict[Hotkey, str | None]) -> dict[Hotkey, bytes | None]:
         """
         Get manifest files from given urls. If url is None, None is returned in the result. None is also returned if
         manifest file is not found.
@@ -235,7 +233,7 @@ class ReadOnlyManifestManager(ABC):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
             tasks = [self._get_manifest_file_with_retry(session, url) for url in urls.values()]
             results = await asyncio.gather(*tasks)
-        return dict(zip(urls.keys(), results))
+        return dict(zip(urls.keys(), results, strict=True))
 
 
 class AbstractManifestManager(ReadOnlyManifestManager):

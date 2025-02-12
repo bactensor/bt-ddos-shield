@@ -1,7 +1,6 @@
 import unittest.mock
 
 import bittensor
-
 from bt_ddos_shield.validators_manager import BittensorValidatorsManager
 
 

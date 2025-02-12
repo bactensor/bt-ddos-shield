@@ -9,7 +9,6 @@ from bt_ddos_shield.encryption_manager import (
 )
 from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
-
 # Sample test data
 valid_test_data = b"encrypted_address"
 non_encrypted_bytes = b"This is not encrypted"

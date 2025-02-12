@@ -4,6 +4,7 @@ import secrets
 import string
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
@@ -132,7 +133,7 @@ class AwsEC2ServerLocation(BaseModel):
 class AwsShieldedServerData(BaseModel):
     server_location: ShieldedServerLocation
     """ Location of shielded server. """
-    aws_location: Optional[AwsEC2ServerLocation]
+    aws_location: AwsEC2ServerLocation | None
     """ Detailed location of server in AWS (only if it is EC2 instance). """
 
     def to_json(self) -> str:
@@ -160,9 +161,9 @@ class AwsAddressManager(AbstractAddressManager):
 
     shielded_server_data: AwsShieldedServerData
     waf_client: BaseClient
-    waf_arn: Optional[str]
+    waf_arn: str | None
     elb_client: BaseClient
-    elb_data: Optional[AwsELBData]
+    elb_data: AwsELBData | None
     ec2_client: BaseClient
     hosted_zone_id: str
     """ ID of hosted zone in Route53 where addresses are located. """
@@ -296,7 +297,7 @@ class AwsAddressManager(AbstractAddressManager):
 
         invalid_hotkeys: set[Hotkey] = set()
         for hotkey, address in addresses.items():
-            rule: Optional[dict[str, Any]] = self._find_rule(rules, address.address)
+            rule: dict[str, Any] | None = self._find_rule(rules, address.address)
             if rule is None:
                 invalid_hotkeys.add(hotkey)
         return invalid_hotkeys
@@ -315,7 +316,7 @@ class AwsAddressManager(AbstractAddressManager):
     def _store_server_data(self, server_data: AwsShieldedServerData):
         self.state_manager.update_address_manager_state(self.SHIELDED_SERVER_STATE_KEY, server_data.to_json())
 
-    def _load_server_data(self) -> Optional[AwsShieldedServerData]:
+    def _load_server_data(self) -> AwsShieldedServerData | None:
         state: MinerShieldState = self.state_manager.get_state()
         if self.SHIELDED_SERVER_STATE_KEY not in state.address_manager_state:
             return None
@@ -323,7 +324,7 @@ class AwsAddressManager(AbstractAddressManager):
         return AwsShieldedServerData.from_json(json_data)
 
     def _handle_shielded_server_change(self) -> bool:
-        old_server_data: Optional[AwsShieldedServerData] = self._load_server_data()
+        old_server_data: AwsShieldedServerData | None = self._load_server_data()
         if old_server_data != self.shielded_server_data:
             # If shielded server changed, we need to recreate ELB. Maybe we can try to change only
             # needed objects, but changing ELB is the easiest way and this operation should happen rarely.
@@ -356,8 +357,8 @@ class AwsAddressManager(AbstractAddressManager):
             self.state_manager.update_address_manager_state(self.HOSTED_ZONE_ID_STATE_KEY, self.hosted_zone_id)
         return zone_changed
 
-    def _get_ec2_instance_data(self, instance_id: Optional[str] = None,
-                               private_ip: Optional[str] = None) -> AwsEC2InstanceData:
+    def _get_ec2_instance_data(self, instance_id: str | None = None,
+                               private_ip: str | None = None) -> AwsEC2InstanceData:
         assert instance_id or private_ip
         ec2_client_args: dict[str, Any] = {'InstanceIds': [instance_id]} if instance_id else \
             {'Filters': [{'Name': 'private-ip-address', 'Values': [private_ip]}]}
@@ -456,17 +457,17 @@ class AwsAddressManager(AbstractAddressManager):
         characters = string.ascii_letters + string.digits
         return ''.join(secrets.choice(characters) for _ in range(length))
 
-    def _get_vpc_networks(self) -> list[Union[IPv4Network, IPv6Network]]:
+    def _get_vpc_networks(self) -> list[IPv4Network | IPv6Network]:
         response: dict[str, Any] = self.ec2_client.describe_vpcs()
         return [ipaddress.ip_network(vpc['CidrBlock']) for vpc in response['Vpcs']]
 
     @classmethod
-    def _get_subnet_networks(cls, vpc: AwsVpcData) -> list[Union[IPv4Network, IPv6Network]]:
+    def _get_subnet_networks(cls, vpc: AwsVpcData) -> list[IPv4Network | IPv6Network]:
         return [ipaddress.ip_network(subnet.cidr_block) for subnet in vpc.subnets]
 
     @classmethod
-    def _find_available_subnet(cls, network: Union[IPv4Network, IPv6Network],
-                               used_subnets: list[Union[IPv4Network, IPv6Network]], subnet_size: int) -> str:
+    def _find_available_subnet(cls, network: IPv4Network | IPv6Network,
+                               used_subnets: list[IPv4Network | IPv6Network], subnet_size: int) -> str:
         """
         Find available CIDR block (subnet) of specified size inside network. This block must not collide with any
         subnets from used_subnets param.
@@ -481,7 +482,7 @@ class AwsAddressManager(AbstractAddressManager):
         # Preferable IP range for VPC is 10.0.0.0/8 according to
         # https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html.
         # Do not try 172.* and 192.* as 10.* should be enough.
-        network: Union[IPv4Network, IPv6Network] = ipaddress.ip_network('10.0.0.0/8')
+        network: IPv4Network | IPv6Network = ipaddress.ip_network('10.0.0.0/8')
         vpc_network_size: int = 24  # Network size 24 (255 addresses) is enough for shield
         cidr: str = self._find_available_subnet(network, self._get_vpc_networks(), vpc_network_size)
         response: dict[str, Any] = self.ec2_client.create_vpc(
@@ -555,7 +556,7 @@ class AwsAddressManager(AbstractAddressManager):
         return target_group_id
 
     def _remove_target_group(self, target_group_id: str) -> bool:
-        current_server_data: Optional[AwsShieldedServerData] = self._load_server_data()
+        current_server_data: AwsShieldedServerData | None = self._load_server_data()
         if current_server_data:
             self.elb_client.deregister_targets(TargetGroupArn=target_group_id,
                                                Targets=[{'Id': current_server_data.server_location.location_value}])
@@ -821,7 +822,7 @@ class AwsAddressManager(AbstractAddressManager):
     def _remove_domain_rule_from_firewall(self, waf_arn: str, domain: str):
         waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
         rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
-        rule: Optional[dict[str, Any]] = self._find_rule(rules, domain)
+        rule: dict[str, Any] | None = self._find_rule(rules, domain)
         if rule is None:
             return
         rules.remove(rule)
@@ -838,7 +839,7 @@ class AwsAddressManager(AbstractAddressManager):
         self._add_route53_record('*', self.hosted_zone)
 
     @classmethod
-    def _find_rule(cls, rules: list[dict[str, Any]], domain: str) -> Optional[dict[str, Any]]:
+    def _find_rule(cls, rules: list[dict[str, Any]], domain: str) -> dict[str, Any] | None:
         for rule in rules:
             try:
                 rule_domain: str = rule['Statement']['ByteMatchStatement']['SearchString'].decode()
@@ -877,8 +878,8 @@ class AwsAddressManager(AbstractAddressManager):
         # we can use set difference to find remaining availability zones.
         remaining_availability_zones: set[str] = vpc_availability_zones - subnets_availability_zones
 
-        vpc_network: Union[IPv4Network, IPv6Network] = ipaddress.ip_network(vpc_data.cidr_block)
-        used_networks: list[Union[IPv4Network, IPv6Network]] = self._get_subnet_networks(vpc_data)
+        vpc_network: IPv4Network | IPv6Network = ipaddress.ip_network(vpc_data.cidr_block)
+        used_networks: list[IPv4Network | IPv6Network] = self._get_subnet_networks(vpc_data)
         # 27 as specified in https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#availability-zones  # noqa: E501
         min_elb_subnet_size: int = 27
 

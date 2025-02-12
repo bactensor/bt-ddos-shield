@@ -2,13 +2,21 @@ import copy
 from types import MappingProxyType
 
 import pytest
-from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, AwsObjectTypes, \
-    AwsShieldedServerData, ShieldedServerLocation, ShieldedServerLocationType
+from bt_ddos_shield.address import Address, AddressType
+from bt_ddos_shield.address_manager import (
+    AbstractAddressManager,
+    AwsAddressManager,
+    AwsObjectTypes,
+    AwsShieldedServerData,
+    ShieldedServerLocation,
+    ShieldedServerLocationType,
+)
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import MinerShieldState
 from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey
 from tests.test_state_manager import MemoryMinerShieldStateManager
 from tests.conftest import ShieldTestSettings
+from tests.test_state_manager import MemoryMinerShieldStateManager
 
 
 def get_miner_location_from_credentials(location_type: ShieldedServerLocationType,

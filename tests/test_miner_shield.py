@@ -1,6 +1,5 @@
 import asyncio
 from time import sleep
-from typing import Optional, Dict
 
 import bittensor_wallet
 from bt_ddos_shield.address_manager import AbstractAddressManager
@@ -9,12 +8,12 @@ from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
+from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.utils import Hotkey, PublicKey
-from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.validators_manager import (
-    MemoryValidatorsManager,
     BittensorValidatorsManager,
+    MemoryValidatorsManager,
 )
 from tests.conftest import ShieldTestSettings
 from tests.test_address_manager import MemoryAddressManager
@@ -47,8 +46,8 @@ class TestMinerShield:
                           VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY}
 
     @classmethod
-    def create_memory_validators_manager(cls, validators: Optional[dict[Hotkey, PublicKey]] = None)\
-            -> MemoryValidatorsManager:
+    def create_memory_validators_manager(cls,
+                                         validators: dict[Hotkey, PublicKey] | None = None) -> MemoryValidatorsManager:
         if validators is None:
             validators = cls.DEFAULT_VALIDATORS
         return MemoryValidatorsManager(dict(validators))
@@ -86,7 +85,7 @@ class TestMinerShield:
         Test if shield is properly starting from scratch and fully enabling protection using mock memory managers.
         """
         self.create_default_shield()
-        sleep(2 + 2*self.shield.options.validate_interval_sec)  # give some time to make sure validate is called
+        sleep(2 + 2 * self.shield.options.validate_interval_sec)  # Give some time to make sure validate is called
 
         try:
             state: MinerShieldState = self.state_manager.get_state()
@@ -163,7 +162,7 @@ class TestMinerShield:
             manifest_url: str = manifest_manager.get_manifest_url()
             manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            urls: Dict[Hotkey, Optional[str]] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
+            urls: dict[Hotkey, str | None] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
             assert urls[miner_hotkey] == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)

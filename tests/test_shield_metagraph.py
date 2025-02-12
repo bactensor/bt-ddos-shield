@@ -1,7 +1,7 @@
 from bittensor.core.chain_data import AxonInfo
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
-from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
+from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.validators_manager import BittensorValidatorsManager
 from tests.conftest import ShieldTestSettings
 
