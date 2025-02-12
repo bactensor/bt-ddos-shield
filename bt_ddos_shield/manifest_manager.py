@@ -108,9 +108,6 @@ class JsonManifestSerializer(AbstractManifestSerializer):
 
     @staticmethod
     def _custom_encoder(obj: Any) -> Any:
-        if isinstance(obj, Hotkey):
-            return str(obj)
-
         if isinstance(obj, bytes):
             return base64.b64encode(obj).decode()  # type: ignore
 
@@ -119,7 +116,7 @@ class JsonManifestSerializer(AbstractManifestSerializer):
         if "encrypted_url_mapping" in json_mapping:
             decoded_mapping: dict[Hotkey, bytes] = {}
             for hotkey, encoded_address in json_mapping["encrypted_url_mapping"].items():
-                decoded_mapping[Hotkey(hotkey)] = base64.b64decode(encoded_address.encode())
+                decoded_mapping[hotkey] = base64.b64decode(encoded_address.encode())
             json_mapping["encrypted_url_mapping"] = decoded_mapping
         return json_mapping
 

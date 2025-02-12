@@ -147,11 +147,11 @@ class TestAddressManager:
         address1: Address = address_manager.create_address("validator1")
         address2: Address = address_manager.create_address("validator2")
         invalid_address: Address = Address(address_id="invalid", address="invalid.com", port=80)
-        mapping: dict[Hotkey, Address] = {Hotkey("hotkey1"): address1,
-                                          Hotkey("hotkey2"): address2,
-                                          Hotkey("invalid"): invalid_address}
+        mapping: dict[Hotkey, Address] = {"hotkey1": address1,
+                                          "hotkey2": address2,
+                                          "invalid": invalid_address}
         invalid_addresses: set[Hotkey] = address_manager.validate_addresses(MappingProxyType(mapping))
-        assert invalid_addresses == {Hotkey("invalid")}
+        assert invalid_addresses == {"invalid"}
 
         state: MinerShieldState = self.state_manager.get_state()
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
@@ -164,7 +164,7 @@ class TestAddressManager:
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
         assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
-        assert invalid_addresses == {Hotkey("hotkey1"), Hotkey("invalid")}
+        assert invalid_addresses == {"hotkey1", "invalid"}
 
     def test_miner_instance_change(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
         """

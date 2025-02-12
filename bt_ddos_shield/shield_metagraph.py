@@ -20,10 +20,11 @@ from bt_ddos_shield.manifest_manager import (
     ManifestDeserializationException,
     ReadOnlyManifestManager,
 )
-from bt_ddos_shield.utils import Hotkey, PublicKey
 
 if TYPE_CHECKING:
     from coincurve.keys import PrivateKey as CoincurvePrivateKey
+
+    from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 @dataclass
@@ -151,7 +152,7 @@ class ShieldMetagraph(Metagraph):
         hotkeys: list[str] = self.hotkeys
         urls: dict[Hotkey, str | None] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))
         manifests: dict[Hotkey, Manifest | None] = asyncio.run(self.manifest_manager.get_manifests(urls))
-        own_hotkey: Hotkey = Hotkey(self.wallet.hotkey.ss58_address)
+        own_hotkey: Hotkey = self.wallet.hotkey.ss58_address
         for axon in self.axons:
             manifest: Manifest | None = manifests.get(axon.hotkey)
             if manifest is not None:

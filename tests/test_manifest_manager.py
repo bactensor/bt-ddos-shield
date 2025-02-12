@@ -45,7 +45,7 @@ class TestManifestManager:
 
     def test_json_serializer(self):
         manifest_serializer = JsonManifestSerializer()
-        mapping: dict[Hotkey, bytes] = {Hotkey('validator1'): b'address1', Hotkey('validator2'): b'address2'}
+        mapping: dict[Hotkey, bytes] = {'validator1': b'address1', 'validator2': b'address2'}
         md5_hash: str = "some_hash"
         manifest: Manifest = Manifest(mapping, md5_hash)
         json_data: bytes = manifest_serializer.serialize(manifest)

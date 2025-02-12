@@ -172,7 +172,7 @@ class TestMinerShield:
             assert reloaded_state == state
 
             # Set unknown validator manually to clean up everything (except S3 file) ...
-            validators_manager.validators = frozenset([Hotkey('unknown_hotkey')])
+            validators_manager.validators = frozenset(['unknown_hotkey'])
             # ... and wait for validate loop to apply changes
             sleep(2 * shield.options.validate_interval_sec)
 
