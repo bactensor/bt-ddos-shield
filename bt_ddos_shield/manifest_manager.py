@@ -8,14 +8,17 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from botocore.client import BaseClient
 
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PrivateKey, PublicKey
+
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 class ManifestManagerException(Exception):
@@ -312,12 +315,13 @@ class S3ManifestManager(AbstractManifestManager):
         self._bucket_name = bucket_name
 
     def get_manifest_url(self) -> str:
+        assert self._aws_client_factory.aws_region_name is not None
         region_name: str = self._aws_client_factory.aws_region_name
         return f'https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}'
 
     @functools.cached_property
-    def _s3_client(self) -> BaseClient:
-        return self._aws_client_factory.boto3_client('s3')
+    def _s3_client(self) -> S3Client:
+        return self._aws_client_factory.boto3_client('s3')  # type: ignore
 
     def _put_manifest_file(self, data: bytes):
         self._s3_client.put_object(Bucket=self._bucket_name, Key=self.MANIFEST_FILE_NAME, Body=data, ACL='public-read')

@@ -119,7 +119,7 @@ class TestAddressManager:
         assert current_hosted_zone_id == shield_settings.aws_route53_hosted_zone_id
         json_data: str = state.address_manager_state[address_manager.SHIELDED_SERVER_STATE_KEY]
         server_data = AwsShieldedServerData.from_json(json_data)
-        assert server_data.aws_location.server_id == shield_settings.aws_miner_instance_id
+        assert server_data.aws_location and server_data.aws_location.server_id == shield_settings.aws_miner_instance_id
         assert server_data.server_location.port == shield_settings.miner_instance_port
         created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
         assert len(created_objects[AwsObjectTypes.WAF.value]) == 1
@@ -167,7 +167,7 @@ class TestAddressManager:
 
         address_manager.remove_address(address1)
         state = self.state_manager.get_state()
-        created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+        created_objects = state.address_manager_created_objects
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
         assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         invalid_addresses = address_manager.validate_addresses(MappingProxyType(mapping))
@@ -202,7 +202,7 @@ class TestAddressManager:
         assert invalid_addresses == {hotkey}
 
         state = self.state_manager.get_state()
-        created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+        created_objects = state.address_manager_created_objects
         assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
         assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
         new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
@@ -243,7 +243,7 @@ class TestAddressManager:
             assert invalid_addresses == {hotkey}
 
             state = self.state_manager.get_state()
-            created_objects: MappingProxyType[str, frozenset[str]] = state.address_manager_created_objects
+            created_objects = state.address_manager_created_objects
             assert len(created_objects[AwsObjectTypes.DNS_ENTRY.value]) == 1
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1
             new_elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))

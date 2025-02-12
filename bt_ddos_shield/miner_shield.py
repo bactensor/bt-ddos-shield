@@ -185,7 +185,7 @@ class MinerShield:
 
         self.task_queue.put(task)
 
-    def _worker_function(self):
+    def _worker_function(self) -> None:
         """
         Function called in separate thread by enable() to start the shield. It is handling events put to task_queue.
         """
@@ -402,7 +402,7 @@ class MinerShield:
             self._event('Updating validator {validator}', validator=validator)
             self.state_manager.update_validator_public_key(validator, new_key)
 
-    def _handle_validators_change(self):
+    def _handle_validators_change(self) -> None:
         current_state: MinerShieldState = self.state_manager.get_state()
         fetched_validators: MappingProxyType[Hotkey, PublicKey] = self.validators_manager.get_validators()
 
@@ -435,7 +435,7 @@ class MinerShield:
         self._event('Validator {validator_hotkey} added to banned set', validator_hotkey=validator_hotkey)
         self._add_task(MinerShieldValidatorsChangedTask())
 
-    def _handle_update_manifest(self):
+    def _handle_update_manifest(self) -> None:
         """
         Update manifest file and schedule publishing it to blockchain.
         """
@@ -447,19 +447,19 @@ class MinerShield:
         self._event('Manifest updated, new address: {address}', address=self.manifest_manager.get_manifest_url())
         self._add_task(MinerShieldPublishManifestTask())
 
-    def _handle_publish_manifest(self):
+    def _handle_publish_manifest(self) -> None:
         """
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_url: str = self.manifest_manager.get_manifest_url()
-        current_url: str = asyncio.run(self.blockchain_manager.get_own_manifest_url())
+        current_url: str | None = asyncio.run(self.blockchain_manager.get_own_manifest_url())
         if current_url == expected_url:
             self._event('Manifest address already published')
         else:
             self.blockchain_manager.put_manifest_url(expected_url)
             self._event('Manifest published')
 
-    def _event(self, template: str, exception: Exception = None, **kwargs):
+    def _event(self, template: str, exception: Exception | None = None, **kwargs):
         return self.event_processor.event(template, exception, **kwargs)
 
 
@@ -721,6 +721,8 @@ def run_shield() -> int:
         except MinerShieldException:
             logging.exception('Error during enabling shield')
             return 1
+
+    return -1
 
 
 if __name__ == '__main__':

@@ -33,7 +33,14 @@ lint = [
     "codespell[toml]",
 ]
 type_check = [
+    "boto3-stubs",
+    "botocore-stubs",
     "mypy",
+    "mypy-boto3-ec2",
+    "mypy-boto3-elbv2",
+    "mypy-boto3-route53",
+    "mypy-boto3-s3",
+    "mypy-boto3-wafv2",
     "types-python-dateutil",
     "types-requests",
 ]

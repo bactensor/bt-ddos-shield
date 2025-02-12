@@ -99,7 +99,7 @@ class TestMinerShield:
         shield.disable()
         assert not shield.run
 
-    def test_full_flow(self):
+    def test_full_flow(self) -> None:
         """
         Test if shield is properly starting from scratch and fully enabling protection using mock memory managers.
         """
@@ -193,19 +193,19 @@ class TestMinerShield:
             state = state_manager.get_state()
             assert state.known_validators == {}
             assert state.validators_addresses == {}
-            manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
+            manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping == {}
             urls = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
             assert urls[miner_hotkey] == manifest_url
 
-            reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+            reloaded_state = state_manager.get_state(reload=True)
             assert reloaded_state == state
         finally:
             shield.disable()
             assert not shield.run
             address_manager.clean_all()
 
-    def test_ban_validator(self):
+    def test_ban_validator(self) -> None:
         """
         Test if shield is properly banning validators.
         """
@@ -246,7 +246,7 @@ class TestMinerShield:
         finally:
             self.shield.disable()
 
-    def test_reloading_validators(self):
+    def test_reloading_validators(self) -> None:
         """
         Test if shield is properly handling changing validators set during runtime.
         """
@@ -291,7 +291,7 @@ class TestMinerShield:
         finally:
             self.shield.disable()
 
-    def test_validate_addresses(self):
+    def test_validate_addresses(self) -> None:
         """
         Test if shield is properly handling validating addresses during runtime.
         """
@@ -305,7 +305,7 @@ class TestMinerShield:
             self.address_manager.invalid_addresses = {self.VALIDATOR_1_HOTKEY}
             state: MinerShieldState = self.state_manager.get_state()
             assert self.address_manager.id_counter == expected_address_id_counter
-            old_address = state.validators_addresses.get(self.VALIDATOR_1_HOTKEY)
+            old_address = state.validators_addresses[self.VALIDATOR_1_HOTKEY]
             assert self.address_manager.known_addresses.get(old_address.address_id) == old_address
 
             # wait for validation and check results
@@ -314,7 +314,7 @@ class TestMinerShield:
             state = self.state_manager.get_state()
             assert self.address_manager.id_counter == expected_address_id_counter
             assert self.manifest_manager.put_counter == 2
-            new_address = state.validators_addresses.get(self.VALIDATOR_1_HOTKEY)
+            new_address = state.validators_addresses[self.VALIDATOR_1_HOTKEY]
             assert old_address != new_address
             assert self.address_manager.known_addresses.get(new_address.address_id) == new_address
             assert self.address_manager.known_addresses.get(old_address.address_id, None) is None

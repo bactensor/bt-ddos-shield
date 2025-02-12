@@ -85,7 +85,7 @@ class AbstractBlockchainManager(ABC):
         pass
 
     @abstractmethod
-    def get_own_public_key(self) -> PublicKey:
+    def get_own_public_key(self) -> PublicKey | None:
         """Returns public key for wallet owner."""
         pass
 

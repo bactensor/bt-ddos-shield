@@ -69,7 +69,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         self,
         subtensor: bittensor.Subtensor,
         netuid: int,
-        validators: Iterable[Hotkey] = None,
+        validators: Iterable[Hotkey] | None = None,
     ):
         self.subtensor = subtensor
         self.netuid = netuid
@@ -79,7 +79,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
     def get_validators(self) -> MappingProxyType[Hotkey, PublicKey]:
         return MappingProxyType(self.certificates)
 
-    def reload_validators(self):
+    def reload_validators(self) -> None:
         validators: frozenset[Hotkey]
         if self.validators:
             validators = self.validators

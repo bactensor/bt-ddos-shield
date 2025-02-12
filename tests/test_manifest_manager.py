@@ -43,7 +43,7 @@ class TestManifestManager:
     Test suite for the manifest manager.
     """
 
-    def test_json_serializer(self):
+    def test_json_serializer(self) -> None:
         manifest_serializer = JsonManifestSerializer()
         mapping: dict[Hotkey, bytes] = {'validator1': b'address1', 'validator2': b'address2'}
         md5_hash: str = 'some_hash'
@@ -87,4 +87,4 @@ class TestManifestManager:
             retrieved_data = asyncio.run(validator_manifest_manager._get_manifest_file(http_session, manifest_url))
             assert retrieved_data == other_data
         finally:
-            http_session.close()
+            asyncio.run(http_session.close())

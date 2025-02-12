@@ -106,7 +106,7 @@ class ShieldMetagraph(Metagraph):
         try:
             coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
-            public_key: PublicKey = self.blockchain_manager.get_own_public_key()
+            public_key: PublicKey | None = self.blockchain_manager.get_own_public_key()
             if self.certificate.public_key == public_key:
                 return
         except FileNotFoundError:

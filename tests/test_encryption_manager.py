@@ -66,7 +66,7 @@ class TestEncryptionManager:
         with pytest.raises(DecryptionError):
             self.encryption_manager.decrypt(private_key=self.private_key, data=non_encrypted_bytes)
 
-    def test_save_and_load_certificate(self):
+    def test_save_and_load_certificate(self) -> None:
         """
         Test saving and loading a certificate to/from disk.
         """

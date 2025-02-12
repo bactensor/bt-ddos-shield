@@ -167,6 +167,7 @@ class AbstractMinerShieldStateManager(ABC):
         Create new updated state with given new values and set it as current state. If value for field is None,
         it is copied from current state.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         self.current_miner_shield_state = MinerShieldState(
             dict(self.current_miner_shield_state.known_validators) if known_validators is None else known_validators,
             dict(self.current_miner_shield_state.banned_validators) if banned_validators is None else banned_validators,
@@ -187,6 +188,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Add new validator to current state. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
         assert validator_hotkey not in known_validators, 'storage should not allow adding same validator'
         known_validators[validator_hotkey] = validator_public_key
@@ -201,6 +203,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Update validator in current state. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
         assert validator_hotkey in known_validators, 'updating storage should fail when validator does not exists'
         known_validators[validator_hotkey] = validator_public_key
@@ -210,6 +213,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Add new banned validator to current state. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         banned_validators: dict[Hotkey, datetime] = dict(self.current_miner_shield_state.banned_validators)
         assert validator_hotkey not in banned_validators, 'time should be updated only when adding new ban'
         banned_validators[validator_hotkey] = ban_time
@@ -219,6 +223,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Remove validator from current state. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
         assert validator_hotkey in known_validators, 'storage should not allow removing non-existent validator'
         known_validators.pop(validator_hotkey)
@@ -231,6 +236,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Updates AddressManager state in current shield state. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         address_manager_state: dict[str, str] = dict(self.current_miner_shield_state.address_manager_state)
         if value is None:
             address_manager_state.pop(key, None)
@@ -242,6 +248,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Add object to objects created by AddressManager. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         address_manager_created_objects: dict[str, frozenset[str]] = dict(
             self.current_miner_shield_state.address_manager_created_objects
         )
@@ -255,6 +262,7 @@ class AbstractMinerShieldStateManager(ABC):
         """
         Remove object from objects created by AddressManager. Should be called only after updating state in storage.
         """
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         address_manager_created_objects: dict[str, frozenset[str]] = dict(
             self.current_miner_shield_state.address_manager_created_objects
         )
@@ -354,6 +362,7 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
         self._state_update_validator_public_key(validator_hotkey, validator_public_key)
 
     def add_banned_validator(self, validator_hotkey: Hotkey):
+        assert self.current_miner_shield_state is not None, 'state should be loaded before updating'
         if validator_hotkey in self.current_miner_shield_state.banned_validators:
             # do not update ban time
             return

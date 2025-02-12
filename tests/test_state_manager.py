@@ -30,6 +30,7 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
         self._state_update_validator_public_key(validator_hotkey, validator_public_key)
 
     def add_banned_validator(self, validator_hotkey: Hotkey):
+        assert self.current_miner_shield_state is not None
         if validator_hotkey in self.current_miner_shield_state.banned_validators:
             return
         self._state_add_banned_validator(validator_hotkey, datetime.now())
@@ -47,6 +48,7 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
         self._state_del_address_manager_created_object(obj_type, obj_id)
 
     def _load_state_from_storage(self) -> MinerShieldState:
+        assert self.current_miner_shield_state is not None
         return self.current_miner_shield_state
 
 
@@ -181,7 +183,7 @@ class TestMinerShieldStateManager:
             object_type2: {object_id2, object_id3},
         }
 
-        reloaded_state = state_manager.get_state(reload=True)
+        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
 
         # Remove an object
@@ -199,5 +201,5 @@ class TestMinerShieldStateManager:
         state = state_manager.get_state()
         assert state.address_manager_created_objects == {object_type1: {object_id1}}
 
-        reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+        reloaded_state = state_manager.get_state(reload=True)
         assert state == reloaded_state

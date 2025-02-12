@@ -106,22 +106,22 @@ class ECIESEncryptionManager(AbstractEncryptionManager[CoincurvePrivateKey]):
             raise DecryptionError(f'Decryption failed: {e}') from e
 
     @classmethod
-    def generate_certificate(cls) -> CertType:
+    def generate_certificate(cls) -> CoincurvePrivateKey:
         return ecies.utils.generate_key()
 
     @classmethod
-    def serialize_certificate(cls, certificate: CertType) -> EncryptionCertificate:
+    def serialize_certificate(cls, certificate: CoincurvePrivateKey) -> EncryptionCertificate:
         private_key: str = certificate.to_hex()
         public_key: bytes = certificate.public_key.format(compressed=False)
         assert public_key[0] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
         return EncryptionCertificate(private_key, public_key.hex())
 
     @classmethod
-    def save_certificate(cls, certificate: CertType, path: str):
+    def save_certificate(cls, certificate: CoincurvePrivateKey, path: str):
         with open(path, 'wb') as f:
             f.write(certificate.to_pem())
 
     @classmethod
-    def load_certificate(cls, path: str) -> CertType:
+    def load_certificate(cls, path: str) -> CoincurvePrivateKey:
         with open(path, 'rb') as f:
             return CoincurvePrivateKey.from_pem(f.read())

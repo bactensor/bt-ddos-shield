@@ -9,9 +9,8 @@ from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any, Sequence
 
-from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
 from route53.connection import Route53Connection
@@ -44,6 +43,44 @@ class ShieldedServerLocation:
     port: int
     """ Port used by shielded server """
 
+
+
+if TYPE_CHECKING:
+    from mypy_boto3_ec2 import EC2Client
+    from mypy_boto3_ec2.type_defs import (
+        CreateSecurityGroupResultTypeDef,
+        CreateSubnetResultTypeDef,
+        CreateVpcResultTypeDef,
+        DescribeAvailabilityZonesResultTypeDef,
+        DescribeInstancesResultTypeDef,
+        DescribeSubnetsResultTypeDef,
+        DescribeVpcsResultTypeDef,
+        GroupIdentifierTypeDef,
+        InstanceTypeDef,
+        SubnetTypeDef,
+        VpcTypeDef,
+    )
+    from mypy_boto3_elbv2 import ElasticLoadBalancingv2Client
+    from mypy_boto3_elbv2.type_defs import (
+        CreateLoadBalancerOutputTypeDef,
+        CreateTargetGroupOutputTypeDef,
+        DescribeLoadBalancersOutputTypeDef,
+        LoadBalancerTypeDef,
+    )
+    from mypy_boto3_route53 import Route53Client
+    from mypy_boto3_route53.type_defs import (
+        ListResourceRecordSetsResponseTypeDef,
+        ResourceRecordSetOutputTypeDef,
+        ResourceRecordSetTypeDef,
+    )
+    from mypy_boto3_wafv2 import WAFV2Client
+    from mypy_boto3_wafv2.type_defs import (
+        CreateWebACLResponseTypeDef,
+        GetWebACLResponseTypeDef,
+        RuleOutputTypeDef,
+        RuleTypeDef,
+        WebACLTypeDef,
+    )
 
 
 class AddressManagerException(Exception):
@@ -100,7 +137,7 @@ class AwsEC2InstanceData:
     vpc_id: str
     subnet_id: str
     private_ip: str
-    security_groups: list[dict[str, str]]
+    security_groups: list[GroupIdentifierTypeDef]
 
 
 @dataclass
@@ -160,16 +197,16 @@ class AwsAddressManager(AbstractAddressManager):
     """
 
     shielded_server_data: AwsShieldedServerData
-    waf_client: BaseClient
+    waf_client: WAFV2Client
     waf_arn: str | None
-    elb_client: BaseClient
+    elb_client: ElasticLoadBalancingv2Client
     elb_data: AwsELBData | None
-    ec2_client: BaseClient
+    ec2_client: EC2Client
     hosted_zone_id: str
     """ ID of hosted zone in Route53 where addresses are located. """
     hosted_zone: HostedZone
     route53_client: Route53Connection
-    route53_boto_client: BaseClient
+    route53_boto_client: Route53Client
     event_processor: AbstractMinerShieldEventProcessor
     state_manager: AbstractMinerShieldStateManager
 
@@ -198,15 +235,15 @@ class AwsAddressManager(AbstractAddressManager):
         self.event_processor = event_processor
         self.state_manager = state_manager
 
-        self.waf_client = aws_client_factory.boto3_client('wafv2')
+        self.waf_client = aws_client_factory.boto3_client('wafv2')  # type: ignore
         self.waf_arn = None
-        self.elb_client = aws_client_factory.boto3_client('elbv2')
+        self.elb_client = aws_client_factory.boto3_client('elbv2')  # type: ignore
         self.elb_data = None
         self.route53_client = aws_client_factory.route53_client()
         self.hosted_zone_id = hosted_zone_id
         self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
-        self.route53_boto_client = aws_client_factory.boto3_client('route53')
-        self.ec2_client = aws_client_factory.boto3_client('ec2')
+        self.route53_boto_client = aws_client_factory.boto3_client('route53')  # type: ignore
+        self.ec2_client = aws_client_factory.boto3_client('ec2')  # type: ignore
         self._initialize_server_data(server_location)
 
     def _initialize_server_data(self, server_location: ShieldedServerLocation):
@@ -226,7 +263,7 @@ class AwsAddressManager(AbstractAddressManager):
         self.shielded_server_data = AwsShieldedServerData(server_location=server_location,
                                                           aws_location=server_aws_location)
 
-    def clean_all(self):
+    def clean_all(self) -> None:
         created_objects: MappingProxyType[str, frozenset[str]] = (
             self.state_manager.get_state().address_manager_created_objects
         )
@@ -273,6 +310,7 @@ class AwsAddressManager(AbstractAddressManager):
 
         subdomain: str = self._generate_subdomain(hotkey)
         new_address_domain: str = f'{subdomain}.{self._get_hosted_zone_domain(self.hosted_zone)}'
+        assert self.waf_arn is not None
         self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
         return Address(
             address_id=subdomain,
@@ -290,6 +328,7 @@ class AwsAddressManager(AbstractAddressManager):
 
     def remove_address(self, address: Address):
         self._validate_manager_state()
+        assert self.waf_arn is not None
         self._remove_domain_rule_from_firewall(self.waf_arn, address.address)
 
     def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
@@ -299,12 +338,13 @@ class AwsAddressManager(AbstractAddressManager):
         if not addresses:
             return set()
 
-        waf_data: dict[str, Any] = self._get_firewall_info(self.waf_arn)
-        rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
+        assert self.waf_arn is not None
+        waf_data: GetWebACLResponseTypeDef = self._get_firewall_info(self.waf_arn)
+        rules: list[RuleOutputTypeDef] = waf_data['WebACL']['Rules']
 
         invalid_hotkeys: set[Hotkey] = set()
         for hotkey, address in addresses.items():
-            rule: dict[str, Any] | None = self._find_rule(rules, address.address)
+            rule: RuleOutputTypeDef | None = self._find_rule(rules, address.address)
             if rule is None:
                 invalid_hotkeys.add(hotkey)
         return invalid_hotkeys
@@ -359,6 +399,7 @@ class AwsAddressManager(AbstractAddressManager):
                     new_id=self.hosted_zone_id,
                 )
                 self._delete_route53_records(old_zone_id)
+                assert self.waf_arn is not None
                 self._clear_firewall_rules(self.waf_arn)
                 zone_changed = True
         else:
@@ -377,12 +418,12 @@ class AwsAddressManager(AbstractAddressManager):
             if instance_id
             else {'Filters': [{'Name': 'private-ip-address', 'Values': [private_ip]}]}
         )
-        response: dict[str, Any] = self.ec2_client.describe_instances(**ec2_client_args)
+        response: DescribeInstancesResultTypeDef = self.ec2_client.describe_instances(**ec2_client_args)
         if not response['Reservations']:
             raise AddressManagerException(
                 f'No EC2 instance found with instance_id={instance_id} or IP address {private_ip}'
             )
-        instance_data: dict[str, Any] = response['Reservations'][0]['Instances'][0]
+        instance_data: InstanceTypeDef = response['Reservations'][0]['Instances'][0]
         return AwsEC2InstanceData(
             instance_id=instance_data['InstanceId'],
             vpc_id=instance_data['VpcId'],
@@ -392,30 +433,42 @@ class AwsAddressManager(AbstractAddressManager):
         )
 
     def _get_vpc_data(self, vpc_id: str) -> AwsVpcData:
-        response: dict[str, Any] = self.ec2_client.describe_vpcs(VpcIds=[vpc_id])
-        vpc_data: dict[str, Any] = response['Vpcs'][0]
+        vpc_response: DescribeVpcsResultTypeDef = self.ec2_client.describe_vpcs(VpcIds=[vpc_id])
+        vpc_data: VpcTypeDef = vpc_response['Vpcs'][0]
         cidr_block: str = vpc_data['CidrBlock']
 
-        response = self.ec2_client.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
+        subnet_response: DescribeSubnetsResultTypeDef = self.ec2_client.describe_subnets(
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+        )
         subnets: list[AwsSubnetData] = [
             AwsSubnetData(
                 subnet_id=subnet['SubnetId'],
                 availability_zone=subnet['AvailabilityZone'],
                 cidr_block=subnet['CidrBlock'],
             )
-            for subnet in response['Subnets']
+            for subnet in subnet_response['Subnets']
         ]
         return AwsVpcData(vpc_id=vpc_id, cidr_block=cidr_block, subnets=subnets)
 
     def _get_subnet_data(self, subnet_id: str) -> AwsSubnetData:
-        response: dict[str, Any] = self.ec2_client.describe_subnets(SubnetIds=[subnet_id])
-        subnet_data: dict[str, Any] = response['Subnets'][0]
+        response: DescribeSubnetsResultTypeDef = self.ec2_client.describe_subnets(SubnetIds=[subnet_id])
+        subnet_data: SubnetTypeDef = response['Subnets'][0]
         return AwsSubnetData(
             subnet_id=subnet_id, availability_zone=subnet_data['AvailabilityZone'], cidr_block=subnet_data['CidrBlock']
         )
 
     def _add_route53_record(self, subdomain: str, hosted_zone: HostedZone):
         domain_name: str = f'{subdomain}.{hosted_zone.name}'
+        assert self.elb_data is not None
+        record_set: ResourceRecordSetTypeDef = {
+            'Name': domain_name,
+            'Type': 'A',
+            'AliasTarget': {
+                'HostedZoneId': self.elb_data.hosted_zone_id,
+                'DNSName': self.elb_data.dns_name,
+                'EvaluateTargetHealth': False,
+            },
+        }
 
         # Route53Connection doesn't handle alias records properly, so we use boto3 client directly
         self.route53_boto_client.change_resource_record_sets(
@@ -424,15 +477,7 @@ class AwsAddressManager(AbstractAddressManager):
                 'Changes': [
                     {
                         'Action': 'CREATE',
-                        'ResourceRecordSet': {
-                            'Name': domain_name,
-                            'Type': 'A',
-                            'AliasTarget': {
-                                'HostedZoneId': self.elb_data.hosted_zone_id,
-                                'DNSName': self.elb_data.dns_name,
-                                'EvaluateTargetHealth': False,
-                            },
-                        },
+                        'ResourceRecordSet': record_set,
                     }
                 ]
             },
@@ -457,13 +502,13 @@ class AwsAddressManager(AbstractAddressManager):
 
     def _delete_route53_record(self, record_set: ResourceRecordSet, hosted_zone: HostedZone):
         # Route53Connection doesn't handle alias records properly, so we use boto3 client directly
-        response: dict[str, Any] = self.route53_boto_client.list_resource_record_sets(
+        response: ListResourceRecordSetsResponseTypeDef = self.route53_boto_client.list_resource_record_sets(
             HostedZoneId=hosted_zone.id,
             StartRecordName=record_set.name,
             StartRecordType=record_set.rrset_type,
             MaxItems='1',
         )
-        record_set_data: dict[str, Any] = response['ResourceRecordSets'][0]
+        record_set_data: ResourceRecordSetOutputTypeDef = response['ResourceRecordSets'][0]
 
         self.route53_boto_client.change_resource_record_sets(
             HostedZoneId=hosted_zone.id,
@@ -480,7 +525,7 @@ class AwsAddressManager(AbstractAddressManager):
         return ''.join(secrets.choice(characters) for _ in range(length))
 
     def _get_vpc_networks(self) -> list[IPv4Network | IPv6Network]:
-        response: dict[str, Any] = self.ec2_client.describe_vpcs()
+        response: DescribeVpcsResultTypeDef = self.ec2_client.describe_vpcs()
         return [ipaddress.ip_network(vpc['CidrBlock']) for vpc in response['Vpcs']]
 
     @classmethod
@@ -508,7 +553,7 @@ class AwsAddressManager(AbstractAddressManager):
         network: IPv4Network | IPv6Network = ipaddress.ip_network('10.0.0.0/8')
         vpc_network_size: int = 24  # Network size 24 (255 addresses) is enough for shield
         cidr: str = self._find_available_subnet(network, self._get_vpc_networks(), vpc_network_size)
-        response: dict[str, Any] = self.ec2_client.create_vpc(
+        response: CreateVpcResultTypeDef = self.ec2_client.create_vpc(
             CidrBlock=cidr,
             TagSpecifications=[{'ResourceType': 'vpc', 'Tags': [{'Key': 'Name', 'Value': 'DDosShield'}]}],
         )
@@ -528,7 +573,7 @@ class AwsAddressManager(AbstractAddressManager):
         return True
 
     def _create_subnet(self, vpc_id: str, cidr_block: str, availability_zone: str) -> AwsSubnetData:
-        response: dict[str, Any] = self.ec2_client.create_subnet(
+        response: CreateSubnetResultTypeDef = self.ec2_client.create_subnet(
             VpcId=vpc_id, CidrBlock=cidr_block, AvailabilityZone=availability_zone
         )
         subnet = AwsSubnetData(
@@ -556,7 +601,7 @@ class AwsAddressManager(AbstractAddressManager):
     def _create_target_group(self, vpc_data: AwsVpcData, server_data: AwsShieldedServerData) -> str:
         group_name: str = f'miner-target-group-{self._generate_random_alnum_string(8)}'
         # Health check can't be disabled - as for now we use traffic-port
-        response: dict[str, Any] = self.elb_client.create_target_group(
+        response: CreateTargetGroupOutputTypeDef = self.elb_client.create_target_group(
             Name=group_name,
             Protocol='HTTP',
             Port=server_data.server_location.port,
@@ -619,14 +664,14 @@ class AwsAddressManager(AbstractAddressManager):
     def _create_elb(self, shield_subnets: list[AwsSubnetData], target_group_id: str, security_group_id: str) -> str:
         elb_name: str = f'miner-elb-{self._generate_random_alnum_string(8)}'
         subnets_ids: list[str] = [subnet.subnet_id for subnet in shield_subnets]
-        response: dict[str, Any] = self.elb_client.create_load_balancer(
+        response: CreateLoadBalancerOutputTypeDef = self.elb_client.create_load_balancer(
             Name=elb_name,
             Subnets=subnets_ids,
             SecurityGroups=[security_group_id],
             Scheme='internet-facing',
             Type='application',
         )
-        elb_info: dict[str, Any] = response['LoadBalancers'][0]
+        elb_info: LoadBalancerTypeDef = response['LoadBalancers'][0]
         elb_id: str = elb_info['LoadBalancerArn']
         self.event_processor.event('Created AWS ELB, name={name}, id={id}', name=elb_name, id=elb_id)
 
@@ -651,8 +696,10 @@ class AwsAddressManager(AbstractAddressManager):
         return True
 
     def _get_elb_info(self, elb_id: str) -> AwsELBData:
-        response: dict[str, Any] = self.elb_client.describe_load_balancers(LoadBalancerArns=[elb_id])
-        elb_info: dict[str, Any] = response['LoadBalancers'][0]
+        response: DescribeLoadBalancersOutputTypeDef = self.elb_client.describe_load_balancers(
+            LoadBalancerArns=[elb_id]
+        )
+        elb_info: LoadBalancerTypeDef = response['LoadBalancers'][0]
         return AwsELBData(
             id=elb_info['LoadBalancerArn'],
             dns_name=elb_info['DNSName'],
@@ -661,7 +708,7 @@ class AwsAddressManager(AbstractAddressManager):
 
     def _create_security_group(self, vpc_data: AwsVpcData, server_port: int) -> str:
         group_name: str = f'miner-security-group-{self._generate_random_alnum_string(8)}'
-        response: dict[str, Any] = self.ec2_client.create_security_group(
+        response: CreateSecurityGroupResultTypeDef = self.ec2_client.create_security_group(
             GroupName=group_name, Description='Security group for miner instance', VpcId=vpc_data.vpc_id
         )
         security_group_id: str = response['GroupId']
@@ -736,8 +783,9 @@ class AwsAddressManager(AbstractAddressManager):
             self.state_manager.del_address_manager_created_object(AwsObjectTypes.DNS_ENTRY.value, created_entry)
 
     def _create_firewall(self) -> str:
+        assert self.elb_data is not None
         waf_name: str = f'miner-waf-{self._generate_random_alnum_string(8)}'
-        response: dict[str, Any] = self.waf_client.create_web_acl(
+        response: CreateWebACLResponseTypeDef = self.waf_client.create_web_acl(
             Name=waf_name,
             Scope='REGIONAL',
             DefaultAction={'Block': {}},
@@ -784,8 +832,8 @@ class AwsAddressManager(AbstractAddressManager):
             elb_id: str = next(iter(created_objects[AwsObjectTypes.ELB.value]))
             self.waf_client.disassociate_web_acl(ResourceArn=elb_id)
 
-        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
-        acl_data: dict[str, Any] = waf_data['WebACL']
+        waf_data: GetWebACLResponseTypeDef = self._get_firewall_info(waf_arn)
+        acl_data: WebACLTypeDef = waf_data['WebACL']
         waf_id: str = acl_data['Id']
         lock_token = waf_data['LockToken']
 
@@ -814,30 +862,30 @@ class AwsAddressManager(AbstractAddressManager):
         self.state_manager.del_address_manager_created_object(AwsObjectTypes.WAF.value, waf_arn)
         return True
 
-    def _get_firewall_info(self, waf_arn: str) -> dict[str, Any]:
+    def _get_firewall_info(self, waf_arn: str) -> GetWebACLResponseTypeDef:
         waf_name: str = self._get_name_from_waf_arn(waf_arn)
         waf_id: str = self._get_id_from_waf_arn(waf_arn)
         return self.waf_client.get_web_acl(Name=waf_name, Id=waf_id, Scope='REGIONAL')
 
-    def _update_web_acl(self, waf_data: dict[str, Any], rules: list[dict[str, Any]]):
-        acl_data: dict[str, Any] = waf_data['WebACL']
+    def _update_web_acl(self, waf_data: GetWebACLResponseTypeDef, rules: Sequence[RuleTypeDef]):
+        acl_data: WebACLTypeDef = waf_data['WebACL']
         lock_token = waf_data['LockToken']
         self.waf_client.update_web_acl(
             Name=acl_data['Name'],
             Id=acl_data['Id'],
             Scope='REGIONAL',
-            DefaultAction=acl_data['DefaultAction'],
+            DefaultAction=acl_data['DefaultAction'],  # type: ignore
             Rules=rules,
             VisibilityConfig=acl_data['VisibilityConfig'],
             LockToken=lock_token,
         )
 
     def _add_domain_rule_to_firewall(self, waf_arn: str, domain: str):
-        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
-        rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
+        waf_data: GetWebACLResponseTypeDef = self._get_firewall_info(waf_arn)
+        rules: list[RuleTypeDef] = waf_data['WebACL']['Rules']  # type: ignore
         rule_name: str = f'miner-waf-rule-{self._generate_random_alnum_string(8)}'
         priority: int = rules[-1]['Priority'] + 1 if rules else 1
-        rule = {
+        rule: RuleTypeDef = {
             'Name': rule_name,
             'Priority': priority,
             'Statement': {
@@ -865,13 +913,13 @@ class AwsAddressManager(AbstractAddressManager):
         )
 
     def _remove_domain_rule_from_firewall(self, waf_arn: str, domain: str):
-        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
-        rules: list[dict[str, Any]] = waf_data['WebACL']['Rules']
-        rule: dict[str, Any] | None = self._find_rule(rules, domain)
+        waf_data: GetWebACLResponseTypeDef = self._get_firewall_info(waf_arn)
+        rules: list[RuleOutputTypeDef] = waf_data['WebACL']['Rules']
+        rule: RuleOutputTypeDef | None = self._find_rule(rules, domain)
         if rule is None:
             return
         rules.remove(rule)
-        self._update_web_acl(waf_data, rules)
+        self._update_web_acl(waf_data, rules)  # type: ignore
         self.event_processor.event(
             'Removed rule {rule_name} from AWS WAF {waf_id}, domain={domain}',
             rule_name=rule['Name'],
@@ -880,7 +928,7 @@ class AwsAddressManager(AbstractAddressManager):
         )
 
     def _clear_firewall_rules(self, waf_arn: str):
-        waf_data: dict[str, Any] = self._get_firewall_info(waf_arn)
+        waf_data: GetWebACLResponseTypeDef = self._get_firewall_info(waf_arn)
         self._update_web_acl(waf_data, [])
 
     def _init_hosted_zone(self):
@@ -888,7 +936,7 @@ class AwsAddressManager(AbstractAddressManager):
         self._add_route53_record('*', self.hosted_zone)
 
     @classmethod
-    def _find_rule(cls, rules: list[dict[str, Any]], domain: str) -> dict[str, Any] | None:
+    def _find_rule(cls, rules: list[RuleOutputTypeDef], domain: str) -> RuleOutputTypeDef | None:
         for rule in rules:
             try:
                 rule_domain: str = rule['Statement']['ByteMatchStatement']['SearchString'].decode()
@@ -924,7 +972,7 @@ class AwsAddressManager(AbstractAddressManager):
         if len(shield_subnets) >= min_subnets_for_elb:
             return shield_subnets
 
-        response: dict[str, Any] = self.ec2_client.describe_availability_zones()
+        response: DescribeAvailabilityZonesResultTypeDef = self.ec2_client.describe_availability_zones()
         vpc_availability_zones: set[str] = {az['ZoneName'] for az in response['AvailabilityZones']}
         subnets_availability_zones: set[str] = {subnet.availability_zone for subnet in shield_subnets}
         # Region should have at least 2 different availability zones, and we need to create at most 2 subnets, so
@@ -1010,7 +1058,7 @@ class AwsAddressManager(AbstractAddressManager):
 
         return self._create_firewall()
 
-    def _init_hosted_zone_if_needed(self):
+    def _init_hosted_zone_if_needed(self) -> None:
         created_objects: MappingProxyType[str, frozenset[str]] = (
             self.state_manager.get_state().address_manager_created_objects
         )

@@ -55,7 +55,7 @@ class AWSClientFactory:
         return True
 
     def boto3_client(self, service_name: str) -> BaseClient:
-        return boto3.client(
+        return boto3.client(  # type: ignore
             service_name,
             aws_access_key_id=self.aws_access_key_id,
             aws_secret_access_key=self.aws_secret_access_key,
