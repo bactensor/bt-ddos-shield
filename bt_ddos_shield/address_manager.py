@@ -55,7 +55,7 @@ class AbstractAddressManager(ABC):
     Abstract base class for manager handling public IP/domain addresses assigned to validators.
     """
 
-    def hide_original_server(self):
+    def hide_original_server(self):  # noqa: B027
         """
         If method is implemented, it should hide the original server IP address from public access.
         See auto_hide_original_server in MinerShield options.

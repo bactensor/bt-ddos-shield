@@ -74,7 +74,7 @@ class ShieldMetagraph(Metagraph):
             encryption_manager: AbstractEncryptionManager | None = None,
             blockchain_manager: AbstractBlockchainManager | None = None,
             manifest_manager: ReadOnlyManifestManager | None = None,
-            options: ShieldMetagraphOptions = ShieldMetagraphOptions(),
+            options: ShieldMetagraphOptions | None = None,
     ):
         super().__init__(
             netuid=netuid,
@@ -85,7 +85,7 @@ class ShieldMetagraph(Metagraph):
         )
 
         self.wallet = wallet
-        self.options = options
+        self.options = options or ShieldMetagraphOptions()
         self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
         self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
         self.blockchain_manager = \

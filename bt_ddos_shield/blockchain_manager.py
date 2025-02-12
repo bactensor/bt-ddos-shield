@@ -150,7 +150,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             field = fields[0][0]
 
             # Find data of 'Raw' type.
-            for data_type, data in field.items():
+            for data_type, data in field.items():  # noqa: B007
                 if data_type.startswith('Raw'):
                     break
             else:
