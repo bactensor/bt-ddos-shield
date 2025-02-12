@@ -1,6 +1,7 @@
 import unittest.mock
 
 import bittensor
+
 from bt_ddos_shield.validators_manager import BittensorValidatorsManager
 
 
@@ -21,25 +22,23 @@ def test_bittensor_get():
         ),
     ]
     mock_subtensor.query_map.return_value = unittest.mock.MagicMock()
-    mock_subtensor.query_map.return_value.__iter__.return_value = iter(
-        [
-            (
-                unittest.mock.Mock(
-                    **{
-                        'serialize.return_value': 'ValidatorHotkey',
+    mock_subtensor.query_map.return_value.__iter__.return_value = iter([
+        (
+            unittest.mock.Mock(
+                **{
+                    'serialize.return_value': 'ValidatorHotkey',
+                },
+            ),
+            unittest.mock.Mock(
+                **{
+                    'serialize.return_value': {
+                        'public_key': '0xValidatorPubkey',
+                        'algorithm': 4,
                     },
-                ),
-                unittest.mock.Mock(
-                    **{
-                        'serialize.return_value': {
-                            'public_key': '0xValidatorPubkey',
-                            'algorithm': 4,
-                        },
-                    },
-                ),
-            )
-        ]
-    )
+                },
+            ),
+        )
+    ])
 
     manager = BittensorValidatorsManager(
         subtensor=mock_subtensor,

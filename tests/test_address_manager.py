@@ -3,6 +3,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import pytest
+
 from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import (
     AbstractAddressManager,

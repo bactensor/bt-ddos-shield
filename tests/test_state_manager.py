@@ -2,13 +2,14 @@ from datetime import datetime
 from time import sleep
 
 import pytest
+from sqlalchemy.exc import IntegrityError, NoResultFound
+
 from bt_ddos_shield.state_manager import (
     AbstractMinerShieldStateManager,
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
 from bt_ddos_shield.utils import Address, Hotkey, PublicKey
-from sqlalchemy.exc import IntegrityError, NoResultFound
 from tests.conftest import ShieldTestSettings
 
 

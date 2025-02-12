@@ -4,14 +4,38 @@ import secrets
 import string
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 from botocore.exceptions import ClientError
+from mypy_boto3_ec2 import EC2Client
+from mypy_boto3_ec2.type_defs import (
+    CreateSecurityGroupResultTypeDef,
+    CreateSubnetResultTypeDef,
+    CreateVpcResultTypeDef,
+    DescribeAvailabilityZonesResultTypeDef,
+    DescribeInstancesResultTypeDef,
+    DescribeSubnetsResultTypeDef,
+    DescribeVpcsResultTypeDef,
+    GroupIdentifierTypeDef,
+    InstanceTypeDef,
+    SubnetTypeDef,
+    VpcTypeDef,
+)
+from mypy_boto3_elbv2 import ElasticLoadBalancingv2Client
+from mypy_boto3_route53 import Route53Client
+from mypy_boto3_wafv2 import WAFV2Client
+from mypy_boto3_wafv2.type_defs import (
+    CreateWebACLResponseTypeDef,
+    GetWebACLResponseTypeDef,
+    RuleOutputTypeDef,
+    RuleTypeDef,
+    WebACLTypeDef,
+)
 from pydantic import BaseModel
 from route53.connection import Route53Connection
 from route53.hosted_zone import HostedZone
@@ -44,42 +68,17 @@ class ShieldedServerLocation:
     """ Port used by shielded server """
 
 
-
 if TYPE_CHECKING:
-    from mypy_boto3_ec2 import EC2Client
-    from mypy_boto3_ec2.type_defs import (
-        CreateSecurityGroupResultTypeDef,
-        CreateSubnetResultTypeDef,
-        CreateVpcResultTypeDef,
-        DescribeAvailabilityZonesResultTypeDef,
-        DescribeInstancesResultTypeDef,
-        DescribeSubnetsResultTypeDef,
-        DescribeVpcsResultTypeDef,
-        GroupIdentifierTypeDef,
-        InstanceTypeDef,
-        SubnetTypeDef,
-        VpcTypeDef,
-    )
-    from mypy_boto3_elbv2 import ElasticLoadBalancingv2Client
     from mypy_boto3_elbv2.type_defs import (
         CreateLoadBalancerOutputTypeDef,
         CreateTargetGroupOutputTypeDef,
         DescribeLoadBalancersOutputTypeDef,
         LoadBalancerTypeDef,
     )
-    from mypy_boto3_route53 import Route53Client
     from mypy_boto3_route53.type_defs import (
         ListResourceRecordSetsResponseTypeDef,
         ResourceRecordSetOutputTypeDef,
         ResourceRecordSetTypeDef,
-    )
-    from mypy_boto3_wafv2 import WAFV2Client
-    from mypy_boto3_wafv2.type_defs import (
-        CreateWebACLResponseTypeDef,
-        GetWebACLResponseTypeDef,
-        RuleOutputTypeDef,
-        RuleTypeDef,
-        WebACLTypeDef,
     )
 
 

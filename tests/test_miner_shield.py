@@ -20,6 +20,7 @@ from tests.test_state_manager import MemoryMinerShieldStateManager
 
 if TYPE_CHECKING:
     import bittensor_wallet
+
     from bt_ddos_shield.address_manager import AbstractAddressManager
     from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
     from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest

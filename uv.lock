@@ -370,7 +370,7 @@ lint = [
     { name = "codespell", extras = ["toml"] },
     { name = "ruff" },
 ]
-security-check = [{ name = "bandit", specifier = ">=1.7.7" }]
+security-check = [{ name = "bandit" }]
 test = [{ name = "pytest" }]
 type-check = [
     { name = "boto3-stubs" },

@@ -1,6 +1,7 @@
 import asyncio
 
 import aiohttp
+
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (

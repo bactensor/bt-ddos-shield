@@ -2,6 +2,7 @@ import os
 from typing import TYPE_CHECKING
 
 import pytest
+
 from bt_ddos_shield.encryption_manager import (
     DecryptionError,
     ECIESEncryptionManager,

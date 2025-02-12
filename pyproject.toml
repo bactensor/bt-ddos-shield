@@ -45,7 +45,7 @@ type_check = [
     "types-requests",
 ]
 security_check = [
-    "bandit>=1.7.7",
+    "bandit",
 ]
 
 [tool.bandit]
@@ -53,6 +53,12 @@ skips = ["B101"]
 
 [tool.ruff]
 line-length = 120
+preview = true
 
 [tool.ruff.format]
 quote-style = "single"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "UP", "B", "TC"
+]
