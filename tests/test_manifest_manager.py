@@ -46,22 +46,24 @@ class TestManifestManager:
     def test_json_serializer(self):
         manifest_serializer = JsonManifestSerializer()
         mapping: dict[Hotkey, bytes] = {'validator1': b'address1', 'validator2': b'address2'}
-        md5_hash: str = "some_hash"
+        md5_hash: str = 'some_hash'
         manifest: Manifest = Manifest(mapping, md5_hash)
         json_data: bytes = manifest_serializer.serialize(manifest)
         deserialized_manifest: Manifest = manifest_serializer.deserialize(json_data)
         assert manifest == deserialized_manifest
 
     def test_s3_put_get(self, shield_settings: ShieldTestSettings):
-        """ Test S3ManifestManager class. Put manifest file, get it and check if it was stored correctly. """
-        aws_client_factory: AWSClientFactory = AWSClientFactory(shield_settings.aws_access_key_id,
-                                                                shield_settings.aws_secret_access_key,
-                                                                shield_settings.aws_region_name)
-        manifest_manager = S3ManifestManager(aws_client_factory=aws_client_factory,
-                                             bucket_name=shield_settings.aws_s3_bucket_name,
-                                             manifest_serializer=JsonManifestSerializer(),
-                                             encryption_manager=ECIESEncryptionManager(),
-                                             event_processor=PrintingMinerShieldEventProcessor())
+        """Test S3ManifestManager class. Put manifest file, get it and check if it was stored correctly."""
+        aws_client_factory: AWSClientFactory = AWSClientFactory(
+            shield_settings.aws_access_key_id, shield_settings.aws_secret_access_key, shield_settings.aws_region_name
+        )
+        manifest_manager = S3ManifestManager(
+            aws_client_factory=aws_client_factory,
+            bucket_name=shield_settings.aws_s3_bucket_name,
+            manifest_serializer=JsonManifestSerializer(),
+            encryption_manager=ECIESEncryptionManager(),
+            event_processor=PrintingMinerShieldEventProcessor(),
+        )
         http_session: aiohttp.ClientSession = aiohttp.ClientSession(loop=asyncio.get_event_loop())
 
         try:
@@ -77,9 +79,11 @@ class TestManifestManager:
             retrieved_data = asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url))
             assert retrieved_data == other_data
 
-            validator_manifest_manager = ReadOnlyManifestManager(manifest_serializer=JsonManifestSerializer(),
-                                                                 encryption_manager=ECIESEncryptionManager(),
-                                                                 event_processor=PrintingMinerShieldEventProcessor())
+            validator_manifest_manager = ReadOnlyManifestManager(
+                manifest_serializer=JsonManifestSerializer(),
+                encryption_manager=ECIESEncryptionManager(),
+                event_processor=PrintingMinerShieldEventProcessor(),
+            )
             retrieved_data = asyncio.run(validator_manifest_manager._get_manifest_file(http_session, manifest_url))
             assert retrieved_data == other_data
         finally:

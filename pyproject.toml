@@ -40,3 +40,9 @@ type_check = [
 security_check = [
     "bandit>=1.7.7",
 ]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "single"

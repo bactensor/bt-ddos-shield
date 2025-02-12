@@ -81,7 +81,8 @@ class AbstractEncryptionManager[CertType](ABC):
 
 
 class CertificateAlgorithmEnum(enum.IntEnum):
-    """ Values are taken from coincurve.keys.PublicKey.__init__ method. """
+    """Values are taken from coincurve.keys.PublicKey.__init__ method."""
+
     ECDSA_SECP256K1_UNCOMPRESSED = 4
     """ ECDSA using secp256k1 curve (uncompressed version) """
 
@@ -96,13 +97,13 @@ class ECIESEncryptionManager(AbstractEncryptionManager[CoincurvePrivateKey]):
         try:
             return ecies.encrypt(public_key, data)
         except Exception as e:
-            raise EncryptionError(f"Encryption failed: {e}") from e
+            raise EncryptionError(f'Encryption failed: {e}') from e
 
     def decrypt(self, private_key: PrivateKey, data: bytes) -> bytes:
         try:
             return ecies.decrypt(private_key, data)
         except Exception as e:
-            raise DecryptionError(f"Decryption failed: {e}") from e
+            raise DecryptionError(f'Decryption failed: {e}') from e
 
     @classmethod
     def generate_certificate(cls) -> CertType:

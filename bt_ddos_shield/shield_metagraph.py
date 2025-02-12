@@ -62,38 +62,39 @@ class ShieldMetagraph(Metagraph):
     options: ShieldMetagraphOptions
 
     def __init__(
-            self,
-            wallet: bittensor_wallet.Wallet,
-            certificate_path: str,
-            netuid: int,
-            network: str | None = None,
-            lite: bool = True,
-            sync: bool = True,
-            block: int | None = None,
-            subtensor: bittensor.Subtensor | None = None,
-            event_processor: AbstractMinerShieldEventProcessor | None = None,
-            encryption_manager: AbstractEncryptionManager | None = None,
-            blockchain_manager: AbstractBlockchainManager | None = None,
-            manifest_manager: ReadOnlyManifestManager | None = None,
-            options: ShieldMetagraphOptions | None = None,
+        self,
+        wallet: bittensor_wallet.Wallet,
+        certificate_path: str,
+        netuid: int,
+        network: str | None = None,
+        lite: bool = True,
+        sync: bool = True,
+        block: int | None = None,
+        subtensor: bittensor.Subtensor | None = None,
+        event_processor: AbstractMinerShieldEventProcessor | None = None,
+        encryption_manager: AbstractEncryptionManager | None = None,
+        blockchain_manager: AbstractBlockchainManager | None = None,
+        manifest_manager: ReadOnlyManifestManager | None = None,
+        options: ShieldMetagraphOptions | None = None,
     ):
         super().__init__(
             netuid=netuid,
             lite=lite,
             sync=False,
             subtensor=subtensor,
-            **({'network': network} if network is not None else {})
+            **({'network': network} if network is not None else {}),
         )
 
         self.wallet = wallet
         self.options = options or ShieldMetagraphOptions()
         self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
         self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
-        self.blockchain_manager = \
-            blockchain_manager or self.create_default_blockchain_manager(subtensor, netuid, wallet,
-                                                                         self.event_processor)
-        self.manifest_manager = manifest_manager or self.create_default_manifest_manager(self.event_processor,
-                                                                                         self.encryption_manager)
+        self.blockchain_manager = blockchain_manager or self.create_default_blockchain_manager(
+            subtensor, netuid, wallet, self.event_processor
+        )
+        self.manifest_manager = manifest_manager or self.create_default_manifest_manager(
+            self.event_processor, self.encryption_manager
+        )
         self._init_certificate(certificate_path)
 
         if sync:
@@ -126,19 +127,19 @@ class ShieldMetagraph(Metagraph):
 
     @classmethod
     def create_default_manifest_manager(
-            cls,
-            event_processor: AbstractMinerShieldEventProcessor,
-            encryption_manager: AbstractEncryptionManager,
+        cls,
+        event_processor: AbstractMinerShieldEventProcessor,
+        encryption_manager: AbstractEncryptionManager,
     ) -> ReadOnlyManifestManager:
         return ReadOnlyManifestManager(JsonManifestSerializer(), encryption_manager, event_processor)
 
     @classmethod
     def create_default_blockchain_manager(
-            cls,
-            subtensor: bittensor.Subtensor,
-            netuid: int,
-            wallet: bittensor_wallet.Wallet,
-            event_processor: AbstractMinerShieldEventProcessor,
+        cls,
+        subtensor: bittensor.Subtensor,
+        netuid: int,
+        wallet: bittensor_wallet.Wallet,
+        event_processor: AbstractMinerShieldEventProcessor,
     ) -> AbstractBlockchainManager:
         return BittensorBlockchainManager(
             subtensor=subtensor,
@@ -161,8 +162,9 @@ class ShieldMetagraph(Metagraph):
                         manifest, own_hotkey, self.certificate.private_key
                     )
                 except ManifestDeserializationException as e:
-                    self.event_processor.event('Error while getting shield address for miner {hotkey}',
-                                               exception=e, axon=axon.hotkey)
+                    self.event_processor.event(
+                        'Error while getting shield address for miner {hotkey}', exception=e, axon=axon.hotkey
+                    )
                     continue
                 if shield_address is not None:
                     if self.options.replace_ip_address_for_axon:

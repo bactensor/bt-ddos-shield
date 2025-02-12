@@ -10,11 +10,11 @@ class MinerShieldEvent:
     Class describing event, which happened in the shield.
     """
 
-    date: datetime            # Date of the event.
-    template: str             # Template of the event.
-    exception: Exception      # Exception which caused the event.
+    date: datetime  # Date of the event.
+    template: str  # Template of the event.
+    exception: Exception  # Exception which caused the event.
     metadata: dict[str, Any]  # Additional metadata.
-    description: str          # Description of the event (template filled with metadata).
+    description: str  # Description of the event (template filled with metadata).
 
     def __init__(self, template: str, exception: Exception = None, **metadata):
         """
@@ -57,7 +57,7 @@ class PrintingMinerShieldEventProcessor(AbstractMinerShieldEventProcessor):
     """
 
     def _add_event(self, event: MinerShieldEvent):
-        print(f"{event.date}: MinerShieldEvent: {event.description}\nMetadata: {event.metadata}")
+        print(f'{event.date}: MinerShieldEvent: {event.description}\nMetadata: {event.metadata}')
         if event.exception is not None:
-            print("Exception happened:")
+            print('Exception happened:')
             traceback.print_exception(event.exception, file=stdout)

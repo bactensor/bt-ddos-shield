@@ -81,17 +81,17 @@ class AbstractBlockchainManager(ABC):
 
     @abstractmethod
     def get_hotkey(self) -> Hotkey:
-        """ Returns hotkey of the wallet owner. """
+        """Returns hotkey of the wallet owner."""
         pass
 
     @abstractmethod
     def get_own_public_key(self) -> PublicKey:
-        """ Returns public key for wallet owner. """
+        """Returns public key for wallet owner."""
         pass
 
     @abstractmethod
     def upload_public_key(self, public_key: PublicKey):
-        """ Uploads public key to blockchain for wallet owner. """
+        """Uploads public key to blockchain for wallet owner."""
         pass
 
 
@@ -106,11 +106,11 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
     event_processor: AbstractMinerShieldEventProcessor
 
     def __init__(
-            self,
-            subtensor: bittensor.Subtensor,
-            netuid: int,
-            wallet: bittensor_wallet.Wallet,
-            event_processor: AbstractMinerShieldEventProcessor,
+        self,
+        subtensor: bittensor.Subtensor,
+        netuid: int,
+        wallet: bittensor_wallet.Wallet,
+        event_processor: AbstractMinerShieldEventProcessor,
     ):
         self.subtensor = subtensor
         self.netuid = netuid
@@ -124,14 +124,13 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
                 results = await asyncio.gather(*tasks)
             return dict(zip(hotkeys, results, strict=True))
         except Exception as e:
-            self.event_processor.event('Failed to get metadata for netuid={netuid}',
-                                       exception=e, netuid=self.netuid)
+            self.event_processor.event('Failed to get metadata for netuid={netuid}', exception=e, netuid=self.netuid)
             raise BlockchainManagerException(f'Failed to get metadata: {e}') from e
 
     async def get_single_metadata(self, async_subtensor: bittensor.AsyncSubtensor, hotkey: Hotkey) -> bytes | None:
         metadata: dict = await async_subtensor.substrate.query(
-            module="Commitments",
-            storage_function="CommitmentOf",
+            module='Commitments',
+            storage_function='CommitmentOf',
             params=[self.netuid, hotkey],
         )
 
@@ -143,7 +142,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             # the same as sync version does. Now async version doesn't decode raw SCALE objects properly. I left this
             # code as it will be easier one day to restore this proper parsing.
             # fields: list[dict[str, str]] = metadata["info"]["fields"]
-            fields = metadata["info"]["fields"]
+            fields = metadata['info']['fields']
 
             # As for now there is only one field in metadata. Field contains map from type of data to data itself.
             # field: dict[str, str] = fields[0]
@@ -176,8 +175,12 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
                 wait_for_finalization=True,
             )
         except Exception as e:
-            self.event_processor.event('Failed to publish metadata for netuid={netuid}, wallet={wallet}',
-                                       exception=e, netuid=self.netuid, wallet=str(self.wallet))
+            self.event_processor.event(
+                'Failed to publish metadata for netuid={netuid}, wallet={wallet}',
+                exception=e,
+                netuid=self.netuid,
+                wallet=str(self.wallet),
+            )
             raise BlockchainManagerException(f'Failed to publish metadata: {e}') from e
 
     def get_hotkey(self) -> Hotkey:
@@ -185,7 +188,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
 
     def get_own_public_key(self) -> PublicKey | None:
         certificate: ScaleType = self.subtensor.query_subtensor(
-            name="NeuronCertificates",
+            name='NeuronCertificates',
             params=[self.netuid, self.get_hotkey()],
         )
         cert_value: dict[str, Any] | None = certificate.serialize()
@@ -224,6 +227,10 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
                 wait_for_finalization=True,
             )
         except Exception as e:
-            self.event_processor.event('Failed to upload public key for netuid={netuid}, wallet={wallet}',
-                                       exception=e, netuid=self.netuid, wallet=str(self.wallet))
+            self.event_processor.event(
+                'Failed to upload public key for netuid={netuid}, wallet={wallet}',
+                exception=e,
+                netuid=self.netuid,
+                wallet=str(self.wallet),
+            )
             raise BlockchainManagerException(f'Failed to upload public key: {e}') from e

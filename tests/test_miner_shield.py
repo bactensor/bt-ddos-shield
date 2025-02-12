@@ -34,23 +34,27 @@ class TestMinerShield:
     Test suite for the MinerShield class.
     """
 
-    MINER_HOTKEY: Hotkey = "miner"
-    VALIDATOR_1_HOTKEY: Hotkey = "validator1"
+    MINER_HOTKEY: Hotkey = 'miner'
+    VALIDATOR_1_HOTKEY: Hotkey = 'validator1'
     VALIDATOR_1_PUBLICKEY: PublicKey = generate_test_public_key()
-    VALIDATOR_2_HOTKEY: Hotkey = "validator2"
+    VALIDATOR_2_HOTKEY: Hotkey = 'validator2'
     VALIDATOR_2_PUBLICKEY: PublicKey = generate_test_public_key()
-    VALIDATOR_3_HOTKEY: Hotkey = "validator3"
+    VALIDATOR_3_HOTKEY: Hotkey = 'validator3'
     VALIDATOR_3_PUBLICKEY: PublicKey = generate_test_public_key()
     VALIDATOR_3_OTHER_PUBLICKEY: PublicKey = generate_test_public_key()
-    VALIDATOR_4_HOTKEY: Hotkey = "validator4"
+    VALIDATOR_4_HOTKEY: Hotkey = 'validator4'
     VALIDATOR_4_PUBLICKEY: PublicKey = generate_test_public_key()
-    OTHER_VALIDATOR_HOTKEY: Hotkey = "other_validator"
-    DEFAULT_VALIDATORS = {VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY, VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
-                          VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY}
+    OTHER_VALIDATOR_HOTKEY: Hotkey = 'other_validator'
+    DEFAULT_VALIDATORS = {
+        VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY,
+        VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
+        VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY,
+    }
 
     @classmethod
-    def create_memory_validators_manager(cls,
-                                         validators: dict[Hotkey, PublicKey] | None = None) -> MemoryValidatorsManager:
+    def create_memory_validators_manager(
+        cls, validators: dict[Hotkey, PublicKey] | None = None
+    ) -> MemoryValidatorsManager:
         if validators is None:
             validators = cls.DEFAULT_VALIDATORS
         return MemoryValidatorsManager(dict(validators))
@@ -61,9 +65,15 @@ class TestMinerShield:
         self.manifest_manager: MemoryManifestManager = MemoryManifestManager()
         self.blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager(self.MINER_HOTKEY)
         self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
-        self.shield = MinerShield(self.validators_manager, self.address_manager, self.manifest_manager,
-                                  self.blockchain_manager, self.state_manager, PrintingMinerShieldEventProcessor(),
-                                  MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec))
+        self.shield = MinerShield(
+            self.validators_manager,
+            self.address_manager,
+            self.manifest_manager,
+            self.blockchain_manager,
+            self.state_manager,
+            PrintingMinerShieldEventProcessor(),
+            MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec),
+        )
         self.shield.enable()
         assert self.shield.run
 
@@ -74,9 +84,15 @@ class TestMinerShield:
         state_manager = None  # set state_manager to None to force exception during initialization
 
         # noinspection PyTypeChecker
-        shield = MinerShield(self.create_memory_validators_manager(), MemoryAddressManager(), MemoryManifestManager(),
-                             MemoryBlockchainManager(self.MINER_HOTKEY), state_manager,
-                             PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay_sec=1))
+        shield = MinerShield(
+            self.create_memory_validators_manager(),
+            MemoryAddressManager(),
+            MemoryManifestManager(),
+            MemoryBlockchainManager(self.MINER_HOTKEY),
+            state_manager,
+            PrintingMinerShieldEventProcessor(),
+            MinerShieldOptions(retry_delay_sec=1),
+        )
         shield.enable()
         assert shield.run
         sleep(1)
@@ -156,9 +172,7 @@ class TestMinerShield:
 
         try:
             state: MinerShieldState = state_manager.get_state()
-            assert validators_manager.get_validators() == {
-                validator_hotkey: metagraph.certificate.public_key
-            }
+            assert validators_manager.get_validators() == {validator_hotkey: metagraph.certificate.public_key}
             assert state.known_validators == validators_manager.get_validators()
             assert state.banned_validators == {}
             assert state.validators_addresses.keys() == validators_manager.get_validators().keys()
