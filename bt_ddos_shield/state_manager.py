@@ -17,8 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from bt_ddos_shield.address import Address, AddressType
-from bt_ddos_shield.utils import Hotkey, PublicKey
+from bt_ddos_shield.utils import Address, Hotkey, PublicKey
 
 
 class MinerShieldState:
@@ -268,7 +267,6 @@ class SqlValidator(MinerShieldStateDeclarativeBase):
 class SqlAddress(MinerShieldStateDeclarativeBase):
     __tablename__ = 'addresses'
     address_id = Column(String, primary_key=True)
-    address_type = Column(String, nullable=False)
     address = Column(String, nullable=False)
     port = Column(Integer, nullable=False)
 
@@ -321,7 +319,6 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
             session.add(SqlValidator(hotkey=validator_hotkey, public_key=validator_public_key,
                                      address_id=redirect_address.address_id))
             session.add(SqlAddress(address_id=redirect_address.address_id,
-                                   address_type=redirect_address.address_type.value,
                                    address=redirect_address.address, port=redirect_address.port))
             session.commit()
 
@@ -418,6 +415,5 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
     def _load_address(cls, session, address_id: str) -> Address:
         db_address = session.query(SqlAddress).filter_by(address_id=address_id).one()
         return Address(address_id=db_address.address_id,
-                       address_type=AddressType(db_address.address_type),
                        address=db_address.address,
                        port=db_address.port)

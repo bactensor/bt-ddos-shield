@@ -14,12 +14,10 @@ from types import MappingProxyType
 from typing import Any, Dict, Optional
 
 from botocore.client import BaseClient
-from bt_ddos_shield.address import (
-    Address,
-)
+
 from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey
+from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PrivateKey, PublicKey
 
 
 class ManifestManagerException(Exception):

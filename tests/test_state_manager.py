@@ -3,13 +3,12 @@ from time import sleep
 from typing import Optional
 
 import pytest
-from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.state_manager import (
     AbstractMinerShieldStateManager,
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import Hotkey, PublicKey
+from bt_ddos_shield.utils import Address, Hotkey, PublicKey
 from sqlalchemy.exc import IntegrityError, NoResultFound
 
 from tests.conftest import ShieldTestSettings
@@ -64,14 +63,12 @@ class TestMinerShieldStateManager:
     def test_active_validators(self, shield_settings: ShieldTestSettings):
         validator1_hotkey = "validator1"
         validator1_publickey = "publickey1"
-        validator1_address = Address(address_id="validator1_id", address_type=AddressType.IP,
-                                     address="1.2.3.4", port=80)
+        validator1_address = Address(address_id="validator1_id", address="1.2.3.4", port=80)
 
         validator2_hotkey = "validator2"
         validator2_publickey = "publickey2"
         validator2_new_publickey = "new_publickey2"
-        validator2_address = Address(address_id="validator2_id", address_type=AddressType.IP,
-                                     address="2.3.4.5", port=81)
+        validator2_address = Address(address_id="validator2_id", address="2.3.4.5", port=81)
 
         state_manager = self.create_db_state_manager(shield_settings)
 

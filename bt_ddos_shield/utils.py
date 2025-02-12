@@ -1,4 +1,5 @@
 import functools
+from dataclasses import dataclass
 from typing import Optional, TypeAlias
 
 import bittensor
@@ -12,6 +13,23 @@ from route53.connection import Route53Connection
 Hotkey: TypeAlias = str
 PublicKey: TypeAlias = str
 PrivateKey: TypeAlias = str
+
+
+@dataclass
+class Address:
+    """
+    Class describing address created by DDosShield.
+    """
+
+    address_id: str
+    """ Identifier of the address """
+    address: str
+    """ Domain address used to connecting to Miner's server """
+    port: int
+    """ Port used to connecting to Miner's server """
+
+    def __repr__(self):
+        return f"Address(id={self.address_id}, address={self.address}:{self.port})"
 
 
 class AWSClientFactory:
