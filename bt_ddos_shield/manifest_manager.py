@@ -312,7 +312,6 @@ class S3ManifestManager(AbstractManifestManager):
         self._bucket_name = bucket_name
 
     def get_manifest_url(self) -> str:
-        assert self._aws_client_factory.aws_region_name is not None
         region_name: str = self._aws_client_factory.aws_region_name
         return f'https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}'
 
