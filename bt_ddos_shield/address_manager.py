@@ -17,10 +17,32 @@ from route53.connection import Route53Connection
 from route53.hosted_zone import HostedZone
 from route53.resource_record_set import ResourceRecordSet
 
-from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
 from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, Address
+
+
+class ShieldedServerLocationType(Enum):
+    """
+    Possible types of shielded server location.
+    """
+    EC2_ID = "ec2_id"
+    """ ID of EC2 instance """
+    EC2_IP = "ec2_ip"
+    """ IPv4 address of EC2 instance """
+
+
+@dataclass
+class ShieldedServerLocation:
+    """
+    Location of server, which shield should protect.
+    """
+    location_type: ShieldedServerLocationType
+    location_value: str
+    """ Value depends on location type """
+    port: int
+    """ Port used by shielded server """
+
 
 
 class AddressManagerException(Exception):
@@ -108,10 +130,10 @@ class AwsEC2ServerLocation(BaseModel):
 
 
 class AwsShieldedServerData(BaseModel):
-    server_address: Address
-    """ Address of shielded server (IP or EC2 instance ID). """
+    server_location: ShieldedServerLocation
+    """ Location of shielded server. """
     aws_location: Optional[AwsEC2ServerLocation]
-    """ Location of server in AWS (only if it is EC2 instance). """
+    """ Detailed location of server in AWS (only if it is EC2 instance). """
 
     def to_json(self) -> str:
         return self.model_dump_json()
@@ -161,13 +183,16 @@ class AwsAddressManager(AbstractAddressManager):
     AWS_OPERATION_MAX_RETRIES * AWS_OPERATION_RETRY_DELAY_SEC seconds.
     """
 
-    def __init__(self, aws_client_factory: AWSClientFactory, server_address: Address, hosted_zone_id: str,
-                 event_processor: AbstractMinerShieldEventProcessor, state_manager: AbstractMinerShieldStateManager):
+    def __init__(
+            self,
+            aws_client_factory: AWSClientFactory,
+            server_location: ShieldedServerLocation,
+            hosted_zone_id: str,
+            event_processor: AbstractMinerShieldEventProcessor,
+            state_manager: AbstractMinerShieldStateManager,
+    ):
         """
-        Initialize AWS address manager. server_address parameter can be passed as EC2 type (in such case AWS instance ID
-        or private IP should be set in address field of server_address param) or as any public IP/IPV6 address - for
-        both options port field means destination port on the server and address_id field is ignored.
-        REMARK: As for now only hiding of EC2 server works.
+        Initialize AWS address manager.
         """
         self.event_processor = event_processor
         self.state_manager = state_manager
@@ -181,42 +206,23 @@ class AwsAddressManager(AbstractAddressManager):
         self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
         self.route53_boto_client = aws_client_factory.boto3_client('route53')
         self.ec2_client = aws_client_factory.boto3_client('ec2')
-        self._initialize_server_data(server_address)
+        self._initialize_server_data(server_location)
 
-    @classmethod
-    def _is_ip_address(cls, address: str) -> bool:
-        try:
-            ipaddress.ip_address(address)
-            return True
-        except ValueError:
-            return False
-
-    def _initialize_server_data(self, server_address: Address):
-        server_aws_location: Optional[AwsEC2ServerLocation]
-
-        if server_address.address_type == AddressType.EC2:
-            server_instance: AwsEC2InstanceData
-            # For EC2 type user can pass private IP of the server or AWS instance ID
-            if self._is_ip_address(server_address.address):
-                server_instance = self._get_ec2_instance_data(private_ip=server_address.address)
-            else:
-                server_instance = self._get_ec2_instance_data(instance_id=server_address.address)
-            server_address = Address(address_id='', address_type=AddressType.EC2,
-                                     address=server_instance.instance_id, port=server_address.port)
-            server_aws_location = AwsEC2ServerLocation(vpc_id=server_instance.vpc_id,
-                                                       subnet_id=server_instance.subnet_id,
-                                                       server_id=server_instance.instance_id)
-
-        elif server_address.address_type in (AddressType.IP, AddressType.IPV6):
-            # TODO: See comment in _create_target_group method what needs to be done.
-            raise AddressManagerException('Shielding non EC2 servers is not implemented yet')
-            # server_address = deepcopy(server_address)
-            # server_aws_location = None
+    def _initialize_server_data(self, server_location: ShieldedServerLocation):
+        server_instance: AwsEC2InstanceData
+        if server_location.location_type == ShieldedServerLocationType.EC2_IP:
+            server_instance = self._get_ec2_instance_data(private_ip=server_location.location_value)
         else:
-            raise AddressManagerException('Server address should be of type EC2 or IP')
+            assert server_location.location_type == ShieldedServerLocationType.EC2_ID
+            server_instance = self._get_ec2_instance_data(instance_id=server_location.location_value)
 
-        server_address.address_id = 'server_address'
-        self.shielded_server_data = AwsShieldedServerData(server_address=server_address,
+        server_location = ShieldedServerLocation(location_type=ShieldedServerLocationType.EC2_ID,
+                                                 location_value=server_instance.instance_id,
+                                                 port=server_location.port)
+        server_aws_location = AwsEC2ServerLocation(vpc_id=server_instance.vpc_id,
+                                                   subnet_id=server_instance.subnet_id,
+                                                   server_id=server_instance.instance_id)
+        self.shielded_server_data = AwsShieldedServerData(server_location=server_location,
                                                           aws_location=server_aws_location)
 
     def clean_all(self):
@@ -249,7 +255,12 @@ class AwsAddressManager(AbstractAddressManager):
             return True
         cleaned: bool = True
         for object_id in created_objects[object_type.value]:
-            cleaned = remove_method(object_id) and cleaned
+            try:
+                cleaned = remove_method(object_id) and cleaned
+            except Exception as e:
+                cls.event_processor.event('Failed to remove {object_type} AWS object with id={id}',
+                                          exception=e, object_type=object_type.value, id=object_id)
+                cleaned = False
         return cleaned
 
     def create_address(self, hotkey: Hotkey) -> Address:
@@ -258,8 +269,8 @@ class AwsAddressManager(AbstractAddressManager):
         subdomain: str = self._generate_subdomain(hotkey)
         new_address_domain: str = f'{subdomain}.{self._get_hosted_zone_domain(self.hosted_zone)}'
         self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
-        return Address(address_id=subdomain, address_type=AddressType.DOMAIN,
-                       address=new_address_domain, port=self.shielded_server_data.server_address.port)
+        return Address(address_id=subdomain, address=new_address_domain,
+                       port=self.shielded_server_data.server_location.port)
 
     @classmethod
     def _generate_subdomain(cls, hotkey: Hotkey) -> str:
@@ -355,7 +366,7 @@ class AwsAddressManager(AbstractAddressManager):
             raise AddressManagerException(
                 f'No EC2 instance found with instance_id={instance_id} or IP address {private_ip}')
         instance_data: dict[str, Any] = response['Reservations'][0]['Instances'][0]
-        return AwsEC2InstanceData(instance_id=instance_id, vpc_id=instance_data['VpcId'],
+        return AwsEC2InstanceData(instance_id=instance_data['InstanceId'], vpc_id=instance_data['VpcId'],
                                   subnet_id=instance_data['SubnetId'], private_ip=instance_data['PrivateIpAddress'],
                                   security_groups=instance_data['SecurityGroups'])
 
@@ -519,7 +530,7 @@ class AwsAddressManager(AbstractAddressManager):
         group_name: str = f'miner-target-group-{self._generate_random_alnum_string(8)}'
         # Health check can't be disabled - as for now we use traffic-port
         response: dict[str, Any] = self.elb_client.create_target_group(Name=group_name, Protocol='HTTP',
-                                                                       Port=server_data.server_address.port,
+                                                                       Port=server_data.server_location.port,
                                                                        VpcId=vpc_data.vpc_id,
                                                                        TargetType='instance',
                                                                        HealthCheckEnabled=True,
@@ -534,8 +545,8 @@ class AwsAddressManager(AbstractAddressManager):
             # other way - probably by creating EC2 instance and configuring there haproxy, which will redirect traffic
             # to the shielded server.
             self.elb_client.register_targets(TargetGroupArn=target_group_id,
-                                             Targets=[{'Id': server_data.server_address.address,
-                                                       'Port': server_data.server_address.port}])
+                                             Targets=[{'Id': server_data.server_location.location_value,
+                                                       'Port': server_data.server_location.port}])
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
         except Exception as e:
             self._remove_target_group(target_group_id)
@@ -547,7 +558,7 @@ class AwsAddressManager(AbstractAddressManager):
         current_server_data: Optional[AwsShieldedServerData] = self._load_server_data()
         if current_server_data:
             self.elb_client.deregister_targets(TargetGroupArn=target_group_id,
-                                               Targets=[{'Id': current_server_data.server_address.address}])
+                                               Targets=[{'Id': current_server_data.server_location.location_value}])
 
         error_code: str = ''
         for _ in range(self.AWS_OPERATION_MAX_RETRIES):
@@ -920,7 +931,7 @@ class AwsAddressManager(AbstractAddressManager):
             assert len(created_objects[AwsObjectTypes.ELB.value]) == 1, "only one ELB should be created"
             return self._get_elb_info(next(iter(created_objects[AwsObjectTypes.ELB.value])))
 
-        server_port: int = server_data.server_address.port
+        server_port: int = server_data.server_location.port
         vpc_data: AwsVpcData = self._create_vpc_if_needed(server_data, created_objects)
         shield_subnets: list[AwsSubnetData] = self._create_subnets_if_needed(vpc_data, server_data, created_objects)
         target_group_id: str = self._create_target_group_if_needed(vpc_data, server_data, created_objects)

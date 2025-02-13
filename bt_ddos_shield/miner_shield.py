@@ -12,8 +12,8 @@ from time import sleep
 from types import MappingProxyType
 from typing import Optional, Iterable
 
-from bt_ddos_shield.address import Address, AddressType
-from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager
+from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, ShieldedServerLocation, \
+    ShieldedServerLocationType
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
     BittensorBlockchainManager,
@@ -34,7 +34,7 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, SubtensorSettings, WalletSettings
+from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PublicKey, SubtensorSettings, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 
@@ -593,16 +593,20 @@ class MinerShieldFactory:
         return AWSClientFactory(settings.aws_access_key_id, settings.aws_secret_access_key, settings.aws_region_name)
 
     @classmethod
-    def load_miner_aws_address(cls, settings: ShieldSettings):
+    def load_server_aws_location(cls, settings: ShieldSettings) -> ShieldedServerLocation:
+        location_type: ShieldedServerLocationType
+        location_value: str
         if settings.aws_miner_instance_id:
-            address = settings.aws_miner_instance_id
+            location_type = ShieldedServerLocationType.EC2_ID
+            location_value = settings.aws_miner_instance_id
         elif settings.aws_miner_instance_ip:
-            address = settings.aws_miner_instance_ip
+            location_type = ShieldedServerLocationType.EC2_IP
+            location_value = settings.aws_miner_instance_ip
         else:
             raise MinerShieldException("AWS_MINER_INSTANCE_ID or AWS_MINER_INSTANCE_IP env is not set")
-
-        return Address(address_id="miner", address_type=AddressType.EC2, address=address,
-                       port=settings.miner_instance_port)
+        return ShieldedServerLocation(location_type=location_type,
+                                      location_value=location_value,
+                                      port=settings.miner_instance_port)
 
     @classmethod
     def create_address_manager(cls, settings: ShieldSettings, aws_client_factory: Optional[AWSClientFactory],
@@ -617,8 +621,8 @@ class MinerShieldFactory:
     def create_aws_address_manager(cls, settings: ShieldSettings, aws_client_factory: AWSClientFactory,
                                    event_processor: AbstractMinerShieldEventProcessor,
                                    state_manager: AbstractMinerShieldStateManager) -> AbstractAddressManager:
-        miner_address: Address = cls.load_miner_aws_address(settings)
-        return AwsAddressManager(aws_client_factory, miner_address, settings.aws_route53_hosted_zone_id,
+        server_location: ShieldedServerLocation = cls.load_server_aws_location(settings)
+        return AwsAddressManager(aws_client_factory, server_location, settings.aws_route53_hosted_zone_id,
                                  event_processor, state_manager)
 
     @classmethod
