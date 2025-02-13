@@ -23,29 +23,27 @@ addopts = "-s" # Shield tests run for a long time and user should see what is ha
 
 [dependency-groups]
 test = [
-    "pytest",
+    "pytest~=8.3.4",
 ]
 format = [
-    "ruff",
+    "ruff~=0.9.3",
 ]
 lint = [
-    "ruff",
-    "codespell[toml]",
+    "ruff~=0.9.3",
+    "codespell[toml]~=2.4.1",
 ]
 type_check = [
-    "boto3-stubs",
-    "botocore-stubs",
-    "mypy",
-    "mypy-boto3-ec2",
-    "mypy-boto3-elbv2",
-    "mypy-boto3-route53",
-    "mypy-boto3-s3",
-    "mypy-boto3-wafv2",
-    "types-python-dateutil",
-    "types-requests",
+    "boto3-stubs~=1.36.18",
+    "botocore-stubs~=1.36.18",
+    "mypy~=1.14.1",
+    "mypy-boto3-ec2~=1.36.18",
+    "mypy-boto3-elbv2~=1.36.0",
+    "mypy-boto3-route53~=1.36.0",
+    "mypy-boto3-s3~=1.36.15",
+    "mypy-boto3-wafv2~=1.36.0",
 ]
 security_check = [
-    "bandit",
+    "bandit~=1.8.2",
 ]
 
 [tool.bandit]

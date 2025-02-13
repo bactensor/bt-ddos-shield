@@ -348,8 +348,6 @@ type-check = [
     { name = "mypy-boto3-route53", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy-boto3-s3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "mypy-boto3-wafv2", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "types-python-dateutil", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "types-requests", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
 [package.metadata]
@@ -365,24 +363,22 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-format = [{ name = "ruff" }]
+format = [{ name = "ruff", specifier = "~=0.9.3" }]
 lint = [
-    { name = "codespell", extras = ["toml"] },
-    { name = "ruff" },
+    { name = "codespell", extras = ["toml"], specifier = "~=2.4.1" },
+    { name = "ruff", specifier = "~=0.9.3" },
 ]
-security-check = [{ name = "bandit" }]
-test = [{ name = "pytest" }]
+security-check = [{ name = "bandit", specifier = "~=1.8.2" }]
+test = [{ name = "pytest", specifier = "~=8.3.4" }]
 type-check = [
-    { name = "boto3-stubs" },
-    { name = "botocore-stubs" },
-    { name = "mypy" },
-    { name = "mypy-boto3-ec2" },
-    { name = "mypy-boto3-elbv2" },
-    { name = "mypy-boto3-route53" },
-    { name = "mypy-boto3-s3" },
-    { name = "mypy-boto3-wafv2" },
-    { name = "types-python-dateutil" },
-    { name = "types-requests" },
+    { name = "boto3-stubs", specifier = "~=1.36.18" },
+    { name = "botocore-stubs", specifier = "~=1.36.18" },
+    { name = "mypy", specifier = "~=1.14.1" },
+    { name = "mypy-boto3-ec2", specifier = "~=1.36.18" },
+    { name = "mypy-boto3-elbv2", specifier = "~=1.36.0" },
+    { name = "mypy-boto3-route53", specifier = "~=1.36.0" },
+    { name = "mypy-boto3-s3", specifier = "~=1.36.15" },
+    { name = "mypy-boto3-wafv2", specifier = "~=1.36.0" },
 ]
 
 [[package]]
@@ -1622,27 +1618,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a3/53/7c69677327794fe91cc89a1362400b78f00b1a20364384da1e004c259d42/types_awscrt-0.23.10.tar.gz", hash = "sha256:965659260599b421564204b895467684104a2c0311bbacfd3c2423b8b0d3f3e9", size = 15455 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/89/ad/3d7c9a8b972048f3987355e3e48da56eb9f3ed8e151113c3c973b43ad91e/types_awscrt-0.23.10-py3-none-any.whl", hash = "sha256:7391bf502f6093221e68da8fb6a2af7ec67a98d376c58d5b76cc3938f449d121", size = 19426 },
-]
-
-[[package]]
-name = "types-python-dateutil"
-version = "2.9.0.20241206"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a9/60/47d92293d9bc521cd2301e423a358abfac0ad409b3a1606d8fbae1321961/types_python_dateutil-2.9.0.20241206.tar.gz", hash = "sha256:18f493414c26ffba692a72369fea7a154c502646301ebfe3d56a04b3767284cb", size = 13802 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/b3/ca41df24db5eb99b00d97f89d7674a90cb6b3134c52fb8121b6d8d30f15c/types_python_dateutil-2.9.0.20241206-py3-none-any.whl", hash = "sha256:e248a4bc70a486d3e3ec84d0dc30eec3a5f979d6e7ee4123ae043eedbb987f53", size = 14384 },
-]
-
-[[package]]
-name = "types-requests"
-version = "2.32.0.20241016"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/3c/4f2a430c01a22abd49a583b6b944173e39e7d01b688190a5618bd59a2e22/types-requests-2.32.0.20241016.tar.gz", hash = "sha256:0d9cad2f27515d0e3e3da7134a1b6f28fb97129d86b867f24d9c726452634d95", size = 18065 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/01/485b3026ff90e5190b5e24f1711522e06c79f4a56c8f4b95848ac072e20f/types_requests-2.32.0.20241016-py3-none-any.whl", hash = "sha256:4195d62d6d3e043a4eaaf08ff8a62184584d2e8684e9d2aa178c7915a7da3747", size = 15836 },
 ]
 
 [[package]]
