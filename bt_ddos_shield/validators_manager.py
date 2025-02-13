@@ -1,13 +1,19 @@
-from abc import ABC, abstractmethod
-from collections.abc import Iterable
-from types import MappingProxyType
-from typing import Any
+from __future__ import annotations
 
-import bittensor
+from abc import ABC, abstractmethod
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any
+
 from substrateinterface.base import QueryMapResult  # noqa
 
 from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
-from bt_ddos_shield.utils import Hotkey, PublicKey
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import bittensor
+
+    from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 class AbstractValidatorsManager(ABC):

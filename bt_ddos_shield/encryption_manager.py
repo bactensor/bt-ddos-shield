@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import enum
 from abc import ABC, abstractmethod
-from typing import NamedTuple, TypeVar
+from typing import TYPE_CHECKING, NamedTuple, TypeVar
 
 import ecies
 from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
-from bt_ddos_shield.utils import PrivateKey, PublicKey
+if TYPE_CHECKING:
+    from bt_ddos_shield.utils import PrivateKey, PublicKey
 
 
 class EncryptionManagerException(Exception):

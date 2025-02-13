@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 import functools
@@ -7,15 +9,18 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from http import HTTPStatus
-from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from mypy_boto3_s3 import S3Client
 
-from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
-from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PrivateKey, PublicKey
+if TYPE_CHECKING:
+    from types import MappingProxyType
+
+    from mypy_boto3_s3 import S3Client
+
+    from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
+    from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
+    from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey
 
 
 class ManifestManagerException(Exception):

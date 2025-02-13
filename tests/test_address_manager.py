@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -15,11 +17,11 @@ from bt_ddos_shield.address_manager import (
 )
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey
-from tests.conftest import ShieldTestSettings
 from tests.test_state_manager import MemoryMinerShieldStateManager
 
 if TYPE_CHECKING:
     from bt_ddos_shield.state_manager import MinerShieldState
+    from tests.conftest import ShieldTestSettings
 
 
 def get_miner_location_from_credentials(location_type: ShieldedServerLocationType,

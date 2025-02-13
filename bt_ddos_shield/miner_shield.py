@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import asyncio
 import logging
@@ -5,10 +7,9 @@ import re
 import sys
 import threading
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 from queue import Queue
 from time import sleep
-from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
@@ -37,6 +38,10 @@ from bt_ddos_shield.state_manager import (
 )
 from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PublicKey, SubtensorSettings, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from types import MappingProxyType
 
 
 class MinerShieldOptions(BaseModel):
@@ -87,7 +92,7 @@ class MinerShield:
     """
 
     worker_thread: threading.Thread | None  # main thread executing tasks
-    task_queue: Queue['AbstractMinerShieldTask']  # queue of tasks to be executed
+    task_queue: Queue[AbstractMinerShieldTask]  # queue of tasks to be executed
     run: bool  # flag meaning if shield is running
     finishing: bool  # flag meaning if shield should finish its work
     ticker: threading.Event  # ticker to be used in ticker_thread
@@ -176,7 +181,7 @@ class MinerShield:
         """
         self._add_task(MinerShieldBanValidatorTask(validator_hotkey))
 
-    def _add_task(self, task: 'AbstractMinerShieldTask'):
+    def _add_task(self, task: AbstractMinerShieldTask):
         """
         Add task to task queue. It will be handled by _worker_function.
         """

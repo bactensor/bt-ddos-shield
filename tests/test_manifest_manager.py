@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import asyncio
+from typing import TYPE_CHECKING
 
 import aiohttp
 
@@ -12,7 +15,9 @@ from bt_ddos_shield.manifest_manager import (
     S3ManifestManager,
 )
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey
-from tests.conftest import ShieldTestSettings
+
+if TYPE_CHECKING:
+    from tests.conftest import ShieldTestSettings
 
 
 class MemoryManifestManager(AbstractManifestManager):

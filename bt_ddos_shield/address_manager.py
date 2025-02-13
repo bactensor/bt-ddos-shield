@@ -1,49 +1,67 @@
+from __future__ import annotations
+
 import codecs
 import ipaddress
 import secrets
 import string
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Network, IPv6Network
-from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from botocore.exceptions import ClientError
-from mypy_boto3_ec2 import EC2Client
-from mypy_boto3_ec2.type_defs import (
-    CreateSecurityGroupResultTypeDef,
-    CreateSubnetResultTypeDef,
-    CreateVpcResultTypeDef,
-    DescribeAvailabilityZonesResultTypeDef,
-    DescribeInstancesResultTypeDef,
-    DescribeSubnetsResultTypeDef,
-    DescribeVpcsResultTypeDef,
-    GroupIdentifierTypeDef,
-    InstanceTypeDef,
-    SubnetTypeDef,
-    VpcTypeDef,
-)
-from mypy_boto3_elbv2 import ElasticLoadBalancingv2Client
-from mypy_boto3_route53 import Route53Client
-from mypy_boto3_wafv2 import WAFV2Client
-from mypy_boto3_wafv2.type_defs import (
-    CreateWebACLResponseTypeDef,
-    GetWebACLResponseTypeDef,
-    RuleOutputTypeDef,
-    RuleTypeDef,
-    WebACLTypeDef,
-)
 from pydantic import BaseModel
-from route53.connection import Route53Connection
-from route53.hosted_zone import HostedZone
-from route53.resource_record_set import ResourceRecordSet
 
-from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
-from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey
+from bt_ddos_shield.address import Address, AddressType
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+    from types import MappingProxyType
+
+    from mypy_boto3_ec2 import EC2Client
+    from mypy_boto3_ec2.type_defs import (
+        CreateSecurityGroupResultTypeDef,
+        CreateSubnetResultTypeDef,
+        CreateVpcResultTypeDef,
+        DescribeAvailabilityZonesResultTypeDef,
+        DescribeInstancesResultTypeDef,
+        DescribeSubnetsResultTypeDef,
+        DescribeVpcsResultTypeDef,
+        GroupIdentifierTypeDef,
+        InstanceTypeDef,
+        SubnetTypeDef,
+        VpcTypeDef,
+    )
+    from mypy_boto3_elbv2 import ElasticLoadBalancingv2Client
+    from mypy_boto3_elbv2.type_defs import (
+        CreateLoadBalancerOutputTypeDef,
+        CreateTargetGroupOutputTypeDef,
+        DescribeLoadBalancersOutputTypeDef,
+        LoadBalancerTypeDef,
+    )
+    from mypy_boto3_route53 import Route53Client
+    from mypy_boto3_route53.type_defs import (
+        ListResourceRecordSetsResponseTypeDef,
+        ResourceRecordSetOutputTypeDef,
+        ResourceRecordSetTypeDef,
+    )
+    from mypy_boto3_wafv2 import WAFV2Client
+    from mypy_boto3_wafv2.type_defs import (
+        CreateWebACLResponseTypeDef,
+        GetWebACLResponseTypeDef,
+        RuleOutputTypeDef,
+        RuleTypeDef,
+        WebACLTypeDef,
+    )
+    from route53.connection import Route53Connection
+    from route53.hosted_zone import HostedZone
+    from route53.resource_record_set import ResourceRecordSet
+
+    from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
+    from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
+    from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey
 
 
 class ShieldedServerLocationType(Enum):
@@ -66,20 +84,6 @@ class ShieldedServerLocation:
     """ Value depends on location type """
     port: int
     """ Port used by shielded server """
-
-
-if TYPE_CHECKING:
-    from mypy_boto3_elbv2.type_defs import (
-        CreateLoadBalancerOutputTypeDef,
-        CreateTargetGroupOutputTypeDef,
-        DescribeLoadBalancersOutputTypeDef,
-        LoadBalancerTypeDef,
-    )
-    from mypy_boto3_route53.type_defs import (
-        ListResourceRecordSetsResponseTypeDef,
-        ResourceRecordSetOutputTypeDef,
-        ResourceRecordSetTypeDef,
-    )
 
 
 class AddressManagerException(Exception):
@@ -176,7 +180,7 @@ class AwsShieldedServerData(BaseModel):
         return self.model_dump_json()
 
     @staticmethod
-    def from_json(json_str: str) -> 'AwsShieldedServerData':
+    def from_json(json_str: str) -> AwsShieldedServerData:
         return AwsShieldedServerData.model_validate_json(json_str)
 
 

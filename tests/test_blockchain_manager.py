@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import threading
-from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
 )
-from bt_ddos_shield.utils import Hotkey, PublicKey
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 class MemoryBlockchainManager(AbstractBlockchainManager):

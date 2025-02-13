@@ -1,10 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import bittensor
-import bittensor_wallet
 from bittensor.core.metagraph import Metagraph
 
 from bt_ddos_shield.blockchain_manager import (
@@ -22,6 +22,8 @@ from bt_ddos_shield.manifest_manager import (
 )
 
 if TYPE_CHECKING:
+    import bittensor
+    import bittensor_wallet
     from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
     from bt_ddos_shield.utils import Hotkey, PublicKey

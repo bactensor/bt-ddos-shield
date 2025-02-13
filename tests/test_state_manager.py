@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime
 from time import sleep
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy.exc import IntegrityError, NoResultFound
@@ -9,8 +12,10 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import Address, Hotkey, PublicKey
-from tests.conftest import ShieldTestSettings
+
+if TYPE_CHECKING:
+    from bt_ddos_shield.utils import Address, Hotkey, PublicKey
+    from tests.conftest import ShieldTestSettings
 
 
 class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
