@@ -14,8 +14,12 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
-from bt_ddos_shield.address_manager import AbstractAddressManager, AwsAddressManager, ShieldedServerLocation, \
-    ShieldedServerLocationType
+from bt_ddos_shield.address_manager import (
+    AbstractAddressManager,
+    AwsAddressManager,
+    ShieldedServerLocation,
+    ShieldedServerLocationType,
+)
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
     BittensorBlockchainManager,
@@ -634,9 +638,9 @@ class MinerShieldFactory:
             location_value = settings.aws_miner_instance_ip
         else:
             raise MinerShieldException('AWS_MINER_INSTANCE_ID or AWS_MINER_INSTANCE_IP env is not set')
-        return ShieldedServerLocation(location_type=location_type,
-                                      location_value=location_value,
-                                      port=settings.miner_instance_port)
+        return ShieldedServerLocation(
+            location_type=location_type, location_value=location_value, port=settings.miner_instance_port
+        )
 
     @classmethod
     def create_address_manager(

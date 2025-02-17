@@ -33,7 +33,7 @@ class Address:
     """ Port used to connecting to Miner's server """
 
     def __repr__(self):
-        return f"Address(id={self.address_id}, address={self.address}:{self.port})"
+        return f'Address(id={self.address_id}, address={self.address}:{self.port})'
 
 
 class AWSClientFactory:

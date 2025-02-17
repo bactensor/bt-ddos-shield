@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
-from bt_ddos_shield.address import Address, AddressType
+from bt_ddos_shield.utils import Address
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -61,16 +61,17 @@ if TYPE_CHECKING:
 
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
     from bt_ddos_shield.state_manager import AbstractMinerShieldStateManager, MinerShieldState
-    from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey
+    from bt_ddos_shield.utils import AWSClientFactory, Hotkey
 
 
 class ShieldedServerLocationType(Enum):
     """
     Possible types of shielded server location.
     """
-    EC2_ID = "ec2_id"
+
+    EC2_ID = 'ec2_id'
     """ ID of EC2 instance """
-    EC2_IP = "ec2_ip"
+    EC2_IP = 'ec2_ip'
     """ IPv4 address of EC2 instance """
 
 
@@ -79,6 +80,7 @@ class ShieldedServerLocation:
     """
     Location of server, which shield should protect.
     """
+
     location_type: ShieldedServerLocationType
     location_value: str
     """ Value depends on location type """
@@ -257,14 +259,17 @@ class AwsAddressManager(AbstractAddressManager):
             assert server_location.location_type == ShieldedServerLocationType.EC2_ID
             server_instance = self._get_ec2_instance_data(instance_id=server_location.location_value)
 
-        server_location = ShieldedServerLocation(location_type=ShieldedServerLocationType.EC2_ID,
-                                                 location_value=server_instance.instance_id,
-                                                 port=server_location.port)
-        server_aws_location = AwsEC2ServerLocation(vpc_id=server_instance.vpc_id,
-                                                   subnet_id=server_instance.subnet_id,
-                                                   server_id=server_instance.instance_id)
-        self.shielded_server_data = AwsShieldedServerData(server_location=server_location,
-                                                          aws_location=server_aws_location)
+        server_location = ShieldedServerLocation(
+            location_type=ShieldedServerLocationType.EC2_ID,
+            location_value=server_instance.instance_id,
+            port=server_location.port,
+        )
+        server_aws_location = AwsEC2ServerLocation(
+            vpc_id=server_instance.vpc_id, subnet_id=server_instance.subnet_id, server_id=server_instance.instance_id
+        )
+        self.shielded_server_data = AwsShieldedServerData(
+            server_location=server_location, aws_location=server_aws_location
+        )
 
     def clean_all(self) -> None:
         created_objects: MappingProxyType[str, frozenset[str]] = (
@@ -307,8 +312,12 @@ class AwsAddressManager(AbstractAddressManager):
             try:
                 cleaned = remove_method(object_id) and cleaned
             except Exception as e:
-                cls.event_processor.event('Failed to remove {object_type} AWS object with id={id}',
-                                          exception=e, object_type=object_type.value, id=object_id)
+                cls.event_processor.event(
+                    'Failed to remove {object_type} AWS object with id={id}',
+                    exception=e,
+                    object_type=object_type.value,
+                    id=object_id,
+                )
                 cleaned = False
         return cleaned
 
@@ -627,7 +636,7 @@ class AwsAddressManager(AbstractAddressManager):
             # to the shielded server.
             self.elb_client.register_targets(
                 TargetGroupArn=target_group_id,
-                Targets=[{'Id': server_data.server_location.address, 'Port': server_data.server_location.port}],
+                Targets=[{'Id': server_data.server_location.location_value, 'Port': server_data.server_location.port}],
             )
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.TARGET_GROUP.value, target_group_id)
         except Exception as e:
@@ -640,7 +649,7 @@ class AwsAddressManager(AbstractAddressManager):
         current_server_data: AwsShieldedServerData | None = self._load_server_data()
         if current_server_data:
             self.elb_client.deregister_targets(
-                TargetGroupArn=target_group_id, Targets=[{'Id': current_server_data.server_location.address}]
+                TargetGroupArn=target_group_id, Targets=[{'Id': current_server_data.server_location.location_value}]
             )
 
         error_code: str = ''

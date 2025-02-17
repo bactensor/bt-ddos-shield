@@ -18,10 +18,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
+from bt_ddos_shield.utils import Address
+
 if TYPE_CHECKING:
     from sqlalchemy.engine import url
 
-    from bt_ddos_shield.utils import Address, Hotkey, PublicKey
+    from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 class MinerShieldState:

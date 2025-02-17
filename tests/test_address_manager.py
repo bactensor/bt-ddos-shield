@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from bt_ddos_shield.address import Address, AddressType
 from bt_ddos_shield.address_manager import (
     AbstractAddressManager,
     AwsAddressManager,
@@ -24,17 +23,18 @@ if TYPE_CHECKING:
     from tests.conftest import ShieldTestSettings
 
 
-def get_miner_location_from_credentials(location_type: ShieldedServerLocationType,
-                                        test_settings: ShieldTestSettings) -> ShieldedServerLocation:
+def get_miner_location_from_credentials(
+    location_type: ShieldedServerLocationType, test_settings: ShieldTestSettings
+) -> ShieldedServerLocation:
     location_value: str
     if location_type == ShieldedServerLocationType.EC2_ID:
         location_value = test_settings.aws_miner_instance_id
     else:
         assert location_type == ShieldedServerLocationType.EC2_IP
         location_value = test_settings.aws_miner_instance_ip
-    return ShieldedServerLocation(location_type=location_type,
-                                  location_value=location_value,
-                                  port=test_settings.miner_instance_port)
+    return ShieldedServerLocation(
+        location_type=location_type, location_value=location_value, port=test_settings.miner_instance_port
+    )
 
 
 class MemoryAddressManager(AbstractAddressManager):
@@ -78,7 +78,10 @@ class TestAddressManager:
     """
 
     def create_aws_address_manager(
-            self, test_settings: ShieldTestSettings, location_type: ShieldedServerLocationType, create_state_manager: bool = True
+        self,
+        test_settings: ShieldTestSettings,
+        location_type: ShieldedServerLocationType,
+        create_state_manager: bool = True,
     ) -> AwsAddressManager:
         miner_location: ShieldedServerLocation = get_miner_location_from_credentials(location_type, test_settings)
         if create_state_manager:
@@ -103,8 +106,9 @@ class TestAddressManager:
     def test_address_manager_creation(self, shield_settings: ShieldTestSettings):
         address_manager_for_ec2_id = self.create_aws_address_manager(shield_settings, ShieldedServerLocationType.EC2_ID)
         address_manager_for_ec2_ip = self.create_aws_address_manager(shield_settings, ShieldedServerLocationType.EC2_IP)
-        assert address_manager_for_ec2_id.shielded_server_data == address_manager_for_ec2_ip.shielded_server_data, \
-            "IP address should be resolved to instance ID"
+        assert address_manager_for_ec2_id.shielded_server_data == address_manager_for_ec2_ip.shielded_server_data, (
+            'IP address should be resolved to instance ID'
+        )
 
     def test_create_elb_for_ec2(self, shield_settings: ShieldTestSettings, address_manager: AwsAddressManager):
         """
@@ -156,9 +160,7 @@ class TestAddressManager:
         """
         address1: Address = address_manager.create_address('validator1')
         address2: Address = address_manager.create_address('validator2')
-        invalid_address: Address = Address(
-            address_id='invalid', address='invalid.com', port=80
-        )
+        invalid_address: Address = Address(address_id='invalid', address='invalid.com', port=80)
         mapping: dict[Hotkey, Address] = {'hotkey1': address1, 'hotkey2': address2, 'invalid': invalid_address}
         invalid_addresses: set[Hotkey] = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == {'invalid'}
