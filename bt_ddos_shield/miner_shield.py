@@ -172,15 +172,12 @@ class MinerShield:
             self.worker_thread.join()
             self.worker_thread = None
 
-        # Clear tasks possibly added after disabling shield - this is needed to allow ticker_thread to finish
+        # Clear tasks possibly added after MinerShieldDisableTask and before setting finishing to True
         self._clear_tasks()
 
         if self.ticker_thread is not None:
             self.ticker_thread.join()
             self.ticker_thread = None
-
-        # There is possibility that ticker_thread added validation task
-        self._clear_tasks()
 
     def ban_validator(self, validator_hotkey: Hotkey):
         """
