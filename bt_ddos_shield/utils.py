@@ -39,7 +39,7 @@ class Address:
 class AWSClientFactory:
     aws_access_key_id: str
     aws_secret_access_key: str
-    aws_region_name: str
+    aws_region_name: str | None
 
     def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, aws_region_name: str | None = None):
         """

@@ -237,7 +237,7 @@ class ReadOnlyManifestManager(ABC):
         """
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
             tasks = [self._get_manifest_file_with_retry(session, url) for url in urls.values()]
-            results = await asyncio.gather(*tasks)
+            results: list[bytes | None] = await asyncio.gather(*tasks)
         return dict(zip(urls.keys(), results, strict=True))
 
 
@@ -317,6 +317,7 @@ class S3ManifestManager(AbstractManifestManager):
         self._bucket_name = bucket_name
 
     def get_manifest_url(self) -> str:
+        assert self._aws_client_factory.aws_region_name is not None, 'aws_region_name needs to be initialized first'
         region_name: str = self._aws_client_factory.aws_region_name
         return f'https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}'
 

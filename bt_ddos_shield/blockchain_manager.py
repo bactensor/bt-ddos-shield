@@ -124,7 +124,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
         try:
             async with bittensor.AsyncSubtensor(self.subtensor.chain_endpoint) as async_subtensor:
                 tasks = [self.get_single_metadata(async_subtensor, hotkey) for hotkey in hotkeys]
-                results = await asyncio.gather(*tasks)
+                results: list[bytes | None] = await asyncio.gather(*tasks)
             return dict(zip(hotkeys, results, strict=True))
         except Exception as e:
             self.event_processor.event('Failed to get metadata for netuid={netuid}', exception=e, netuid=self.netuid)
@@ -152,15 +152,15 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             field = fields[0][0]
 
             # Find data of 'Raw' type.
-            for data_type, data in field.items():  # noqa: B007
+            for data_type in field.keys():
                 if data_type.startswith('Raw'):
                     break
             else:
                 return None
 
             # Raw data is hex-encoded and prefixed with '0x'.
-            # return bytes.fromhex(data[2:])
-            return bytes(data[0])
+            # return bytes.fromhex(field[data_type][2:])
+            return bytes(field[data_type][0])
         except TypeError:
             return None
         except LookupError:

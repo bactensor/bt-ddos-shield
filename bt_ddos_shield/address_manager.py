@@ -201,9 +201,9 @@ class AwsAddressManager(AbstractAddressManager):
 
     shielded_server_data: AwsShieldedServerData
     waf_client: WAFV2Client
-    waf_arn: str
+    waf_arn: str | None
     elb_client: ElasticLoadBalancingv2Client
-    elb_data: AwsELBData
+    elb_data: AwsELBData | None
     ec2_client: EC2Client
     hosted_zone_id: str
     """ ID of hosted zone in Route53 where addresses are located. """
@@ -239,9 +239,9 @@ class AwsAddressManager(AbstractAddressManager):
         self.state_manager = state_manager
 
         self.waf_client = aws_client_factory.boto3_client('wafv2')  # type: ignore
-        self.waf_arn = ''
+        self.waf_arn = None
         self.elb_client = aws_client_factory.boto3_client('elbv2')  # type: ignore
-        self.elb_data = AwsELBData('', '', '')
+        self.elb_data = None
         self.route53_client = aws_client_factory.route53_client()
         self.hosted_zone_id = hosted_zone_id
         self.hosted_zone = self.route53_client.get_hosted_zone_by_id(hosted_zone_id)
@@ -313,6 +313,7 @@ class AwsAddressManager(AbstractAddressManager):
 
         subdomain: str = self._generate_subdomain(hotkey)
         new_address_domain: str = f'{subdomain}.{self._get_hosted_zone_domain(self.hosted_zone)}'
+        assert self.waf_arn is not None, '_validate_manager_state creates WAF and should be called before'
         self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
         return Address(
             address_id=subdomain,
@@ -330,6 +331,7 @@ class AwsAddressManager(AbstractAddressManager):
 
     def remove_address(self, address: Address):
         self._validate_manager_state()
+        assert self.waf_arn is not None, '_validate_manager_state creates WAF and should be called before'
         self._remove_domain_rule_from_firewall(self.waf_arn, address.address)
 
     def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
@@ -339,6 +341,7 @@ class AwsAddressManager(AbstractAddressManager):
         if not addresses:
             return set()
 
+        assert self.waf_arn is not None, '_validate_manager_state creates WAF and should be called before'
         waf_data: GetWebACLResponseTypeDef = self._get_firewall_info(self.waf_arn)
         rules: list[RuleOutputTypeDef] = waf_data['WebACL']['Rules']
 
@@ -399,6 +402,7 @@ class AwsAddressManager(AbstractAddressManager):
                     new_id=self.hosted_zone_id,
                 )
                 self._delete_route53_records(old_zone_id)
+                assert self.waf_arn is not None, '_validate_manager_state creates WAF and should be called before'
                 self._clear_firewall_rules(self.waf_arn)
                 zone_changed = True
         else:
@@ -458,6 +462,7 @@ class AwsAddressManager(AbstractAddressManager):
 
     def _add_route53_record(self, subdomain: str, hosted_zone: HostedZone):
         domain_name: str = f'{subdomain}.{hosted_zone.name}'
+        assert self.elb_data is not None, '_validate_manager_state creates ELB and should be called before'
         record_set: ResourceRecordSetTypeDef = {
             'Name': domain_name,
             'Type': 'A',
@@ -791,6 +796,8 @@ class AwsAddressManager(AbstractAddressManager):
         )
         waf_arn: str = response['Summary']['ARN']
         self.event_processor.event('Created AWS WAF, name={name}, id={id}', name=waf_name, id=waf_arn)
+
+        assert self.elb_data is not None, '_validate_manager_state creates ELB and should be called before'
 
         error_code: str = ''
         for _ in range(self.AWS_OPERATION_MAX_RETRIES):
