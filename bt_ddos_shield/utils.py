@@ -1,22 +1,26 @@
+from __future__ import annotations
+
 import functools
 from dataclasses import dataclass
-from typing import Optional, TypeAlias
+from typing import TYPE_CHECKING
 
 import bittensor
-import bittensor_wallet
 import boto3
 import route53
-from botocore.client import BaseClient
 from pydantic import BaseModel
-from route53.connection import Route53Connection
 
-Hotkey: TypeAlias = str
-PublicKey: TypeAlias = str
-PrivateKey: TypeAlias = str
+if TYPE_CHECKING:
+    import bittensor_wallet
+    from botocore.client import BaseClient
+    from route53.connection import Route53Connection
+
+type Hotkey = str
+type PublicKey = str
+type PrivateKey = str
 
 
 @dataclass
-class Address:
+class ShieldAddress:
     """
     Class describing address created by DDosShield.
     """
@@ -29,15 +33,15 @@ class Address:
     """ Port used to connecting to Miner's server """
 
     def __repr__(self):
-        return f"Address(id={self.address_id}, address={self.address}:{self.port})"
+        return f'Address(id={self.address_id}, address={self.address}:{self.port})'
 
 
 class AWSClientFactory:
     aws_access_key_id: str
     aws_secret_access_key: str
-    aws_region_name: Optional[str]
+    aws_region_name: str | None
 
-    def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, aws_region_name: Optional[str] = None):
+    def __init__(self, aws_access_key_id: str, aws_secret_access_key: str, aws_region_name: str | None = None):
         """
         Args:
             aws_access_key_id: AWS access key ID.
@@ -46,27 +50,31 @@ class AWSClientFactory:
         """
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
-        self.aws_region_name = aws_region_name
+        self.aws_region_name = aws_region_name or ''
 
     def set_aws_region_name(self, aws_region_name: str) -> bool:
-        """ Set AWS region name. Returns if region name was changed. """
+        """Set AWS region name. Returns if region name was changed."""
         if self.aws_region_name == aws_region_name:
             return False
         self.aws_region_name = aws_region_name
         return True
 
     def boto3_client(self, service_name: str) -> BaseClient:
-        return boto3.client(service_name, aws_access_key_id=self.aws_access_key_id,
-                            aws_secret_access_key=self.aws_secret_access_key, region_name=self.aws_region_name)
+        return boto3.client(  # type: ignore
+            service_name,
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            region_name=self.aws_region_name,
+        )
 
     def route53_client(self) -> Route53Connection:
         return route53.connect(self.aws_access_key_id, self.aws_secret_access_key)
 
 
 class WalletSettings(BaseModel):
-    name: Optional[str] = None
-    hotkey: Optional[str] = None
-    path: Optional[str] = None
+    name: str | None = None
+    hotkey: str | None = None
+    path: str | None = None
 
     @functools.cached_property
     def instance(self) -> bittensor_wallet.Wallet:
@@ -74,7 +82,7 @@ class WalletSettings(BaseModel):
 
 
 class SubtensorSettings(BaseModel):
-    network: Optional[str] = None
+    network: str | None = None
 
     @functools.cached_property
     def client(self) -> bittensor.Subtensor:

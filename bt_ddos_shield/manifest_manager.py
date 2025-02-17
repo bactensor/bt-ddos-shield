@@ -1,23 +1,26 @@
-import time
+from __future__ import annotations
 
-import aiohttp
 import asyncio
 import base64
 import functools
 import hashlib
 import json
-
+import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from http import HTTPStatus
-from types import MappingProxyType
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
-from botocore.client import BaseClient
+import aiohttp
 
-from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
-from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PrivateKey, PublicKey
+if TYPE_CHECKING:
+    from types import MappingProxyType
+
+    from mypy_boto3_s3 import S3Client
+
+    from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
+    from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
+    from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey, ShieldAddress
 
 
 class ManifestManagerException(Exception):
@@ -28,21 +31,18 @@ class ManifestDeserializationException(ManifestManagerException):
     """
     Exception thrown when deserialization of manifest data fails.
     """
-    pass
 
 
 class ManifestDownloadException(ManifestManagerException):
     """
     Exception thrown when error occurs during downloading manifest file.
     """
-    pass
 
 
 class ManifestNotFoundException(ManifestDownloadException):
     """
     Exception thrown when manifest file is not found under given address.
     """
-    pass
 
 
 @dataclass
@@ -82,11 +82,11 @@ class JsonManifestSerializer(AbstractManifestSerializer):
     Manifest serializer implementation which serialize manifest to Json.
     """
 
-    MANIFEST_ROOT_JSON_KEY: str = "ddos_shield_manifest"
+    MANIFEST_ROOT_JSON_KEY: str = 'ddos_shield_manifest'
 
     encoding: str
 
-    def __init__(self, encoding: str = "utf-8"):
+    def __init__(self, encoding: str = 'utf-8'):
         """
         Args:
             encoding: Encoding used for transforming Json string to bytes.
@@ -106,23 +106,20 @@ class JsonManifestSerializer(AbstractManifestSerializer):
             data = json.loads(json_str, object_hook=self._custom_decoder)
             return Manifest(**data[self.MANIFEST_ROOT_JSON_KEY])
         except Exception as e:
-            raise ManifestDeserializationException(f"Failed to deserialize manifest data: {e}") from e
+            raise ManifestDeserializationException(f'Failed to deserialize manifest data: {e}') from e
 
     @staticmethod
     def _custom_encoder(obj: Any) -> Any:
-        if isinstance(obj, Hotkey):
-            return str(obj)
-
         if isinstance(obj, bytes):
             return base64.b64encode(obj).decode()  # type: ignore
 
     @staticmethod
     def _custom_decoder(json_mapping: dict[str, Any]) -> Any:
-        if "encrypted_url_mapping" in json_mapping:
+        if 'encrypted_url_mapping' in json_mapping:
             decoded_mapping: dict[Hotkey, bytes] = {}
-            for hotkey, encoded_address in json_mapping["encrypted_url_mapping"].items():
-                decoded_mapping[Hotkey(hotkey)] = base64.b64decode(encoded_address.encode())
-            json_mapping["encrypted_url_mapping"] = decoded_mapping
+            for hotkey, encoded_address in json_mapping['encrypted_url_mapping'].items():
+                decoded_mapping[hotkey] = base64.b64decode(encoded_address.encode())
+            json_mapping['encrypted_url_mapping'] = decoded_mapping
         return json_mapping
 
 
@@ -136,9 +133,13 @@ class ReadOnlyManifestManager(ABC):
     event_processor: AbstractMinerShieldEventProcessor
     _download_timeout: int
 
-    def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager,
-                 event_processor: AbstractMinerShieldEventProcessor, download_timeout: int = 10):
+    def __init__(
+        self,
+        manifest_serializer: AbstractManifestSerializer,
+        encryption_manager: AbstractEncryptionManager,
+        event_processor: AbstractMinerShieldEventProcessor,
+        download_timeout: int = 10,
+    ):
         self.manifest_serializer = manifest_serializer
         self.encryption_manager = encryption_manager
         self.event_processor = event_processor
@@ -151,12 +152,12 @@ class ReadOnlyManifestManager(ABC):
         Throws ManifestDeserializationException if data format is not recognized.
         """
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
-            raw_data: Optional[bytes] = await self._get_manifest_file(session, url)
+            raw_data: bytes | None = await self._get_manifest_file(session, url)
         if raw_data is None:
-            raise ManifestDownloadException(f"Manifest file not found at {url}")
+            raise ManifestDownloadException(f'Manifest file not found at {url}')
         return self.manifest_serializer.deserialize(raw_data)
 
-    async def get_manifests(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[Manifest]]:
+    async def get_manifests(self, urls: dict[Hotkey, str | None]) -> dict[Hotkey, Manifest | None]:
         """
         Get manifest files from given urls and deserialize them. If url is None, None is returned in the result.
         None is also returned if manifest file is not found or has invalid format.
@@ -164,27 +165,29 @@ class ReadOnlyManifestManager(ABC):
         Args:
             urls: Dictionary with urls for neurons (neuron HotKey -> url).
         """
-        raw_manifests_data: Dict[Hotkey, Optional[bytes]] = await self._get_manifest_files(urls)
-        manifests: Dict[Hotkey, Optional[Manifest]] = {}
+        raw_manifests_data: dict[Hotkey, bytes | None] = await self._get_manifest_files(urls)
+        manifests: dict[Hotkey, Manifest | None] = {}
         for hotkey, raw_data in raw_manifests_data.items():
-            manifest: Optional[Manifest] = None
+            manifest: Manifest | None = None
             if raw_data is not None:
                 try:
                     manifest = self.manifest_serializer.deserialize(raw_data)
                 except ManifestDeserializationException:
-                    self.event_processor.event('Manifest file corrupted for hotkey={hotkey}, url={url}',
-                                               hotkey=hotkey, url=urls[hotkey])
+                    self.event_processor.event(
+                        'Manifest file corrupted for hotkey={hotkey}, url={url}', hotkey=hotkey, url=urls[hotkey]
+                    )
             manifests[hotkey] = manifest
         return manifests
 
-    def get_address_for_validator(self, manifest: Manifest, validator_hotkey: Hotkey,
-                                  validator_private_key: PrivateKey) -> Optional[tuple[str, int]]:
+    def get_address_for_validator(
+        self, manifest: Manifest, validator_hotkey: Hotkey, validator_private_key: PrivateKey
+    ) -> tuple[str, int] | None:
         """
         Get URL and port for validator identified by hotkey from manifest or None if not found.
         Decrypts address using validator's private key.
         Throws ManifestDeserializationException if address format is invalid.
         """
-        encrypted_url: Optional[bytes] = manifest.encrypted_url_mapping.get(validator_hotkey)
+        encrypted_url: bytes | None = manifest.encrypted_url_mapping.get(validator_hotkey)
         if encrypted_url is None:
             return None
         try:
@@ -194,10 +197,10 @@ class ReadOnlyManifestManager(ABC):
             return parts[0], int(parts[1])
         except Exception as e:
             raise ManifestDeserializationException(
-                f"Invalid address format for validator {validator_hotkey}: {e}"
+                f'Invalid address format for validator {validator_hotkey}: {e}'
             ) from e
 
-    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: Optional[str]) -> Optional[bytes]:
+    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: str | None) -> bytes | None:
         if url is None:
             return None
 
@@ -208,15 +211,15 @@ class ReadOnlyManifestManager(ABC):
         except aiohttp.ClientResponseError as e:
             if e.status in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
                 # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
-                self.event_processor.event('Manifest file not found, url={url}, status code={status_code}',
-                                           url=url, status_code=e.status)
+                self.event_processor.event(
+                    'Manifest file not found, url={url}, status code={status_code}', url=url, status_code=e.status
+                )
                 return None
             raise ManifestDownloadException(f'HTTP error when downloading file from {url}: {e}') from e
-        except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
+        except (TimeoutError, aiohttp.ClientConnectionError) as e:
             raise ManifestDownloadException(f'Failed to download file from {url}: {e}') from e
 
-    async def _get_manifest_file_with_retry(self, http_session: aiohttp.ClientSession,
-                                            url: Optional[str]) -> Optional[bytes]:
+    async def _get_manifest_file_with_retry(self, http_session: aiohttp.ClientSession, url: str | None) -> bytes | None:
         try:
             return await self._get_manifest_file(http_session, url)
         except ManifestDownloadException:
@@ -224,7 +227,7 @@ class ReadOnlyManifestManager(ABC):
             time.sleep(1)
             return await self._get_manifest_file(http_session, url)
 
-    async def _get_manifest_files(self, urls: Dict[Hotkey, Optional[str]]) -> Dict[Hotkey, Optional[bytes]]:
+    async def _get_manifest_files(self, urls: dict[Hotkey, str | None]) -> dict[Hotkey, bytes | None]:
         """
         Get manifest files from given urls. If url is None, None is returned in the result. None is also returned if
         manifest file is not found.
@@ -234,8 +237,8 @@ class ReadOnlyManifestManager(ABC):
         """
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self._download_timeout)) as session:
             tasks = [self._get_manifest_file_with_retry(session, url) for url in urls.values()]
-            results = await asyncio.gather(*tasks)
-        return dict(zip(urls.keys(), results))
+            results: list[bytes | None] = await asyncio.gather(*tasks)
+        return dict(zip(urls.keys(), results, strict=True))
 
 
 class AbstractManifestManager(ReadOnlyManifestManager):
@@ -247,8 +250,11 @@ class AbstractManifestManager(ReadOnlyManifestManager):
         data: bytes = self.manifest_serializer.serialize(manifest)
         return self._put_manifest_file(data)
 
-    def create_manifest(self, address_mapping: MappingProxyType[Hotkey, Address],
-                        validators_public_keys: MappingProxyType[Hotkey, PublicKey]) -> Manifest:
+    def create_manifest(
+        self,
+        address_mapping: MappingProxyType[Hotkey, ShieldAddress],
+        validators_public_keys: MappingProxyType[Hotkey, PublicKey],
+    ) -> Manifest:
         """
         Create manifest with encrypted addresses for validators.
 
@@ -257,7 +263,7 @@ class AbstractManifestManager(ReadOnlyManifestManager):
             validators_public_keys: Dictionary containing public keys of validators (validator HotKey -> PublicKey).
         """
         encrypted_address_mapping: dict[Hotkey, bytes] = {}
-        md5_hash = hashlib.md5()
+        md5_hash = hashlib.md5(usedforsecurity=False)
 
         for hotkey, address in address_mapping.items():
             public_key: PublicKey = validators_public_keys[hotkey]
@@ -292,25 +298,32 @@ class S3ManifestManager(AbstractManifestManager):
     Manifest manager using AWS S3 service to manage file.
     """
 
-    MANIFEST_FILE_NAME: str = "shield_manifest.json"
+    MANIFEST_FILE_NAME: str = 'shield_manifest.json'
 
     _aws_client_factory: AWSClientFactory
     _bucket_name: str
 
-    def __init__(self, manifest_serializer: AbstractManifestSerializer,
-                 encryption_manager: AbstractEncryptionManager, event_processor: AbstractMinerShieldEventProcessor,
-                 aws_client_factory: AWSClientFactory, bucket_name: str, download_timeout: int = 10):
+    def __init__(
+        self,
+        manifest_serializer: AbstractManifestSerializer,
+        encryption_manager: AbstractEncryptionManager,
+        event_processor: AbstractMinerShieldEventProcessor,
+        aws_client_factory: AWSClientFactory,
+        bucket_name: str,
+        download_timeout: int = 10,
+    ):
         super().__init__(manifest_serializer, encryption_manager, event_processor, download_timeout)
         self._aws_client_factory = aws_client_factory
         self._bucket_name = bucket_name
 
     def get_manifest_url(self) -> str:
+        assert self._aws_client_factory.aws_region_name is not None, 'aws_region_name needs to be initialized first'
         region_name: str = self._aws_client_factory.aws_region_name
-        return f"https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}"
+        return f'https://{self._bucket_name}.s3.{region_name}.amazonaws.com/{self.MANIFEST_FILE_NAME}'
 
     @functools.cached_property
-    def _s3_client(self) -> BaseClient:
-        return self._aws_client_factory.boto3_client("s3")
+    def _s3_client(self) -> S3Client:
+        return self._aws_client_factory.boto3_client('s3')  # type: ignore
 
     def _put_manifest_file(self, data: bytes):
         self._s3_client.put_object(Bucket=self._bucket_name, Key=self.MANIFEST_FILE_NAME, Body=data, ACL='public-read')

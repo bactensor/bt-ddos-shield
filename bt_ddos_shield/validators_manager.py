@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from types import MappingProxyType
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any
 
-import bittensor
 from substrateinterface.base import QueryMapResult  # noqa
 
 from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
-from bt_ddos_shield.utils import Hotkey, PublicKey
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import bittensor
+
+    from bt_ddos_shield.utils import Hotkey, PublicKey
 
 
 class AbstractValidatorsManager(ABC):
@@ -68,7 +75,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         self,
         subtensor: bittensor.Subtensor,
         netuid: int,
-        validators: Iterable[Hotkey] = None,
+        validators: Iterable[Hotkey] | None = None,
     ):
         self.subtensor = subtensor
         self.netuid = netuid
@@ -78,7 +85,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
     def get_validators(self) -> MappingProxyType[Hotkey, PublicKey]:
         return MappingProxyType(self.certificates)
 
-    def reload_validators(self):
+    def reload_validators(self) -> None:
         validators: frozenset[Hotkey]
         if self.validators:
             validators = self.validators
@@ -93,8 +100,8 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         Fetch Validators' Certificates (PublicKey) from Subtensor for given validators identified by hotkeys.
         """
         query_certificates: QueryMapResult = self.subtensor.query_map(
-            module="SubtensorModule",
-            name="NeuronCertificates",
+            module='SubtensorModule',
+            name='NeuronCertificates',
             params=[self.netuid],
         )
         certificates: dict[Hotkey, dict[str, Any]] = {
@@ -102,10 +109,10 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         }
         cert_type: str = format(CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED, '02x')
         return {
-            hotkey: cert_type + certificate["public_key"][2:]  # Key is prefixed with '0x'
+            hotkey: cert_type + certificate['public_key'][2:]  # Key is prefixed with '0x'
             for hotkey, certificate in certificates.items()
-                if hotkey in validators
-                    and certificate["algorithm"] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
+            if hotkey in validators
+            and certificate['algorithm'] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
         }
 
     def is_validator(self, neuron: bittensor.NeuronInfoLite) -> bool:

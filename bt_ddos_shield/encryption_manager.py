@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import enum
 from abc import ABC, abstractmethod
-from typing import Generic, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, NamedTuple, TypeVar
 
 import ecies
-from bt_ddos_shield.utils import PrivateKey, PublicKey
 from coincurve.keys import PrivateKey as CoincurvePrivateKey
+
+if TYPE_CHECKING:
+    from bt_ddos_shield.utils import PrivateKey, PublicKey
 
 
 class EncryptionManagerException(Exception):
@@ -27,7 +31,7 @@ class EncryptionCertificate(NamedTuple):
 CertType = TypeVar('CertType')
 
 
-class AbstractEncryptionManager(ABC, Generic[CertType]):
+class AbstractEncryptionManager[CertType](ABC):
     """
     Abstract base class for manager handling manifest file encryption.
     """
@@ -80,7 +84,8 @@ class AbstractEncryptionManager(ABC, Generic[CertType]):
 
 
 class CertificateAlgorithmEnum(enum.IntEnum):
-    """ Values are taken from coincurve.keys.PublicKey.__init__ method. """
+    """Values are taken from coincurve.keys.PublicKey.__init__ method."""
+
     ECDSA_SECP256K1_UNCOMPRESSED = 4
     """ ECDSA using secp256k1 curve (uncompressed version) """
 
@@ -95,31 +100,31 @@ class ECIESEncryptionManager(AbstractEncryptionManager[CoincurvePrivateKey]):
         try:
             return ecies.encrypt(public_key, data)
         except Exception as e:
-            raise EncryptionError(f"Encryption failed: {e}") from e
+            raise EncryptionError(f'Encryption failed: {e}') from e
 
     def decrypt(self, private_key: PrivateKey, data: bytes) -> bytes:
         try:
             return ecies.decrypt(private_key, data)
         except Exception as e:
-            raise DecryptionError(f"Decryption failed: {e}") from e
+            raise DecryptionError(f'Decryption failed: {e}') from e
 
     @classmethod
-    def generate_certificate(cls) -> CertType:
+    def generate_certificate(cls) -> CoincurvePrivateKey:
         return ecies.utils.generate_key()
 
     @classmethod
-    def serialize_certificate(cls, certificate: CertType) -> EncryptionCertificate:
+    def serialize_certificate(cls, certificate: CoincurvePrivateKey) -> EncryptionCertificate:
         private_key: str = certificate.to_hex()
         public_key: bytes = certificate.public_key.format(compressed=False)
         assert public_key[0] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
         return EncryptionCertificate(private_key, public_key.hex())
 
     @classmethod
-    def save_certificate(cls, certificate: CertType, path: str):
+    def save_certificate(cls, certificate: CoincurvePrivateKey, path: str):
         with open(path, 'wb') as f:
             f.write(certificate.to_pem())
 
     @classmethod
-    def load_certificate(cls, path: str) -> CertType:
+    def load_certificate(cls, path: str) -> CoincurvePrivateKey:
         with open(path, 'rb') as f:
             return CoincurvePrivateKey.from_pem(f.read())

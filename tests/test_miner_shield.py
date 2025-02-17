@@ -1,26 +1,31 @@
+from __future__ import annotations
+
 import asyncio
 from time import sleep
-from typing import Optional, Dict
+from typing import TYPE_CHECKING
 
-import bittensor_wallet
-from bt_ddos_shield.address_manager import AbstractAddressManager
-from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
-from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
-from bt_ddos_shield.utils import Hotkey, PublicKey
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
+from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.validators_manager import (
-    MemoryValidatorsManager,
     BittensorValidatorsManager,
+    MemoryValidatorsManager,
 )
-from tests.conftest import ShieldTestSettings
 from tests.test_address_manager import MemoryAddressManager
 from tests.test_blockchain_manager import MemoryBlockchainManager
 from tests.test_manifest_manager import MemoryManifestManager
 from tests.test_state_manager import MemoryMinerShieldStateManager
+
+if TYPE_CHECKING:
+    import bittensor_wallet
+
+    from bt_ddos_shield.address_manager import AbstractAddressManager
+    from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
+    from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
+    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from tests.conftest import ShieldTestSettings
 
 
 def generate_test_public_key() -> PublicKey:
@@ -32,23 +37,27 @@ class TestMinerShield:
     Test suite for the MinerShield class.
     """
 
-    MINER_HOTKEY: Hotkey = "miner"
-    VALIDATOR_1_HOTKEY: Hotkey = "validator1"
+    MINER_HOTKEY: Hotkey = 'miner'
+    VALIDATOR_1_HOTKEY: Hotkey = 'validator1'
     VALIDATOR_1_PUBLICKEY: PublicKey = generate_test_public_key()
-    VALIDATOR_2_HOTKEY: Hotkey = "validator2"
+    VALIDATOR_2_HOTKEY: Hotkey = 'validator2'
     VALIDATOR_2_PUBLICKEY: PublicKey = generate_test_public_key()
-    VALIDATOR_3_HOTKEY: Hotkey = "validator3"
+    VALIDATOR_3_HOTKEY: Hotkey = 'validator3'
     VALIDATOR_3_PUBLICKEY: PublicKey = generate_test_public_key()
     VALIDATOR_3_OTHER_PUBLICKEY: PublicKey = generate_test_public_key()
-    VALIDATOR_4_HOTKEY: Hotkey = "validator4"
+    VALIDATOR_4_HOTKEY: Hotkey = 'validator4'
     VALIDATOR_4_PUBLICKEY: PublicKey = generate_test_public_key()
-    OTHER_VALIDATOR_HOTKEY: Hotkey = "other_validator"
-    DEFAULT_VALIDATORS = {VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY, VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
-                          VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY}
+    OTHER_VALIDATOR_HOTKEY: Hotkey = 'other_validator'
+    DEFAULT_VALIDATORS = {
+        VALIDATOR_1_HOTKEY: VALIDATOR_1_PUBLICKEY,
+        VALIDATOR_2_HOTKEY: VALIDATOR_2_PUBLICKEY,
+        VALIDATOR_3_HOTKEY: VALIDATOR_3_PUBLICKEY,
+    }
 
     @classmethod
-    def create_memory_validators_manager(cls, validators: Optional[dict[Hotkey, PublicKey]] = None)\
-            -> MemoryValidatorsManager:
+    def create_memory_validators_manager(
+        cls, validators: dict[Hotkey, PublicKey] | None = None
+    ) -> MemoryValidatorsManager:
         if validators is None:
             validators = cls.DEFAULT_VALIDATORS
         return MemoryValidatorsManager(dict(validators))
@@ -59,9 +68,15 @@ class TestMinerShield:
         self.manifest_manager: MemoryManifestManager = MemoryManifestManager()
         self.blockchain_manager: MemoryBlockchainManager = MemoryBlockchainManager(self.MINER_HOTKEY)
         self.state_manager: MemoryMinerShieldStateManager = MemoryMinerShieldStateManager()
-        self.shield = MinerShield(self.validators_manager, self.address_manager, self.manifest_manager,
-                                  self.blockchain_manager, self.state_manager, PrintingMinerShieldEventProcessor(),
-                                  MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec))
+        self.shield = MinerShield(
+            self.validators_manager,
+            self.address_manager,
+            self.manifest_manager,
+            self.blockchain_manager,
+            self.state_manager,
+            PrintingMinerShieldEventProcessor(),
+            MinerShieldOptions(retry_delay_sec=1, validate_interval_sec=validate_interval_sec),
+        )
         self.shield.enable()
         assert self.shield.run
 
@@ -72,21 +87,27 @@ class TestMinerShield:
         state_manager = None  # set state_manager to None to force exception during initialization
 
         # noinspection PyTypeChecker
-        shield = MinerShield(self.create_memory_validators_manager(), MemoryAddressManager(), MemoryManifestManager(),
-                             MemoryBlockchainManager(self.MINER_HOTKEY), state_manager,
-                             PrintingMinerShieldEventProcessor(), MinerShieldOptions(retry_delay_sec=1))
+        shield = MinerShield(
+            self.create_memory_validators_manager(),
+            MemoryAddressManager(),
+            MemoryManifestManager(),
+            MemoryBlockchainManager(self.MINER_HOTKEY),
+            state_manager,
+            PrintingMinerShieldEventProcessor(),
+            MinerShieldOptions(retry_delay_sec=1),
+        )
         shield.enable()
         assert shield.run
         sleep(1)
         shield.disable()
         assert not shield.run
 
-    def test_full_flow(self):
+    def test_full_flow(self) -> None:
         """
         Test if shield is properly starting from scratch and fully enabling protection using mock memory managers.
         """
         self.create_default_shield()
-        sleep(2 + 2*self.shield.options.validate_interval_sec)  # give some time to make sure validate is called
+        sleep(2 + 2 * self.shield.options.validate_interval_sec)  # Give some time to make sure validate is called
 
         try:
             state: MinerShieldState = self.state_manager.get_state()
@@ -154,42 +175,40 @@ class TestMinerShield:
 
         try:
             state: MinerShieldState = state_manager.get_state()
-            assert validators_manager.get_validators() == {
-                validator_hotkey: metagraph.certificate.public_key
-            }
+            assert validators_manager.get_validators() == {validator_hotkey: metagraph.certificate.public_key}
             assert state.known_validators == validators_manager.get_validators()
             assert state.banned_validators == {}
             assert state.validators_addresses.keys() == validators_manager.get_validators().keys()
             manifest_url: str = manifest_manager.get_manifest_url()
             manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
-            urls: Dict[Hotkey, Optional[str]] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
+            urls: dict[Hotkey, str | None] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
             assert urls[miner_hotkey] == manifest_url
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
 
             # Set unknown validator manually to clean up everything (except S3 file) ...
-            validators_manager.validators = frozenset([Hotkey('unknown_hotkey')])
+            validators_manager.validators = frozenset(['unknown_hotkey'])
             # ... and wait for validate loop to apply changes
             sleep(2 * shield.options.validate_interval_sec)
 
             state = state_manager.get_state()
             assert state.known_validators == {}
             assert state.validators_addresses == {}
-            manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
+            manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping == {}
             urls = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
             assert urls[miner_hotkey] == manifest_url
 
-            reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
+            reloaded_state = state_manager.get_state(reload=True)
             assert reloaded_state == state
         finally:
             shield.disable()
             assert not shield.run
             address_manager.clean_all()
 
-    def test_ban_validator(self):
+    def test_ban_validator(self) -> None:
         """
         Test if shield is properly banning validators.
         """
@@ -230,7 +249,7 @@ class TestMinerShield:
         finally:
             self.shield.disable()
 
-    def test_reloading_validators(self):
+    def test_reloading_validators(self) -> None:
         """
         Test if shield is properly handling changing validators set during runtime.
         """
@@ -275,7 +294,7 @@ class TestMinerShield:
         finally:
             self.shield.disable()
 
-    def test_validate_addresses(self):
+    def test_validate_addresses(self) -> None:
         """
         Test if shield is properly handling validating addresses during runtime.
         """
@@ -289,7 +308,7 @@ class TestMinerShield:
             self.address_manager.invalid_addresses = {self.VALIDATOR_1_HOTKEY}
             state: MinerShieldState = self.state_manager.get_state()
             assert self.address_manager.id_counter == expected_address_id_counter
-            old_address = state.validators_addresses.get(self.VALIDATOR_1_HOTKEY)
+            old_address = state.validators_addresses[self.VALIDATOR_1_HOTKEY]
             assert self.address_manager.known_addresses.get(old_address.address_id) == old_address
 
             # wait for validation and check results
@@ -298,7 +317,7 @@ class TestMinerShield:
             state = self.state_manager.get_state()
             assert self.address_manager.id_counter == expected_address_id_counter
             assert self.manifest_manager.put_counter == 2
-            new_address = state.validators_addresses.get(self.VALIDATOR_1_HOTKEY)
+            new_address = state.validators_addresses[self.VALIDATOR_1_HOTKEY]
             assert old_address != new_address
             assert self.address_manager.known_addresses.get(new_address.address_id) == new_address
             assert self.address_manager.known_addresses.get(old_address.address_id, None) is None

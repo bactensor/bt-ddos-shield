@@ -1,9 +1,16 @@
-from bittensor.core.chain_data import AxonInfo
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
-from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
+from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
 from bt_ddos_shield.validators_manager import BittensorValidatorsManager
-from tests.conftest import ShieldTestSettings
+
+if TYPE_CHECKING:
+    from bittensor.core.chain_data import AxonInfo
+
+    from tests.conftest import ShieldTestSettings
 
 
 class TestValidator:
