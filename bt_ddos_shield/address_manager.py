@@ -287,7 +287,11 @@ class AwsAddressManager(AbstractAddressManager):
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.SUBNET, self._remove_subnet) and cleaned
         cleaned = self._clean_aws_objects(created_objects, AwsObjectTypes.VPC, self._remove_vpc) and cleaned
         if not cleaned:
-            raise AddressManagerException('Failed to clean all AWS objects that are no longer needed')
+            raise AddressManagerException(
+                'Failed to clean all AWS objects that are no longer needed. Check logs to see what is left.'
+                ' Also try to run cleaning later. Sometimes AWS needs 15-20 minutes to be able to clean some of'
+                ' them - especially TargetGroups.'
+            )
 
     @classmethod
     def _clean_aws_objects(
