@@ -172,7 +172,8 @@ class MinerShield:
             self.worker_thread.join()
             self.worker_thread = None
 
-        # Clear tasks possibly added after MinerShieldDisableTask and before setting finishing to True
+        # Clear tasks possibly added after MinerShieldDisableTask and before setting finishing to True to allow
+        # ticker_thread to finish.
         self._clear_tasks()
 
         if self.ticker_thread is not None:
