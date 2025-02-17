@@ -179,6 +179,12 @@ class MinerShield:
             self.ticker_thread.join()
             self.ticker_thread = None
 
+        # As we don't use any mutex, there is possibility that ticker_thread adds validation task after above
+        # _clear_tasks call. This can happen when ticker_thread execution context was switched inside _add_task method
+        # after checking self.finishing flag, but before really putting task to queue and whole disable method run
+        # (until self.ticker_thread.join()) before switching context back to ticker_thread.
+        self._clear_tasks()
+
     def ban_validator(self, validator_hotkey: Hotkey):
         """
         Ban a validator by its hotkey. Task will be executed by worker. It will update manifest file and publish info
