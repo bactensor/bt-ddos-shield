@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
-from bt_ddos_shield.utils import Address
+from bt_ddos_shield.utils import ShieldAddress
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -112,18 +112,18 @@ class AbstractAddressManager(ABC):
         pass
 
     @abstractmethod
-    def create_address(self, hotkey: Hotkey) -> Address:
+    def create_address(self, hotkey: Hotkey) -> ShieldAddress:
         """
         Create and return a new address redirecting to Miner server to be used by validator identified by hotkey.
         """
         pass
 
     @abstractmethod
-    def remove_address(self, address: Address):
+    def remove_address(self, address: ShieldAddress):
         pass
 
     @abstractmethod
-    def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
+    def validate_addresses(self, addresses: MappingProxyType[Hotkey, ShieldAddress]) -> set[Hotkey]:
         """
         Validate if given addresses exist and are working properly.
 
@@ -321,14 +321,14 @@ class AwsAddressManager(AbstractAddressManager):
                 cleaned = False
         return cleaned
 
-    def create_address(self, hotkey: Hotkey) -> Address:
+    def create_address(self, hotkey: Hotkey) -> ShieldAddress:
         self._validate_manager_state()
 
         subdomain: str = self._generate_subdomain(hotkey)
         new_address_domain: str = f'{subdomain}.{self._get_hosted_zone_domain(self.hosted_zone)}'
         assert self.waf_arn is not None, '_validate_manager_state creates WAF and should be called before'
         self._add_domain_rule_to_firewall(self.waf_arn, new_address_domain)
-        return Address(
+        return ShieldAddress(
             address_id=subdomain,
             address=new_address_domain,
             port=self.shielded_server_data.server_location.port,
@@ -342,12 +342,12 @@ class AwsAddressManager(AbstractAddressManager):
     def _get_hosted_zone_domain(cls, hosted_zone: HostedZone) -> str:
         return hosted_zone.name[:-1]  # Cut '.' from the end of hosted zone name
 
-    def remove_address(self, address: Address):
+    def remove_address(self, address: ShieldAddress):
         self._validate_manager_state()
         assert self.waf_arn is not None, '_validate_manager_state creates WAF and should be called before'
         self._remove_domain_rule_from_firewall(self.waf_arn, address.address)
 
-    def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
+    def validate_addresses(self, addresses: MappingProxyType[Hotkey, ShieldAddress]) -> set[Hotkey]:
         if self._validate_manager_state():
             return {hotkey for hotkey, _ in addresses.items()}
 

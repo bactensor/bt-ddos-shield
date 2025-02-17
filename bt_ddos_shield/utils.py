@@ -20,7 +20,7 @@ type PrivateKey = str
 
 
 @dataclass
-class Address:
+class ShieldAddress:
     """
     Class describing address created by DDosShield.
     """

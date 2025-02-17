@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-    from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PrivateKey, PublicKey
+    from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey, ShieldAddress
 
 
 class ManifestManagerException(Exception):
@@ -252,7 +252,7 @@ class AbstractManifestManager(ReadOnlyManifestManager):
 
     def create_manifest(
         self,
-        address_mapping: MappingProxyType[Hotkey, Address],
+        address_mapping: MappingProxyType[Hotkey, ShieldAddress],
         validators_public_keys: MappingProxyType[Hotkey, PublicKey],
     ) -> Manifest:
         """

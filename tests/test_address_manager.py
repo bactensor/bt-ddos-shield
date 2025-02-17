@@ -15,7 +15,7 @@ from bt_ddos_shield.address_manager import (
     ShieldedServerLocationType,
 )
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, ShieldAddress
 from tests.test_state_manager import MemoryMinerShieldStateManager
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ def get_miner_location_from_credentials(
 
 class MemoryAddressManager(AbstractAddressManager):
     id_counter: int
-    known_addresses: dict[str, Address]
+    known_addresses: dict[str, ShieldAddress]
     invalid_addresses: set[Hotkey]
 
     def __init__(self):
@@ -52,8 +52,8 @@ class MemoryAddressManager(AbstractAddressManager):
         self.known_addresses.clear()
         self.invalid_addresses.clear()
 
-    def create_address(self, hotkey: Hotkey) -> Address:
-        address = Address(
+    def create_address(self, hotkey: Hotkey) -> ShieldAddress:
+        address = ShieldAddress(
             address_id=str(self.id_counter),
             address=f'addr{self.id_counter}.com',
             port=80,
@@ -62,10 +62,10 @@ class MemoryAddressManager(AbstractAddressManager):
         self.id_counter += 1
         return address
 
-    def remove_address(self, address: Address):
+    def remove_address(self, address: ShieldAddress):
         self.known_addresses.pop(address.address_id, None)
 
-    def validate_addresses(self, addresses: MappingProxyType[Hotkey, Address]) -> set[Hotkey]:
+    def validate_addresses(self, addresses: MappingProxyType[Hotkey, ShieldAddress]) -> set[Hotkey]:
         for hotkey in self.invalid_addresses:
             if hotkey in addresses:
                 self.known_addresses.pop(addresses[hotkey].address_id, None)
@@ -158,10 +158,10 @@ class TestAddressManager:
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
-        address1: Address = address_manager.create_address('validator1')
-        address2: Address = address_manager.create_address('validator2')
-        invalid_address: Address = Address(address_id='invalid', address='invalid.com', port=80)
-        mapping: dict[Hotkey, Address] = {'hotkey1': address1, 'hotkey2': address2, 'invalid': invalid_address}
+        address1: ShieldAddress = address_manager.create_address('validator1')
+        address2: ShieldAddress = address_manager.create_address('validator2')
+        invalid_address: ShieldAddress = ShieldAddress(address_id='invalid', address='invalid.com', port=80)
+        mapping: dict[Hotkey, ShieldAddress] = {'hotkey1': address1, 'hotkey2': address2, 'invalid': invalid_address}
         invalid_addresses: set[Hotkey] = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == {'invalid'}
 
@@ -184,9 +184,9 @@ class TestAddressManager:
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
-        address: Address = address_manager.create_address('validator1')
+        address: ShieldAddress = address_manager.create_address('validator1')
         hotkey: Hotkey = 'hotkey'
-        mapping: dict[Hotkey, Address] = {hotkey: address}
+        mapping: dict[Hotkey, ShieldAddress] = {hotkey: address}
         invalid_addresses: set[Hotkey] = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == set()
 
@@ -223,9 +223,9 @@ class TestAddressManager:
 
         IMPORTANT: Test can run for many minutes due to AWS delays.
         """
-        address: Address = address_manager.create_address('validator1')
+        address: ShieldAddress = address_manager.create_address('validator1')
         hotkey: Hotkey = 'hotkey'
-        mapping: dict[Hotkey, Address] = {hotkey: address}
+        mapping: dict[Hotkey, ShieldAddress] = {hotkey: address}
         invalid_addresses: set[Hotkey] = address_manager.validate_addresses(MappingProxyType(mapping))
         assert invalid_addresses == set()
 

@@ -40,7 +40,7 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import Address, AWSClientFactory, Hotkey, PublicKey, SubtensorSettings, WalletSettings
+from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PublicKey, ShieldAddress, SubtensorSettings, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 if TYPE_CHECKING:
@@ -398,7 +398,7 @@ class MinerShield:
         for validator in new_validators:
             self._event('Adding validator {validator}', validator=validator)
 
-            new_address: Address = self.address_manager.create_address(validator)
+            new_address: ShieldAddress = self.address_manager.create_address(validator)
 
             try:
                 self.state_manager.add_validator(validator, fetched_validators[validator], new_address)

@@ -18,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from bt_ddos_shield.utils import Address
+from bt_ddos_shield.utils import ShieldAddress
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import url
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class MinerShieldState:
     _known_validators: dict[Hotkey, PublicKey]
     _banned_validators: dict[Hotkey, datetime]
-    _validators_addresses: dict[Hotkey, Address]
+    _validators_addresses: dict[Hotkey, ShieldAddress]
     _address_manager_state: dict[str, str]
     _address_manager_created_objects: dict[str, frozenset[str]]
 
@@ -37,7 +37,7 @@ class MinerShieldState:
         self,
         known_validators: dict[Hotkey, PublicKey] | None = None,
         banned_validators: dict[Hotkey, datetime] | None = None,
-        validators_addresses: dict[Hotkey, Address] | None = None,
+        validators_addresses: dict[Hotkey, ShieldAddress] | None = None,
         address_manager_state: dict[str, str] | None = None,
         address_manager_created_objects: dict[str, frozenset[str]] | None = None,
     ):
@@ -62,7 +62,7 @@ class MinerShieldState:
         return MappingProxyType(self._banned_validators)
 
     @property
-    def validators_addresses(self) -> MappingProxyType[Hotkey, Address]:
+    def validators_addresses(self) -> MappingProxyType[Hotkey, ShieldAddress]:
         """
         Get dictionary of active addresses (validator HotKey -> Address created for him).
         """
@@ -120,7 +120,7 @@ class AbstractMinerShieldStateManager(ABC):
         return self.current_miner_shield_state
 
     @abstractmethod
-    def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address):
+    def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: ShieldAddress):
         """
         Add validator together with his public key and address (created for him) redirecting to Miner server.
         """
@@ -164,7 +164,7 @@ class AbstractMinerShieldStateManager(ABC):
         self,
         known_validators: dict[Hotkey, PublicKey] | None = None,
         banned_validators: dict[Hotkey, datetime] | None = None,
-        validators_addresses: dict[Hotkey, Address] | None = None,
+        validators_addresses: dict[Hotkey, ShieldAddress] | None = None,
         address_manager_state: dict[str, str] | None = None,
         address_manager_created_objects: dict[str, frozenset[str]] | None = None,
     ):
@@ -187,7 +187,7 @@ class AbstractMinerShieldStateManager(ABC):
         )
 
     def _state_add_validator(
-        self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address
+        self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: ShieldAddress
     ):
         """
         Add new validator to current state. Should be called only after updating state in storage.
@@ -196,7 +196,7 @@ class AbstractMinerShieldStateManager(ABC):
         assert validator_hotkey not in known_validators, 'storage should not allow adding same validator'
         known_validators[validator_hotkey] = validator_public_key
 
-        validators_addresses: dict[Hotkey, Address] = dict(self.current_miner_shield_state.validators_addresses)
+        validators_addresses: dict[Hotkey, ShieldAddress] = dict(self.current_miner_shield_state.validators_addresses)
         assert validator_hotkey not in validators_addresses, 'storage should not allow adding same validator'
         validators_addresses[validator_hotkey] = redirect_address
 
@@ -227,7 +227,7 @@ class AbstractMinerShieldStateManager(ABC):
         known_validators: dict[Hotkey, PublicKey] = dict(self.current_miner_shield_state.known_validators)
         assert validator_hotkey in known_validators, 'storage should not allow removing non-existent validator'
         known_validators.pop(validator_hotkey)
-        validators_addresses: dict[Hotkey, Address] = dict(self.current_miner_shield_state.validators_addresses)
+        validators_addresses: dict[Hotkey, ShieldAddress] = dict(self.current_miner_shield_state.validators_addresses)
         assert validator_hotkey in validators_addresses, 'storage should not allow removing non-existent validator'
         validators_addresses.pop(validator_hotkey)
         self._update_state(known_validators=known_validators, validators_addresses=validators_addresses)
@@ -332,7 +332,7 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
         MinerShieldStateDeclarativeBase.metadata.drop_all(self.engine)
         MinerShieldStateDeclarativeBase.metadata.create_all(self.engine)
 
-    def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: Address):
+    def add_validator(self, validator_hotkey: Hotkey, validator_public_key: PublicKey, redirect_address: ShieldAddress):
         with self.session_maker() as session:
             session.add(
                 SqlValidator(
@@ -420,7 +420,7 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
                 b.hotkey: b.ban_time for b in session.query(SqlBannedValidator).all()
             }
             # noinspection PyTypeChecker
-            validators_addresses: dict[Hotkey, Address] = {
+            validators_addresses: dict[Hotkey, ShieldAddress] = {
                 v.hotkey: self._load_address(session, v.address_id) for v in session.query(SqlValidator).all()
             }
 
@@ -447,9 +447,9 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
         )
 
     @classmethod
-    def _load_address(cls, session, address_id: str) -> Address:
+    def _load_address(cls, session, address_id: str) -> ShieldAddress:
         db_address = session.query(SqlAddress).filter_by(address_id=address_id).one()
-        return Address(
+        return ShieldAddress(
             address_id=db_address.address_id,
             address=db_address.address,
             port=db_address.port,
