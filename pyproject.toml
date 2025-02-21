@@ -6,10 +6,10 @@ dynamic = [
 ]
 
 dependencies = [
-    "bittensor~=8.5.1",
-    "boto3~=1.35.27",
+    "bittensor~=9.0.1",
+    "boto3~=1.36.21",
     "eciespy~=0.4.2",
-    "pydantic~=2.10.5",
+    "pydantic~=2.11.0a2",
     "pydantic-settings~=2.7.1",
     "python-dotenv~=1.0.1",
     "route53~=1.0.1",
@@ -44,7 +44,7 @@ lint = [
 type_check = [
     "boto3-stubs~=1.36.18",
     "botocore-stubs~=1.36.18",
-    "mypy~=1.14.1",
+    "mypy~=1.15.0",
     "mypy-boto3-ec2~=1.36.18",
     "mypy-boto3-elbv2~=1.36.0",
     "mypy-boto3-route53~=1.36.0",
