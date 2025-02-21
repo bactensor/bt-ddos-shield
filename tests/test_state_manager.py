@@ -37,10 +37,14 @@ class MemoryMinerShieldStateManager(AbstractMinerShieldStateManager):
         self._state_update_validator_public_key(validator_hotkey, validator_public_key)
 
     def add_banned_validator(self, validator_hotkey: Hotkey):
-        assert self.current_miner_shield_state is not None
         if validator_hotkey in self.current_miner_shield_state.banned_validators:
             return
         self._state_add_banned_validator(validator_hotkey, datetime.now())
+
+    def remove_banned_validator(self, validator_hotkey: Hotkey):
+        if validator_hotkey not in self.current_miner_shield_state.banned_validators:
+            return
+        self._state_remove_banned_validator(validator_hotkey)
 
     def remove_validator(self, validator_hotkey: Hotkey):
         self._state_remove_validator(validator_hotkey)
@@ -126,6 +130,10 @@ class TestMinerShieldStateManager:
 
         reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
         assert state == reloaded_state
+
+        state_manager.remove_banned_validator(banned_validator_hotkey)
+        reloaded_state = state_manager.get_state(reload=True)
+        assert reloaded_state.banned_validators == {}
 
     def test_address_manager_state(self, shield_settings: ShieldTestSettings):
         key1 = 'key1'

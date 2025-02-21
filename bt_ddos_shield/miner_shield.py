@@ -193,6 +193,13 @@ class MinerShield:
         """
         self._add_task(MinerShieldBanValidatorTask(validator_hotkey))
 
+    def unban_validator(self, validator_hotkey: Hotkey):
+        """
+        Unban a validator by its hotkey. Task will be executed by worker. It will update manifest file and publish info
+        about new file version to blockchain.
+        """
+        self._add_task(MinerShieldUnbanValidatorTask(validator_hotkey))
+
     def _add_task(self, task: AbstractMinerShieldTask):
         """
         Add task to task queue. It will be handled by _worker_function.
@@ -460,6 +467,15 @@ class MinerShield:
         self._event('Validator {validator_hotkey} added to banned set', validator_hotkey=validator_hotkey)
         self._add_task(MinerShieldValidatorsChangedTask())
 
+    def _handle_unban_validator(self, validator_hotkey: Hotkey):
+        """
+        Unban validator by its hotkey. If something changed, MinerShieldValidatorsChangedTask will apply asynchronously
+        this change where needed.
+        """
+        self.state_manager.remove_banned_validator(validator_hotkey)
+        self._event('Validator {validator_hotkey} removed from banned set', validator_hotkey=validator_hotkey)
+        self._add_task(MinerShieldValidatorsChangedTask())
+
     def _handle_update_manifest(self) -> None:
         """
         Update manifest file and schedule publishing it to blockchain.
@@ -537,6 +553,15 @@ class MinerShieldBanValidatorTask(AbstractMinerShieldTask):
     def run(self, miner_shield: MinerShield):
         # noinspection PyProtectedMember
         miner_shield._handle_ban_validator(self.validator_hotkey)
+
+
+class MinerShieldUnbanValidatorTask(AbstractMinerShieldTask):
+    def __init__(self, validator_hotkey: Hotkey):
+        self.validator_hotkey = validator_hotkey
+
+    def run(self, miner_shield: MinerShield):
+        # noinspection PyProtectedMember
+        miner_shield._handle_unban_validator(self.validator_hotkey)
 
 
 class MinerShieldUpdateManifestTask(AbstractMinerShieldTask):
@@ -719,8 +744,17 @@ def run_shield() -> int:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     parser = argparse.ArgumentParser(description='MinerShield')
     subparsers = parser.add_subparsers(dest='command', help='Subcommands')
+
     subparsers.add_parser('start', help='Start the MinerShield')
+
+    ban_parser = subparsers.add_parser('ban', help='Start the MinerShield and ban validator with given hotkey')
+    ban_parser.add_argument('hotkey', type=str, help='Hotkey of validator to ban')
+
+    unban_parser = subparsers.add_parser('unban', help='Start the MinerShield and unban validator with given hotkey')
+    unban_parser.add_argument('hotkey', type=str, help='Hotkey of validator to unban')
+
     subparsers.add_parser('clean', help='Clean all stuff created by shield, especially AWS objects')
+
     args = parser.parse_args()
 
     settings: ShieldSettings = ShieldSettings()  # type: ignore
@@ -732,22 +766,29 @@ def run_shield() -> int:
         logging.info('All objects cleaned')
         return 0
 
-    if args.command == 'start' or args.command is None:
-        try:
-            logging.info('Starting shield')
-            miner_shield.enable()
-            logging.info('Shield started, press Ctrl+C to stop')
-            threading.Event().wait()
-            return -1
-        except KeyboardInterrupt:
-            logging.info('Keyboard interrupt, stopping shield')
-            miner_shield.disable()
-            return 0
-        except MinerShieldException:
-            logging.exception('Error during enabling shield')
-            return 1
+    assert args.command in {None, 'start', 'ban', 'unban'}
 
-    return -1
+    try:
+        logging.info('Starting shield')
+        miner_shield.enable()
+
+        if args.command == 'ban':
+            logging.info(f'Banning validator with hotkey: {args.hotkey}')
+            miner_shield.ban_validator(args.hotkey)
+        elif args.command == 'unban':
+            logging.info(f'Unbanning validator with hotkey: {args.hotkey}')
+            miner_shield.unban_validator(args.hotkey)
+
+        logging.info('Shield started, press Ctrl+C to stop')
+        threading.Event().wait()
+        return -1
+    except KeyboardInterrupt:
+        logging.info('Keyboard interrupt, stopping shield')
+        miner_shield.disable()
+        return 0
+    except MinerShieldException:
+        logging.exception('Error during enabling shield')
+        return 1
 
 
 if __name__ == '__main__':
