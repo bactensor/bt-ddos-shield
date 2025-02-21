@@ -11,12 +11,13 @@ from bittensor.core.extrinsics.serving import (
     serve_extrinsic,
 )
 
+from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import bittensor_wallet
     from bittensor.core.chain_data.neuron_info import NeuronInfo
-    from scalecodec.base import ScaleType
 
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
     from bt_ddos_shield.utils import Hotkey, PublicKey
@@ -190,15 +191,16 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
         return self.wallet.hotkey.ss58_address
 
     def get_own_public_key(self) -> PublicKey | None:
-        certificate: ScaleType = self.subtensor.query_subtensor(
+        certificate: Any | None = self.subtensor.query_subtensor(
             name='NeuronCertificates',
             params=[self.netuid, self.get_hotkey()],
         )
-        cert_value: dict[str, Any] | None = certificate.serialize()
-        if cert_value is None or 'public_key' not in cert_value:
+        if certificate is None:
             return None
-        cert_type: str = format(cert_value['algorithm'], '02x')
-        return cert_type + cert_value['public_key'][2:]  # public_key is prefixed with '0x'
+        decoded_certificate: SubtensorCertificate | None = decode_subtensor_certificate_info(certificate)
+        if decoded_certificate is None:
+            return None
+        return decoded_certificate.hex_data
 
     def upload_public_key(self, public_key: PublicKey):
         try:

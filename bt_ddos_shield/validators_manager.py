@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from substrateinterface.base import QueryMapResult  # noqa
+from async_substrate_interface.types import ScaleObj
+from bittensor.core.chain_data import decode_account_id
 
 from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
+from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import bittensor
+    from async_substrate_interface.sync_substrate import QueryMapResult
 
     from bt_ddos_shield.utils import Hotkey, PublicKey
 
@@ -104,15 +107,17 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
             name='NeuronCertificates',
             params=[self.netuid],
         )
-        certificates: dict[Hotkey, dict[str, Any]] = {
-            hotkey.serialize(): certificate.serialize() for hotkey, certificate in query_certificates
+        certificates: dict[Hotkey, SubtensorCertificate | None] = {
+            decode_account_id(chain_hotkey): decode_subtensor_certificate_info(chain_certificate.value)
+            for chain_hotkey, chain_certificate in query_certificates
+            if isinstance(chain_certificate, ScaleObj)
         }
-        cert_type: str = format(CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED, '02x')
         return {
-            hotkey: cert_type + certificate['public_key'][2:]  # Key is prefixed with '0x'
+            hotkey: certificate.hex_data
             for hotkey, certificate in certificates.items()
             if hotkey in validators
-            and certificate['algorithm'] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
+            and certificate is not None
+            and certificate.algorithm == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
         }
 
     def is_validator(self, neuron: bittensor.NeuronInfoLite) -> bool:
