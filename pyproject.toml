@@ -1,7 +1,9 @@
 [project]
-name = "bt-ddos-shield"
-version = "0.1"
+name = "bt-ddos-shield-client"
 requires-python = "~=3.12.3"
+dynamic = [
+    "version",
+]
 
 dependencies = [
     "bittensor~=8.5.1",
@@ -17,6 +19,13 @@ dependencies = [
 [tool.uv]
 prerelease = "allow"
 environments = ["sys_platform == 'linux'", "sys_platform == 'darwin'"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["bt_ddos_shield"]
 
 [tool.pytest.ini_options]
 addopts = "-s" # Shield tests run for a long time and user should see what is happening
