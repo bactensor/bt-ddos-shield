@@ -63,6 +63,8 @@ jobs:
       #  continue-on-error: ${{ fromJSON(steps.get-version.outputs.draft) }}
 
       - name: Build
+        env:
+          VERSION: ${{ steps.get-version.outputs.version }}
         run: uv build
 
       - name: Sign distribution
