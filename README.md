@@ -148,28 +148,29 @@ TODO_DOCKER clean
 
 ### Usage instructions:
 
-To make miner publish encrypted address for validator, validator needs to use Shield library on his side also. First install
-Shield library from pypi repository or add it as dependency to your project. Then change validator's code to use ShieldMetagraph
-class instead of Metagraph from bittensor lib in every place where you are creating Metagraph instance. This allows easy
-drop-in replacement as no other changes are needed, only some new params are added to ShieldMetagraph. These new params are:
- * `certificate_path` - Path to PEM file with Validator's ECDSA key. If the file does not exist, during running ShieldMetagraph
+To make miner publish encrypted address for validator, validator needs to use `Shield` library on his side also. First install
+`Shield` library from pypi repository or add it as dependency to your project. Then change validator's code to use `ShieldMetagraph`
+class instead of `Metagraph` from `bittensor` lib in every place where you are creating a `Metagraph` instance. This allows easy
+drop-in replacement -- no other changes are needed, only some new params are added to ShieldMetagraph. Required params are
+(others are not important and can have default values):
+ * `certificate_path` - Path to PEM file with validator's ECDSA key. If the file does not exist, during running `ShieldMetagraph`
     constructor new ECDSA key-pair will be generated, saved to this file and uploaded to Subtensor using neuron `certificate`
-    field. Upload to Subtensor is done using `serve_extrinsic` method from Bittensor library - there is no better way to do
+    field. Upload to Subtensor is done using `serve_extrinsic` method from bittensor library - there is no better way to do
     it as for now - but it will not overwrite any data already set on chain.
  * `wallet` - Wallet object needed to set certificate field.
 
 ### Implementation details:
 
-During `sync` metagraph operation ShieldMetagraph class is trying to fetch manifest files for all miners in subnet. For those,
-who have manifest file uploaded, ShieldMetagraph fetches the file and decrypts prepared address using validator's private key.
+During `sync` metagraph operation `ShieldMetagraph` class is trying to fetch manifest files for all miners in subnet. For those,
+who have manifest file uploaded, `ShieldMetagraph` fetches the file and decrypts prepared address using validator's private key.
 If manifest file or entry for given validator is not found, then nothing happens for given miner. If it is found and
 successfully decrypted, then `ip` and `port` fields are updated in metagraph axon info. Please note, that after this update
 `ip` field will contain domain address, not IP address. Connecting to miner should work without problems as before, but
-when there will be some problems with this, user can disable `replace_ip_address_for_axon` option in ShieldMetagraph - there
-is `options` param in ShieldMetagraph constructor.
+when there will be some problems with this, user can disable `replace_ip_address_for_axon` option in `ShieldMetagraph` - there
+is `options` param in `ShieldMetagraph` constructor.
 
 
-## Running Shield locally:
+## Running the Shield locally:
 
 Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
 Then create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
@@ -183,7 +184,7 @@ bin/run_shield.sh clean
 ```
 
 
-## Working with Shield Docker image
+## Working with the Shield Docker image
 
 ### Creating Docker image
 
@@ -234,8 +235,8 @@ Make changes to the codebase and ensure that the tests pass. Then send a pull re
 
 ### 5. TODO list:
 
-Known upgrades we will appreciate (and help you with) are:
-* Allowing using Shield with some other cloud provider than AWS. One must implement AbstractAddressManager (like AwsAddressManager does).
+Improvements we will appreciate (and help you with):
+* Allowing the Shield usage with some other cloud provider than AWS. One must implement `AbstractAddressManager` (like `AwsAddressManager` does).
 
 ## License
 
