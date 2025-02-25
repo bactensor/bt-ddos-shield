@@ -132,7 +132,7 @@ use `unban` command.
 It can take few minutes for AWS to create these objects. There will be logs in console informing about the progress.
 When Shield is run next time, it will use already created objects - info about them is stored in local database.
 2. When initialization is done, validators list is retrieved from Bittensor and Shield creates domain address for each
-validator, which uploaded his public key to Bittensor (using Shield on his side).
+validator, which uploaded their public key to Bittensor (using Shield on their side).
 3. These addresses are aggregated into manifest file, encrypted and uploaded to S3 bucket. Then info about manifest file
 is published to Bittensor.
 4. When Shield is running, it cyclically checks if there are any new validators or if any validator's public key has
@@ -148,7 +148,7 @@ TODO_DOCKER clean
 
 ### Usage instructions:
 
-To make miner publish encrypted address for validator, validator needs to use `Shield` library on his side also. First install
+To make miner publish encrypted address for validator, validator needs to use `Shield` library on their side also. First install
 `Shield` library from pypi repository or add it as dependency to your project. Then change validator's code to use `ShieldMetagraph`
 class instead of `Metagraph` from `bittensor` lib in every place where you are creating a `Metagraph` instance. This allows easy
 drop-in replacement -- no other changes are needed, only some new params are added to ShieldMetagraph. Required params are
@@ -236,7 +236,7 @@ Make changes to the codebase and ensure that the tests pass. Then send a pull re
 ### 5. TODO list:
 
 Improvements we will appreciate (and help you with):
-* Allowing the Shield usage with some other cloud provider than AWS. One must implement `AbstractAddressManager` (like `AwsAddressManager` does).
+* Allowing the use of Shield with cloud providers other than AWS. One must implement `AbstractAddressManager` (like `AwsAddressManager` does).
 
 ## License
 
