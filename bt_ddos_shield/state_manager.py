@@ -135,6 +135,10 @@ class AbstractMinerShieldStateManager(ABC):
         pass
 
     @abstractmethod
+    def remove_banned_validator(self, validator_hotkey: Hotkey):
+        pass
+
+    @abstractmethod
     def remove_validator(self, validator_hotkey: Hotkey):
         """
         Remove validator from the sets of known validators and active addresses.
@@ -218,6 +222,14 @@ class AbstractMinerShieldStateManager(ABC):
         banned_validators: dict[Hotkey, datetime] = dict(self.current_miner_shield_state.banned_validators)
         assert validator_hotkey not in banned_validators, 'time should be updated only when adding new ban'
         banned_validators[validator_hotkey] = ban_time
+        self._update_state(banned_validators=banned_validators)
+
+    def _state_remove_banned_validator(self, validator_hotkey: Hotkey):
+        """
+        Remove banned validator from current state. Should be called only after updating state in storage.
+        """
+        banned_validators: dict[Hotkey, datetime] = dict(self.current_miner_shield_state.banned_validators)
+        banned_validators.pop(validator_hotkey)
         self._update_state(banned_validators=banned_validators)
 
     def _state_remove_validator(self, validator_hotkey: Hotkey):
@@ -360,7 +372,7 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
 
     def add_banned_validator(self, validator_hotkey: Hotkey):
         if validator_hotkey in self.current_miner_shield_state.banned_validators:
-            # do not update ban time
+            # Do not update ban time
             return
 
         ban_time: datetime = datetime.now()
@@ -370,6 +382,17 @@ class SQLAlchemyMinerShieldStateManager(AbstractMinerShieldStateManager):
             session.commit()
 
         self._state_add_banned_validator(validator_hotkey, ban_time)
+
+    def remove_banned_validator(self, validator_hotkey: Hotkey):
+        if validator_hotkey not in self.current_miner_shield_state.banned_validators:
+            return
+
+        with self.session_maker() as session:
+            validator = session.query(SqlBannedValidator).filter_by(hotkey=validator_hotkey).one()
+            session.delete(validator)
+            session.commit()
+
+        self._state_remove_banned_validator(validator_hotkey)
 
     def remove_validator(self, validator_hotkey: Hotkey):
         with self.session_maker() as session:
