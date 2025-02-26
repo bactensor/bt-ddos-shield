@@ -11,13 +11,15 @@ This decentralized approach keeps sensitive connection details—such as IP addr
 By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
 `bt-ddos-shield` offers a scalable and cost-effective solution for subnets handling large volumes of data.
 
-## Project Goals
+## Product Highlights
 
-The goal of this project is to implement a distributed and decentralized system that:
-- Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
-- Removes the need for on-chain storage of unencrypted IP addresses and ports, eliminating an obvious attack surface.
-- Uses encrypted messages between miners and validators to securely exchange connection information (connection address).
-- Provides a scalable, decentralized alternative to traditional DDoS protection methods while maintaining performance and minimizing attack vectors.
+`bt-ddos-shield` delivers a secure, decentralized, and scalable solution that:
+
+- **Secures your subnet:** Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
+- **Eliminates vulnerabilities:** Keeps sensitive IP addresses and ports off-chain, reducing the attack surface.
+- **Encrypts the handshake:** Uses encrypted communications to securely exchange connection information between miners and validators.
+- **Delivers cost-effective defense:** Provides a decentralized alternative to traditional DDoS protection methods, maintaining performance while minimizing attack vectors.
+
 
 ## Features
 
