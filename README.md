@@ -193,42 +193,6 @@ when there will be some problems with this, user can disable `replace_ip_address
 is `options` param in `ShieldMetagraph` constructor.
 
 
-## Running the Shield locally:
-
-Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
-Then create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
-Then activate venv with `source .venv/bin/activate` and run the following command to run the Shield:
-```bash
-bin/run_shield.sh
-```
-Commands can be passed as arguments to `run_shield.sh` script. Example:
-```bash
-bin/run_shield.sh clean
-```
-
-
-## Working with the Shield Docker image
-
-### Creating Docker image
-
-To create a Docker image, run the following command:
-```bash
-cd docker && ./build_image.sh
-```
-
-### Running Docker image locally
-
-To run created Docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
-Then run the following command:
-```bash
-cd docker && ./run_image.sh
-```
-Commands can be passed as arguments to `run_image.sh` script. Example:
-```bash
-./run_image.sh clean
-```
-
-
 ## Contribution Guidelines
 
 To contribute to the `bt-ddos-shield` package, follow the steps below. Contact with us should be done via GitHub.
@@ -260,6 +224,36 @@ Make changes to the codebase and ensure that the tests pass. Then send a pull re
 
 Improvements we will appreciate (and help you with):
 * Allowing the use of Shield with cloud providers other than AWS. One must implement `AbstractAddressManager` (like `AwsAddressManager` does).
+
+### Running the Shield locally:
+
+Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
+Then create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
+Then activate venv with `source .venv/bin/activate` and run the following command to run the Shield:
+```bash
+bin/run_shield.sh
+```
+Commands can be passed as arguments to `run_shield.sh` script. Example:
+```bash
+bin/run_shield.sh clean
+```
+
+### Working with the Shield Docker image
+
+To **create the Shield Docker image**, run the following command:
+```bash
+cd docker && ./build_image.sh
+```
+
+To **run created Docker image**, first create a `docker/.env` file filling template file `envs/.env.template`.
+Then run the following command:
+```bash
+cd docker && ./run_image.sh
+```
+Commands can be passed as arguments to `run_image.sh` script. Example:
+```bash
+./run_image.sh clean
+```
 
 ## License
 
