@@ -42,6 +42,17 @@ By replacing costly, traditional DDoS protection methods like WAF and Cloudflare
    - Validators can request the connection information of miners from the subtensor network. This information is validated and
      decrypted locally using the validator's private key.
 
+## Getting Started
+
+If you're a **subnet owner**, enable BT DDoS Shield in your validator code 
+(see [Using Shield on Client (Validator) Side](#shield-on-the-client-validator-side)) so that everything runs automatically. 
+**Validators** can review the detailed workings in that section.
+
+If you're a **miner**, activate the shield on your server by running it as described in the [Running Shield on Server (Miner) Side](#shield-on-the-server-miner-side) section.
+
+We welcome your contributions—see [Contribution Guidelines](#contribution-guidelines) for more information. 
+
+For requests, feedback, or questions, **join us on the [ComputeHorde Discord channel](https://discordapp.com/channels/799672011265015819/1201941624243109888)**.
 
 ## Basic Communication Flow
 
