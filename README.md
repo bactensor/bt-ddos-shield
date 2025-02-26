@@ -1,4 +1,11 @@
+
 # BT DDoS Shield
+
+![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield)
+![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)
+![Python Versions](https://img.shields.io/pypi/pyversions/bt-ddos-shield)
+![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield)
+
 
 `bt-ddos-shield` is a Python package designed for Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS) attacks and foster honest competition.
 By enabling the Shield in the validator code, the subnet owner ensures that authenticated keys are published to the metagraph during validator software installation.
