@@ -1,35 +1,58 @@
+
 # BT DDoS Shield
 
-## Overview
+![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield)
+![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)
+![Python Versions](https://img.shields.io/pypi/pyversions/bt-ddos-shield)
+![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield)
 
-`bt-ddos-shield` is a Python package designed to address the critical issue of Distributed Denial-of-Service (DDoS) attacks
-in Bittensor ecosystem. The project leverages encryption to protect communication between miners and validators, ensuring
-the IPs and ports of these nodes remain secure and hidden from malicious actors. This decentralized solution aims to eliminate
-the financial burden caused by traditional DDoS protection methods like WAF and Cloudflare, which are often costly and
-impractical for subnets handling large volumes of data.
 
-## Project Goals
+`bt-ddos-shield` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
+By enabling the Shield in the validator code, the subnet owner ensures that **authenticated keys are published to the metagraph** during validator software installation.
+When miners run the shield via the provided Docker image, they fetch these trusted keys to **securely exchange connection details**. 
+This mechanism effectively blocks malicious requests from interfering with miner operations,
+ensuring that **miners compete on performance and quality** rather than using disruptive tactics.
 
-The goal of this project is to implement a distributed and decentralized system that:
-- Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
-- Removes the need for on-chain storage of unencrypted IP addresses and ports, eliminating an obvious attack surface.
-- Uses encrypted messages between miners and validators to securely exchange connection information (connection address).
-- Provides a scalable, decentralized alternative to traditional DDoS protection methods while maintaining performance and minimizing attack vectors.
+In addition to promoting fair competition, `bt-ddos-shield` leverages encryption to **secure communication between miners and validators**.
+This decentralized approach keeps sensitive connection details—such as IP addresses and ports—hidden from malicious actors.
+By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
+`bt-ddos-shield` offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
+
+## Product Highlights
+
+`bt-ddos-shield` delivers a secure, decentralized, and scalable solution that:
+
+- **Secures your subnet:** Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
+- **Eliminates vulnerabilities:** Keeps sensitive IP addresses and ports off-chain, reducing the attack surface.
+- **Encrypts the handshake:** Uses encrypted communications to securely exchange connection information between miners and validators.
+- **Delivers cost-effective defense:** Provides a decentralized alternative to traditional DDoS protection methods, maintaining performance while minimizing attack vectors.
+
 
 ## Features
 
-1. **Encryption-Based Communication**:
+- **Encryption-Based Communication**
    - Uses ECIES (Elliptic Curve Integrated Encryption Scheme) to encrypt communication between miners and validators.
    - The encrypted data includes connection details for validator (domain and port).
-
-2. **Decentralized DDoS Mitigation**:
+- **Decentralized DDoS Mitigation**
    - Removes the need for centralized DDoS protection services by distributing connection information securely across nodes.
    - Prevents IP address exposure by sharing encrypted connection data through a decentralized network of subtensors.
-
-3. **Secure Message Exchange**:
+- **Secure Message Exchange**
    - Validators can request the connection information of miners from the subtensor network. This information is validated and
      decrypted locally using the validator's private key.
 
+## Getting Started
+
+If you're a **subnet owner**, enable BT DDoS Shield in your validator code 
+(see [Using Shield on Client (Validator) Side](#using-shield-on-client-validator-side)) so that everything runs automatically. 
+**Validators** can review the detailed workings in that section.
+
+If you're a **miner**, activate the shield on your server by running it as described in the [Running Shield on Server (Miner) Side](#running-shield-on-server-miner-side) section.
+
+We welcome your contributions—see [Contribution Guidelines](#contribution-guidelines) for more information. 
+
+For requests, feedback, or questions, **join us on the [ComputeHorde Discord channel](https://discordapp.com/channels/799672011265015819/1201941624243109888)**.
+
+Also, be sure to check out our subnet and other products at [ComputeHorde](https://computehorde.io).
 
 ## Basic Communication Flow
 
@@ -170,42 +193,6 @@ when there will be some problems with this, user can disable `replace_ip_address
 is `options` param in `ShieldMetagraph` constructor.
 
 
-## Running the Shield locally:
-
-Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
-Then create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
-Then activate venv with `source .venv/bin/activate` and run the following command to run the Shield:
-```bash
-bin/run_shield.sh
-```
-Commands can be passed as arguments to `run_shield.sh` script. Example:
-```bash
-bin/run_shield.sh clean
-```
-
-
-## Working with the Shield Docker image
-
-### Creating Docker image
-
-To create a Docker image, run the following command:
-```bash
-cd docker && ./build_image.sh
-```
-
-### Running Docker image locally
-
-To run created Docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
-Then run the following command:
-```bash
-cd docker && ./run_image.sh
-```
-Commands can be passed as arguments to `run_image.sh` script. Example:
-```bash
-./run_image.sh clean
-```
-
-
 ## Contribution Guidelines
 
 To contribute to the `bt-ddos-shield` package, follow the steps below. Contact with us should be done via GitHub.
@@ -237,6 +224,38 @@ Make changes to the codebase and ensure that the tests pass. Then send a pull re
 
 Improvements we will appreciate (and help you with):
 * Allowing the use of Shield with cloud providers other than AWS. One must implement `AbstractAddressManager` (like `AwsAddressManager` does).
+
+### Running the Shield locally:
+
+Run `setup-dev.sh` script to install the required dependencies and set up the development environment.
+Then create a `.env` file filling template file `envs/.env.template`. Stub should be made by `setup-dev.sh` script.
+Then activate venv with `source .venv/bin/activate` and run the following command to run the Shield:
+```bash
+bin/run_shield.sh
+```
+Commands can be passed as arguments to `run_shield.sh` script. Example:
+```bash
+bin/run_shield.sh clean
+```
+
+### Working with the Shield Docker image
+
+- **Creating Docker image**
+  To create the Shield Docker image, run the following command:
+  ```bash
+  cd docker && ./build_image.sh
+  ```
+
+- **Running Docker image locally**
+  To run created Docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
+  Then run the following command:
+  ```bash
+  cd docker && ./run_image.sh
+  ```
+  Commands can be passed as arguments to `run_image.sh` script. Example:
+  ```bash
+  ./run_image.sh clean
+  ```
 
 ## License
 
