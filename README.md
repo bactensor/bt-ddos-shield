@@ -1,26 +1,26 @@
 
 # BT DDoS Shield
 
-![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield)
+![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield-client)
 ![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)
-![Python Versions](https://img.shields.io/pypi/pyversions/bt-ddos-shield)
-![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield)
+![Python Versions](https://img.shields.io/pypi/pyversions/bt-ddos-shield-client)
+![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield-client)
 
 
-`bt-ddos-shield` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
+`bt-ddos-shield-client` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
 By enabling the Shield in the validator code, the subnet owner ensures that **authenticated keys are published to the metagraph** during validator software installation.
 When miners run the shield via the provided Docker image, they fetch these trusted keys to **securely exchange connection details**. 
 This mechanism effectively blocks malicious requests from interfering with miner operations,
 ensuring that **miners compete on performance and quality** rather than using disruptive tactics.
 
-In addition to promoting fair competition, `bt-ddos-shield` leverages encryption to **secure communication between miners and validators**.
+In addition to promoting fair competition, BT DDoS Shield leverages encryption to **secure communication between miners and validators**.
 This decentralized approach keeps sensitive connection details—such as IP addresses and ports—hidden from malicious actors.
 By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
-`bt-ddos-shield` offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
+BT DDoS Shield offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
 
 ## Product Highlights
 
-`bt-ddos-shield` delivers a secure, decentralized, and scalable solution that:
+`bt-ddos-shield-client` delivers a secure, decentralized, and scalable solution that:
 
 - **Secures your subnet:** Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
 - **Eliminates vulnerabilities:** Keeps sensitive IP addresses and ports off-chain, reducing the attack surface.
@@ -195,7 +195,7 @@ is `options` param in `ShieldMetagraph` constructor.
 
 ## Contribution Guidelines
 
-To contribute to the `bt-ddos-shield` package, follow the steps below. Contact with us should be done via GitHub.
+To contribute to the `bt-ddos-shield-client` package, follow the steps below. Contact with us should be done via GitHub.
 
 ### 1. Clone the Repository:
 
