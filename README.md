@@ -43,10 +43,10 @@ By replacing costly, traditional DDoS protection methods like WAF and Cloudflare
 ## Getting Started
 
 If you're a **subnet owner**, enable BT DDoS Shield in your validator code 
-(see [Using Shield on Client (Validator) Side](#shield-on-the-client-validator-side)) so that everything runs automatically. 
+(see [Using Shield on Client (Validator) Side](#using-shield-on-client-validator-side)) so that everything runs automatically. 
 **Validators** can review the detailed workings in that section.
 
-If you're a **miner**, activate the shield on your server by running it as described in the [Running Shield on Server (Miner) Side](#shield-on-the-server-miner-side) section.
+If you're a **miner**, activate the shield on your server by running it as described in the [Running Shield on Server (Miner) Side](#running-shield-on-server-miner-side) section.
 
 We welcome your contributions—see [Contribution Guidelines](#contribution-guidelines) for more information. 
 
