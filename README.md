@@ -54,6 +54,8 @@ We welcome your contributions—see [Contribution Guidelines](#contribution-guid
 
 For requests, feedback, or questions, **join us on the [ComputeHorde Discord channel](https://discordapp.com/channels/799672011265015819/1201941624243109888)**.
 
+Also, be sure to check out our subnet and other products at [ComputeHorde](https://computehorde.io).
+
 ## Basic Communication Flow
 
 <!--
