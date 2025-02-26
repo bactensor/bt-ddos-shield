@@ -3,10 +3,6 @@
 
 [![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield-client)](https://pypi.org/project/bt-ddos-shield-client/)
 [![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)](https://github.com/bactensor/bt-ddos-shield/blob/main/LICENSE)
-[![Python Versions](https://img.shields.io/pypi/pyversions/bt-ddos-shield-client)](https://pypi.org/project/bt-ddos-shield-client/)
-[![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield-client)](https://pypi.org/project/bt-ddos-shield-client/)
-[![Build Status](https://github.com/bactensor/bt-ddos-shield/actions/workflows/test.yml/badge.svg)](https://github.com/bactensor/bt-ddos-shield/actions/workflows/test.yml)
-
 
 `bt-ddos-shield-client` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
 By enabling the Shield in the validator code, the subnet owner ensures that **authenticated keys are published to the metagraph** during validator software installation.
