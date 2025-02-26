@@ -23,15 +23,15 @@ By replacing costly, traditional DDoS protection methods like WAF and Cloudflare
 
 ## Features
 
-### Encryption-Based Communication
+- **Encryption-Based Communication**
    - Uses ECIES (Elliptic Curve Integrated Encryption Scheme) to encrypt communication between miners and validators.
    - The encrypted data includes connection details for validator (domain and port).
 
-### Decentralized DDoS Mitigation
+- **Decentralized DDoS Mitigation**
    - Removes the need for centralized DDoS protection services by distributing connection information securely across nodes.
    - Prevents IP address exposure by sharing encrypted connection data through a decentralized network of subtensors.
 
-### Secure Message Exchange
+- **Secure Message Exchange**
    - Validators can request the connection information of miners from the subtensor network. This information is validated and
      decrypted locally using the validator's private key.
 
