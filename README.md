@@ -7,16 +7,16 @@
 ![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield)
 
 
-`bt-ddos-shield` is a Python package designed for Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS) attacks and foster honest competition.
-By enabling the Shield in the validator code, the subnet owner ensures that authenticated keys are published to the metagraph during validator software installation.
-When miners run the shield via the provided Docker image, they fetch these trusted keys, so only traffic signed with these keys is allowed through.
+`bt-ddos-shield` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
+By enabling the Shield in the validator code, the subnet owner ensures that **authenticated keys are published to the metagraph** during validator software installation.
+When miners run the shield via the provided Docker image, they fetch these trusted keys, so **only traffic signed with these keys** is allowed through.
 This mechanism effectively blocks malicious requests from interfering with miner operations,
-ensuring that miners compete on performance and quality rather than using disruptive tactics.
+ensuring that **miners compete on performance and quality** rather than using disruptive tactics.
 
-In addition to promoting fair competition, `bt-ddos-shield` leverages encryption to secure communication between miners and validators.
+In addition to promoting fair competition, `bt-ddos-shield` leverages encryption to **secure communication between miners and validators**.
 This decentralized approach keeps sensitive connection details—such as IP addresses and ports—hidden from malicious actors.
 By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
-`bt-ddos-shield` offers a scalable and cost-effective solution for subnets handling large volumes of data.
+`bt-ddos-shield` offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
 
 ## Product Highlights
 
@@ -33,11 +33,9 @@ By replacing costly, traditional DDoS protection methods like WAF and Cloudflare
 - **Encryption-Based Communication**
    - Uses ECIES (Elliptic Curve Integrated Encryption Scheme) to encrypt communication between miners and validators.
    - The encrypted data includes connection details for validator (domain and port).
-
 - **Decentralized DDoS Mitigation**
    - Removes the need for centralized DDoS protection services by distributing connection information securely across nodes.
    - Prevents IP address exposure by sharing encrypted connection data through a decentralized network of subtensors.
-
 - **Secure Message Exchange**
    - Validators can request the connection information of miners from the subtensor network. This information is validated and
      decrypted locally using the validator's private key.
