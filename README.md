@@ -240,20 +240,22 @@ bin/run_shield.sh clean
 
 ### Working with the Shield Docker image
 
-To **create the Shield Docker image**, run the following command:
-```bash
-cd docker && ./build_image.sh
-```
+- **Creating Docker image**
+  To create the Shield Docker image, run the following command:
+  ```bash
+  cd docker && ./build_image.sh
+  ```
 
-To **run created Docker image**, first create a `docker/.env` file filling template file `envs/.env.template`.
-Then run the following command:
-```bash
-cd docker && ./run_image.sh
-```
-Commands can be passed as arguments to `run_image.sh` script. Example:
-```bash
-./run_image.sh clean
-```
+- **Running Docker image locally**
+  To run created Docker image, first create a `docker/.env` file filling template file `envs/.env.template`.
+  Then run the following command:
+  ```bash
+  cd docker && ./run_image.sh
+  ```
+  Commands can be passed as arguments to `run_image.sh` script. Example:
+  ```bash
+  ./run_image.sh clean
+  ```
 
 ## License
 
