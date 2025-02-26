@@ -9,7 +9,7 @@
 
 `bt-ddos-shield` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
 By enabling the Shield in the validator code, the subnet owner ensures that **authenticated keys are published to the metagraph** during validator software installation.
-When miners run the shield via the provided Docker image, they fetch these trusted keys, so **only traffic signed with these keys** is allowed through.
+When miners run the shield via the provided Docker image, they fetch these trusted keys to **securely exchange connection details**. 
 This mechanism effectively blocks malicious requests from interfering with miner operations,
 ensuring that **miners compete on performance and quality** rather than using disruptive tactics.
 
