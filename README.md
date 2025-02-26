@@ -1,12 +1,15 @@
 # BT DDoS Shield
 
-## Overview
+`bt-ddos-shield` is a Python package designed for Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS) attacks and foster honest competition.
+By enabling the Shield in the validator code, the subnet owner ensures that authenticated keys are published to the metagraph during validator software installation.
+When miners run the shield via the provided Docker image, they fetch these trusted keys, so only traffic signed with these keys is allowed through.
+This mechanism effectively blocks malicious requests from interfering with miner operations,
+ensuring that miners compete on performance and quality rather than using disruptive tactics.
 
-`bt-ddos-shield` is a Python package designed to address the critical issue of Distributed Denial-of-Service (DDoS) attacks
-in Bittensor ecosystem. The project leverages encryption to protect communication between miners and validators, ensuring
-the IPs and ports of these nodes remain secure and hidden from malicious actors. This decentralized solution aims to eliminate
-the financial burden caused by traditional DDoS protection methods like WAF and Cloudflare, which are often costly and
-impractical for subnets handling large volumes of data.
+In addition to promoting fair competition, `bt-ddos-shield` leverages encryption to secure communication between miners and validators.
+This decentralized approach keeps sensitive connection details—such as IP addresses and ports—hidden from malicious actors.
+By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
+`bt-ddos-shield` offers a scalable and cost-effective solution for subnets handling large volumes of data.
 
 ## Project Goals
 
