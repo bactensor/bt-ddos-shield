@@ -71,7 +71,9 @@ class TestManifestManager:
             event_processor=PrintingMinerShieldEventProcessor(),
         )
         event_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
-        http_session: aiohttp.ClientSession = aiohttp.ClientSession(loop=event_loop)
+        http_session: aiohttp.ClientSession = aiohttp.ClientSession(
+            loop=event_loop, timeout=aiohttp.ClientTimeout(total=5)
+        )
 
         try:
             data: bytes = b'some_data'
