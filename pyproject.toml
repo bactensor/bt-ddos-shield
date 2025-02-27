@@ -6,7 +6,7 @@ dynamic = [
 ]
 
 dependencies = [
-    "bittensor~=9.0.1",
+    "bittensor~=9.0.2",
     "boto3~=1.36.21",
     "eciespy~=0.4.2",
     "pydantic~=2.11.0a2",

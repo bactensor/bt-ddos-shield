@@ -124,4 +124,4 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         """
         Determine whether provided Neuron is a Validator or not.
         """
-        return neuron.stake >= self.MIN_VALIDATOR_STAKE
+        return neuron.stake.tao >= self.MIN_VALIDATOR_STAKE
