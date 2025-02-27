@@ -97,11 +97,11 @@ to `GET /` request on server's traffic port.
 
 ### Running `bt-ddos-shield-server` Docker image
 
-TODO: Finish this section
+The Shield is prepared to run as Docker image. Create directory on your server and follow these steps to run Shield:
 
-The Shield is prepared to run as Docker image. The image can be downloaded from Docker Hub.
+1. Miner's wallet needs to be accessible to Docker image. It has to be downloaded or recreated in ~/.bittensor/wallets directory.
 
-To run the Shield, create `.env` file first. Here is template for it:
+2. Create `.env` file and fill template with your values. Template is:
 ```
 # Shielded server details (only EC2 instance now)
 
@@ -135,17 +135,50 @@ WALLET__NAME=
 WALLET__HOTKEY=
 ```
 
+3. Create `docker-compose.yml` configuration file with this content:
+```yaml
+version: '3.8'
+
+services:
+  bt-ddos-shield-server:
+    image: backenddevelopersltd/bt-ddos-shield-server:latest
+    container_name: bt-ddos-shield-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ddos_shield_db:/root/src/db
+      - ~/.bittensor/wallets:/root/.bittensor/wallets
+    entrypoint: ["./entrypoint.sh"]
+
+volumes:
+  ddos_shield_db:
+```
+
+If everything is prepared, to start the Shield using docker compose, run this command:
+```bash
+docker-compose up -d
+```
+
+To stop Shield, run this command:
+```bash
+docker-compose down
+```
+
 ### Banning validators
 
-To ban malicious validator, run the Shield's (first stop the current process with `Ctrl-C`) 
+To ban malicious validator, run the Shield's (first stop the current container)
 `ban` command with the hotkey param:
 ```bash
-TODO_DOCKER ban <HOTKEY>
+docker-compose run bt-ddos-shield-server ban <HOTKEY>
 ```
-This will remove given validator and update the manifest file. 
-Then the Shield will be started as if run without the `ban` command.
-The banned validator will be saved to local database and will not be included in manifest file until it is unbanned. 
-To unban a validator use `unban` command.
+This will remove given validator and update the manifest file.
+After banning operation is finished the Shield process will stop.
+The banned validator will be saved to local database and will not be included in manifest file until it is unbanned.
+To unban a validator use `unban` command:
+```bash
+docker-compose run bt-ddos-shield-server unban <HOTKEY>
+```
 
 ### Shield workflow
 
@@ -161,7 +194,7 @@ changed. If so, it updates manifest file and uploads it to S3 bucket. Stopping t
 stops these cyclic checks - the Shield will be still working as AWS objects are left.
 5. To disable the Shield completely and clean objects created by the Shield, run the Shield's image `clean` command:
 ```bash
-TODO_DOCKER clean
+docker-compose run bt-ddos-shield-server clean
 ```
 
 
