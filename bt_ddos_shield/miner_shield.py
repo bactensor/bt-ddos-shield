@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import logging
 import re
+import signal
 import sys
 import threading
 from abc import ABC, abstractmethod
@@ -168,6 +169,8 @@ class MinerShield:
         self.finishing = True
         self.ticker.set()
 
+        logging.info('Stopping worker thread')
+
         if self.worker_thread is not None:
             self.worker_thread.join()
             self.worker_thread = None
@@ -175,6 +178,8 @@ class MinerShield:
         # Clear tasks possibly added after MinerShieldDisableTask and before setting finishing to True to allow
         # ticker_thread to finish.
         self._clear_tasks()
+
+        logging.info('Stopping ticker thread')
 
         if self.ticker_thread is not None:
             self.ticker_thread.join()
@@ -186,12 +191,15 @@ class MinerShield:
         # (until self.ticker_thread.join()) before switching context back to ticker_thread.
         self._clear_tasks()
 
+        logging.info('Shield stopped')
+
     def ban_validator(self, validator_hotkey: Hotkey):
         """
         Ban a validator by its hotkey. Task will be executed by worker. It will update manifest file and publish info
         about new file version to blockchain.
         """
         self._add_task(MinerShieldBanValidatorTask(validator_hotkey))
+        self.task_queue.join()
 
     def unban_validator(self, validator_hotkey: Hotkey):
         """
@@ -199,6 +207,7 @@ class MinerShield:
         about new file version to blockchain.
         """
         self._add_task(MinerShieldUnbanValidatorTask(validator_hotkey))
+        self.task_queue.join()
 
     def _add_task(self, task: AbstractMinerShieldTask):
         """
@@ -778,19 +787,30 @@ def run_shield() -> int:
         elif args.command == 'unban':
             logging.info(f'Unbanning validator with hotkey: {args.hotkey}')
             miner_shield.unban_validator(args.hotkey)
+        else:
+            logging.info('Shield started, press Ctrl+C to stop')
 
-        logging.info('Shield started, press Ctrl+C to stop')
-        threading.Event().wait()
-        return -1
+            stop_event = threading.Event()
+
+            def handle_sigterm(signum, frame):
+                logging.info('SIGTERM received, stopping shield')
+                stop_event.set()
+
+            signal.signal(signal.SIGTERM, handle_sigterm)
+
+            stop_event.wait()
     except KeyboardInterrupt:
         logging.info('Keyboard interrupt, stopping shield')
-        miner_shield.disable()
-        settings.subtensor.client.close()
-        return 0
     except MinerShieldException:
         logging.exception('Error during enabling shield')
         return 1
 
+    miner_shield.disable()
+    settings.subtensor.client.close()
+    return 0
+
 
 if __name__ == '__main__':
-    sys.exit(run_shield())
+    ret: int = run_shield()
+    logging.info(f'Exiting process with return code {ret}')
+    sys.exit(ret)
