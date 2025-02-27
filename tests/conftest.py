@@ -22,7 +22,8 @@ class ShieldTestSettings(ShieldSettings):
 
 
 @pytest.fixture
-def shield_settings() -> ShieldTestSettings:
+def shield_settings():
     settings: ShieldTestSettings = ShieldTestSettings()  # type: ignore
     settings.options.retry_limit = 1  # Do not retry forever as tests can hang
-    return settings
+    yield settings
+    settings.subtensor.client.close()

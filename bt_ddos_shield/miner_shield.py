@@ -785,6 +785,7 @@ def run_shield() -> int:
     except KeyboardInterrupt:
         logging.info('Keyboard interrupt, stopping shield')
         miner_shield.disable()
+        settings.subtensor.client.close()
         return 0
     except MinerShieldException:
         logging.exception('Error during enabling shield')
