@@ -792,7 +792,7 @@ def run_shield() -> int:
 
             stop_event = threading.Event()
 
-            def handle_sigterm(signum, frame):
+            def handle_sigterm(_signum, _frame):
                 logging.info('SIGTERM received, stopping shield')
                 stop_event.set()
 
