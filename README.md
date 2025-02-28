@@ -1,26 +1,23 @@
 
 # BT DDoS Shield
 
-![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield)
-![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)
-![Python Versions](https://img.shields.io/pypi/pyversions/bt-ddos-shield)
-![Downloads](https://img.shields.io/pypi/dm/bt-ddos-shield)
+[![PyPI](https://img.shields.io/pypi/v/bt-ddos-shield-client)](https://pypi.org/project/bt-ddos-shield-client/)
+[![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)](https://github.com/bactensor/bt-ddos-shield/blob/main/LICENSE)
 
-
-`bt-ddos-shield` is a Python package designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
+BT DDoS Shield is a Python solution designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
 By enabling the Shield in the validator code, the subnet owner ensures that **authenticated keys are published to the metagraph** during validator software installation.
-When miners run the shield via the provided Docker image, they fetch these trusted keys to **securely exchange connection details**. 
+When miners run the Shield via the provided Docker image, they fetch these trusted keys to **securely exchange connection details**. 
 This mechanism effectively blocks malicious requests from interfering with miner operations,
 ensuring that **miners compete on performance and quality** rather than using disruptive tactics.
 
-In addition to promoting fair competition, `bt-ddos-shield` leverages encryption to **secure communication between miners and validators**.
+In addition to promoting fair competition, BT DDoS Shield leverages encryption to **secure communication between miners and validators**.
 This decentralized approach keeps sensitive connection details—such as IP addresses and ports—hidden from malicious actors.
 By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
-`bt-ddos-shield` offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
+BT DDoS Shield offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
 
 ## Product Highlights
 
-`bt-ddos-shield` delivers a secure, decentralized, and scalable solution that:
+BT DDoS Shield delivers a secure, decentralized, and scalable solution that:
 
 - **Secures your subnet:** Protects miner and validator IP addresses from exposure, preventing potential DDoS attacks.
 - **Eliminates vulnerabilities:** Keeps sensitive IP addresses and ports off-chain, reducing the attack surface.
@@ -42,11 +39,11 @@ By replacing costly, traditional DDoS protection methods like WAF and Cloudflare
 
 ## Getting Started
 
-If you're a **subnet owner**, enable BT DDoS Shield in your validator code 
+If you're a **subnet owner**, enable `bt-ddos-shield-client` in your validator code 
 (see [Using Shield on Client (Validator) Side](#using-shield-on-client-validator-side)) so that everything runs automatically. 
 **Validators** can review the detailed workings in that section.
 
-If you're a **miner**, activate the shield on your server by running it as described in the [Running Shield on Server (Miner) Side](#running-shield-on-server-miner-side) section.
+If you're a **miner**, activate `bt-ddos-shield-server` on your end by running it as described in the [Running Shield on Server (Miner) Side](#running-shield-on-server-miner-side) section.
 
 We welcome your contributions—see [Contribution Guidelines](#contribution-guidelines) for more information. 
 
@@ -84,27 +81,27 @@ Validator -> Miner: Send request using decrypted Miner address
 
 ### Disclaimers
 
-* As for now Shield can only be used for hiding AWS EC2 server and uses AWS ELB and WAF to handle communication.
-* As autohiding is not yet implemented, after starting Shield user needs to manually block traffic from all sources except
-Shield's load balancer (ELB created by Shield during first run). This can be done using some firewall (like UFW) locally on
+* As for now BT DDoS Shield can only be used for hiding AWS EC2 server and uses AWS ELB and WAF to handle communication.
+* As autohiding is not yet implemented, after starting the Shield it is required to manually block the traffic from all sources except the
+Shield's load balancer (ELB created by the Shield during first run). This can be done using any firewall (like UFW) locally on
 server or by configuring security groups in AWS via AWS panel (EC2 instance security groups should allow traffic only from ELB).
 
 ### Prerequisites
 
-* Route53 hosted zone needs to be created and configured. Some external domain owned by user is needed for it. Domain ID
+* Route53 hosted zone needs to be created and configured. An external domain is needed for this. Domain ID
 should be provided in `.env` file.
 * S3 bucket with public access is needed for storing manifest file with encrypted addresses. Bucket name should be provided
 in `.env` file.
 * Miner's server needs to respond to ELB health checks. This can be done by configuring server to respond with 200 status
 to `GET /` request on server's traffic port.
 
-### Running Shield Docker image
+### Running `bt-ddos-shield-server` Docker image
 
 TODO: Finish this section
 
-Shield is prepared to run as Docker image. User should download the image from Docker Hub.
+The Shield is prepared to run as Docker image. The image can be downloaded from Docker Hub.
 
-To run Shield, user needs to create `.env` file first. Here is template for it:
+To run the Shield, create `.env` file first. Here is template for it:
 ```
 # Shielded server details (only EC2 instance now)
 
@@ -140,28 +137,29 @@ WALLET__HOTKEY=
 
 ### Banning validators
 
-To ban malicious validator, user can run Shield (first stop current process with Ctrl-C) with `ban` command passing Hotkey
-as param:
+To ban malicious validator, run the Shield's (first stop the current process with `Ctrl-C`) 
+`ban` command with the hotkey param:
 ```bash
 TODO_DOCKER ban <HOTKEY>
 ```
-This will remove given validator and update manifest file. Then Shield will be running the same as running it without ban option.
-Banned validator will be saved to local database and will not be included in manifest file until it is unbanned. To unban validator
-use `unban` command.
+This will remove given validator and update the manifest file. 
+Then the Shield will be started as if run without the `ban` command.
+The banned validator will be saved to local database and will not be included in manifest file until it is unbanned. 
+To unban a validator use `unban` command.
 
 ### Shield workflow
 
-1. After starting Shield for the first time, it will create an ELB and WAF in AWS (along with other needed objects).
-It can take few minutes for AWS to create these objects. There will be logs in console informing about the progress.
-When Shield is run next time, it will use already created objects - info about them is stored in local database.
-2. When initialization is done, validators list is retrieved from Bittensor and Shield creates domain address for each
-validator, which uploaded their public key to Bittensor (using Shield on their side).
-3. These addresses are aggregated into manifest file, encrypted and uploaded to S3 bucket. Then info about manifest file
-is published to Bittensor.
-4. When Shield is running, it cyclically checks if there are any new validators or if any validator's public key has
-changed. If so, it updates manifest file and uploads it to S3 bucket. Stopping Shield process (container) with Ctrl-C only
-stops these cyclic checks - Shield will be still working as AWS objects are left.
-5. If user wants to disable Shield completely and clean objects created by Shield, run Shield image with `clean` command:
+1. When started for the first time, the Shield will create an ELB and WAF in AWS (along with other needed objects).
+It might take few minutes for AWS to create these objects. There will be logs in the console informing about the progress.
+When the Shield is run next time, it will use already created objects - info about them is stored in local database.
+2. When initialization is done, validators list is retrieved from Bittensor and the Shield creates domain address for each
+validator, which uploaded their public key to Bittensor (using `bt-ddos-shield-client` on their side).
+3. These addresses are aggregated into manifest file, encrypted and uploaded to S3 bucket. 
+Then the info about manifest file is published to Bittensor.
+4. When the Shield is running, it cyclically checks if there are any new validators or if any validator's public key has
+changed. If so, it updates manifest file and uploads it to S3 bucket. Stopping the Shield process (container) with `Ctrl-C` only
+stops these cyclic checks - the Shield will be still working as AWS objects are left.
+5. To disable the Shield completely and clean objects created by the Shield, run the Shield's image `clean` command:
 ```bash
 TODO_DOCKER clean
 ```
@@ -171,10 +169,10 @@ TODO_DOCKER clean
 
 ### Usage instructions:
 
-To make miner publish encrypted address for validator, validator needs to use `Shield` library on their side also. First install
-`Shield` library from pypi repository or add it as dependency to your project. Then change validator's code to use `ShieldMetagraph`
+To make miner publish encrypted address for validator, validator needs to use `bt-ddos-shield-client` library on their side also. First install
+`bt-ddos-shield-client` package from pypi repository or add it as dependency to your project. Then change validator's code to use `ShieldMetagraph`
 class instead of `Metagraph` from `bittensor` lib in every place where you are creating a `Metagraph` instance. This allows easy
-drop-in replacement -- no other changes are needed, only some new params are added to ShieldMetagraph. Required params are
+drop-in replacement -- no other changes are needed, only some new params are added to `ShieldMetagraph`. Required params are
 (others are not important and can have default values):
  * `certificate_path` - Path to PEM file with validator's ECDSA key. If the file does not exist, during running `ShieldMetagraph`
     constructor new ECDSA key-pair will be generated, saved to this file and uploaded to Subtensor using neuron `certificate`
@@ -188,14 +186,14 @@ During `sync` metagraph operation `ShieldMetagraph` class is trying to fetch man
 who have manifest file uploaded, `ShieldMetagraph` fetches the file and decrypts prepared address using validator's private key.
 If manifest file or entry for given validator is not found, then nothing happens for given miner. If it is found and
 successfully decrypted, then `ip` and `port` fields are updated in metagraph axon info. Please note, that after this update
-`ip` field will contain domain address, not IP address. Connecting to miner should work without problems as before, but
-when there will be some problems with this, user can disable `replace_ip_address_for_axon` option in `ShieldMetagraph` - there
-is `options` param in `ShieldMetagraph` constructor.
+`ip` field will contain domain address, not IP address. Connecting to miners should work without problems as before, but
+if there were any problems with this, `replace_ip_address_for_axon` option in `ShieldMetagraph` can be disabled - there
+is an `options` param in `ShieldMetagraph` constructor.
 
 
 ## Contribution Guidelines
 
-To contribute to the `bt-ddos-shield` package, follow the steps below. Contact with us should be done via GitHub.
+To contribute to BT DDoS Shield, follow the steps below. Contact us via GitHub.
 
 ### 1. Clone the Repository:
 
