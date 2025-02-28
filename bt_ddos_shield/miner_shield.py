@@ -10,6 +10,7 @@ import threading
 from abc import ABC, abstractmethod
 from queue import Queue
 from time import sleep
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -46,7 +47,6 @@ from bt_ddos_shield.validators_manager import AbstractValidatorsManager, Bittens
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from types import MappingProxyType
 
 
 class MinerShieldOptions(BaseModel):
@@ -150,7 +150,7 @@ class MinerShield:
         When shield is running, user can schedule tasks to be processed by worker.
         """
         if self.worker_thread is not None:
-            # already started
+            # Already started, do nothing
             return
 
         self.finishing = False
@@ -164,16 +164,18 @@ class MinerShield:
         """
         Disable shield. It stops worker thread after finishing current task. Function blocks until worker is stopped.
         """
+        if self.worker_thread is None:
+            # Not working, do nothing
+            return
+
         self._add_task(MinerShieldDisableTask())
 
         self.finishing = True
         self.ticker.set()
 
         logging.info('Stopping worker thread')
-
-        if self.worker_thread is not None:
-            self.worker_thread.join()
-            self.worker_thread = None
+        self.worker_thread.join()
+        self.worker_thread = None
 
         # Clear tasks possibly added after MinerShieldDisableTask and before setting finishing to True to allow
         # ticker_thread to finish.
@@ -769,15 +771,19 @@ def run_shield() -> int:
     settings: ShieldSettings = ShieldSettings()  # type: ignore
     miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings)
 
-    if args.command == 'clean':
-        logging.info('Cleaning shield objects')
-        miner_shield.address_manager.clean_all()
-        logging.info('All objects cleaned')
-        return 0
-
-    assert args.command in {None, 'start', 'ban', 'unban'}
-
     try:
+        if args.command == 'clean':
+            logging.info('Cleaning shield objects')
+            miner_shield.address_manager.clean_all()
+            empty_manifest: Manifest = miner_shield.manifest_manager.create_manifest(
+                MappingProxyType({}), MappingProxyType({})
+            )
+            miner_shield.manifest_manager.upload_manifest(empty_manifest)
+            logging.info('All objects cleaned, manifest set to empty')
+            return 0
+
+        assert args.command in {None, 'start', 'ban', 'unban'}
+
         logging.info('Starting shield')
         miner_shield.enable()
 
@@ -804,9 +810,9 @@ def run_shield() -> int:
     except MinerShieldException:
         logging.exception('Error during enabling shield')
         return 1
-
-    miner_shield.disable()
-    settings.subtensor.client.close()
+    finally:
+        miner_shield.disable()
+        settings.subtensor.client.close()
     return 0
 
 
