@@ -70,19 +70,29 @@ class TestManifestManager:
             encryption_manager=ECIESEncryptionManager(),
             event_processor=PrintingMinerShieldEventProcessor(),
         )
-        http_session: aiohttp.ClientSession = aiohttp.ClientSession(loop=asyncio.get_event_loop())
+        event_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
+        http_session: aiohttp.ClientSession = aiohttp.ClientSession(
+            loop=event_loop, timeout=aiohttp.ClientTimeout(total=5)
+        )
 
         try:
             data: bytes = b'some_data'
             manifest_manager._put_manifest_file(data)
             manifest_url: str = manifest_manager.get_manifest_url()
-            retrieved_data: bytes | None = asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url))
+            retrieved_data: bytes | None = event_loop.run_until_complete(
+                manifest_manager._get_manifest_file(http_session, manifest_url)
+            )
             assert retrieved_data == data
-            assert asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url + 'xxx')) is None
+            assert (
+                event_loop.run_until_complete(manifest_manager._get_manifest_file(http_session, manifest_url + 'xxx'))
+                is None
+            )
 
             other_data: bytes = b'other_data'
             manifest_manager._put_manifest_file(other_data)
-            retrieved_data = asyncio.run(manifest_manager._get_manifest_file(http_session, manifest_url))
+            retrieved_data = event_loop.run_until_complete(
+                manifest_manager._get_manifest_file(http_session, manifest_url)
+            )
             assert retrieved_data == other_data
 
             validator_manifest_manager = ReadOnlyManifestManager(
@@ -90,7 +100,9 @@ class TestManifestManager:
                 encryption_manager=ECIESEncryptionManager(),
                 event_processor=PrintingMinerShieldEventProcessor(),
             )
-            retrieved_data = asyncio.run(validator_manifest_manager._get_manifest_file(http_session, manifest_url))
+            retrieved_data = event_loop.run_until_complete(
+                validator_manifest_manager._get_manifest_file(http_session, manifest_url)
+            )
             assert retrieved_data == other_data
         finally:
-            asyncio.run(http_session.close())
+            event_loop.run_until_complete(http_session.close())

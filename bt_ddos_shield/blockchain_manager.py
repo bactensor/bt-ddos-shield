@@ -11,12 +11,14 @@ from bittensor.core.extrinsics.serving import (
     serve_extrinsic,
 )
 
+from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import bittensor_wallet
+    from bittensor.core.chain_data.axon_info import AxonInfo
     from bittensor.core.chain_data.neuron_info import NeuronInfo
-    from scalecodec.base import ScaleType
 
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
     from bt_ddos_shield.utils import Hotkey, PublicKey
@@ -190,15 +192,16 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
         return self.wallet.hotkey.ss58_address
 
     def get_own_public_key(self) -> PublicKey | None:
-        certificate: ScaleType = self.subtensor.query_subtensor(
+        certificate: Any | None = self.subtensor.query_subtensor(
             name='NeuronCertificates',
             params=[self.netuid, self.get_hotkey()],
         )
-        cert_value: dict[str, Any] | None = certificate.serialize()
-        if cert_value is None or 'public_key' not in cert_value:
+        if certificate is None:
             return None
-        cert_type: str = format(cert_value['algorithm'], '02x')
-        return cert_type + cert_value['public_key'][2:]  # public_key is prefixed with '0x'
+        decoded_certificate: SubtensorCertificate | None = decode_subtensor_certificate_info(certificate)
+        if decoded_certificate is None:
+            return None
+        return decoded_certificate.hex_data
 
     def upload_public_key(self, public_key: PublicKey):
         try:
@@ -208,12 +211,18 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             neuron: NeuronInfo | None = self.subtensor.get_neuron_for_pubkey_and_subnet(
                 self.wallet.hotkey.ss58_address, netuid=self.netuid
             )
-            new_ip: str = neuron.axon_info.ip if neuron is not None else '127.0.0.1'
-            new_port: int = neuron.axon_info.port if neuron is not None else 1
-            new_protocol: int = neuron.axon_info.protocol if neuron is not None else 0
+            axon_info: AxonInfo | None = (
+                None
+                if neuron is None or neuron.axon_info is None or not neuron.axon_info.is_serving
+                else neuron.axon_info
+            )
+
+            new_ip: str = '1.1.1.1' if axon_info is None else axon_info.ip
+            new_port: int = 1 if axon_info is None else axon_info.port
+            new_protocol: int = 0 if axon_info is None else axon_info.protocol
             # We need to change any field, otherwise extrinsic will not be sent, so use placeholder1 (increased by 1
             # and modulo 256 as it is u8 field) to not modify any real data.
-            new_placeholder1: int = (neuron.axon_info.placeholder1 + 1) % 256 if neuron is not None else 0
+            new_placeholder1: int = 0 if axon_info is None else (axon_info.placeholder1 + 1) % 256
             # certificate param is of str type in library, but actually we need to pass bytes there
             certificate_data: bytes = bytes.fromhex(public_key)
 

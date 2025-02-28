@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import bittensor
 import boto3
@@ -90,3 +90,23 @@ class SubtensorSettings(BaseModel):
 
     def create_client(self) -> bittensor.Subtensor:
         return bittensor.Subtensor(**self.model_dump())
+
+
+@dataclass
+class SubtensorCertificate:
+    algorithm: int
+    hex_data: str
+
+
+def decode_subtensor_certificate_info(subtensor_certificate_info: dict[str, Any]) -> SubtensorCertificate | None:
+    """Decode certificate info from Subtensor query result."""
+    try:
+        algorithm: int = subtensor_certificate_info['algorithm']
+        data: tuple[int] = subtensor_certificate_info['public_key'][0]
+    except (KeyError, TypeError):
+        # This should not happen as Subtensor should return data in expected format
+        return None
+    hex_algorithm: str = format(algorithm, '02x')
+    hex_data: str = bytes(data).hex()
+    hex_data = hex_algorithm + hex_data  # Prefix cert data with algorithm as it is desired format
+    return SubtensorCertificate(algorithm, hex_data)
