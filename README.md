@@ -82,7 +82,7 @@ Validator -> Miner: Send request using decrypted Miner address
 ### Disclaimers
 
 * As for now BT DDoS Shield can only be used for hiding AWS EC2 server and uses AWS ELB and WAF to handle communication.
-* As autohiding is not yet implemented, after starting the Shield it is requured to manually block the traffic from all sources except the
+* As autohiding is not yet implemented, after starting the Shield it is required to manually block the traffic from all sources except the
 Shield's load balancer (ELB created by the Shield during first run). This can be done using any firewall (like UFW) locally on
 server or by configuring security groups in AWS via AWS panel (EC2 instance security groups should allow traffic only from ELB).
 
@@ -137,13 +137,13 @@ WALLET__HOTKEY=
 
 ### Banning validators
 
-To ban malicious validator, run the Shield (first stop the current process with `Ctrl-C`) 
+To ban malicious validator, run the Shield's (first stop the current process with `Ctrl-C`) 
 `ban` command with the hotkey param:
 ```bash
 TODO_DOCKER ban <HOTKEY>
 ```
 This will remove given validator and update the manifest file. 
-Then the Shield will be started as if run without ban command.
+Then the Shield will be started as if run without the `ban` command.
 The banned validator will be saved to local database and will not be included in manifest file until it is unbanned. 
 To unban a validator use `unban` command.
 
@@ -153,13 +153,13 @@ To unban a validator use `unban` command.
 It might take few minutes for AWS to create these objects. There will be logs in the console informing about the progress.
 When the Shield is run next time, it will use already created objects - info about them is stored in local database.
 2. When initialization is done, validators list is retrieved from Bittensor and the Shield creates domain address for each
-validator, which uploaded their public key to Bittensor (using `bt-ddos-shield` on their side).
+validator, which uploaded their public key to Bittensor (using `bt-ddos-shield-client` on their side).
 3. These addresses are aggregated into manifest file, encrypted and uploaded to S3 bucket. 
-Then info about manifest file is published to Bittensor.
+Then the info about manifest file is published to Bittensor.
 4. When the Shield is running, it cyclically checks if there are any new validators or if any validator's public key has
 changed. If so, it updates manifest file and uploads it to S3 bucket. Stopping the Shield process (container) with `Ctrl-C` only
 stops these cyclic checks - the Shield will be still working as AWS objects are left.
-5. To disable the Shield completely and clean objects created by the Shield, run the Shield image `clean` command:
+5. To disable the Shield completely and clean objects created by the Shield, run the Shield's image `clean` command:
 ```bash
 TODO_DOCKER clean
 ```
@@ -187,7 +187,7 @@ who have manifest file uploaded, `ShieldMetagraph` fetches the file and decrypts
 If manifest file or entry for given validator is not found, then nothing happens for given miner. If it is found and
 successfully decrypted, then `ip` and `port` fields are updated in metagraph axon info. Please note, that after this update
 `ip` field will contain domain address, not IP address. Connecting to miners should work without problems as before, but
-if there will be some problems with this, `replace_ip_address_for_axon` option in `ShieldMetagraph` can be disabled -- there
+if there were any problems with this, `replace_ip_address_for_axon` option in `ShieldMetagraph` can be disabled - there
 is an `options` param in `ShieldMetagraph` constructor.
 
 
