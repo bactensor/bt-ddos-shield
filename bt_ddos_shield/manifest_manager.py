@@ -111,7 +111,7 @@ class JsonManifestSerializer(AbstractManifestSerializer):
     @staticmethod
     def _custom_encoder(obj: Any) -> Any:
         if isinstance(obj, bytes):
-            return base64.b64encode(obj).decode()  # type: ignore
+            return base64.b64encode(obj).decode()
 
     @staticmethod
     def _custom_decoder(json_mapping: dict[str, Any]) -> Any:
@@ -271,10 +271,10 @@ class AbstractManifestManager(ReadOnlyManifestManager):
             serialized_url: bytes = url.encode()
             encrypted_address_mapping[hotkey] = self.encryption_manager.encrypt(public_key, serialized_url)
 
-            md5_hash.update(hotkey.encode())  # type: ignore
+            md5_hash.update(hotkey.encode())
             public_key_bytes: bytes = public_key.encode() if isinstance(public_key, str) else public_key
-            md5_hash.update(public_key_bytes)  # type: ignore
-            md5_hash.update(serialized_url)  # type: ignore
+            md5_hash.update(public_key_bytes)
+            md5_hash.update(serialized_url)
 
         return Manifest(encrypted_address_mapping, md5_hash.hexdigest())
 
