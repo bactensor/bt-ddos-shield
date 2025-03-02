@@ -225,7 +225,7 @@ GRZESIU I HAVE NO CLUE IF THIS IS RIGHT, PLEASE FIX THE IMPORT OR WHATEVER
 
 #### Encryption key and cert
 
-Upon first call of `ShieldMetagraph`, by default, a cert-pair will be created, saved on disk and pushed to the metagraph. If for 
+Upon first call of `ShieldMetagraph`, by default, a cert-key pair will be created, saved on disk and pushed to the metagraph. If for 
 whatever reason one needs to provide their own pregenerated cert-key pair (for example when moving to a new validator node), make sure to put the
 cert and key files on the server and provide `GRZESIU I HAVE NO CLUE WHAT THE NAME OF THIS ENV VAR IS` env var when starting the new validator instance.
 
