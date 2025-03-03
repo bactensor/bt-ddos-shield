@@ -214,9 +214,7 @@ class ReadOnlyManifestManager(ABC):
                 response.raise_for_status()
                 return await response.read()
         except aiohttp.InvalidUrlClientError:
-            self.event_processor.event(
-                'Invalid url={url} when trying to download manifest for hotkey={hotkey}', url=url, hotkey=hotkey
-            )
+            # Treat it as manifest URL was not uploaded (there was commitment with other data)
             return None
         except aiohttp.ClientResponseError as e:
             if e.status in (HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND):
