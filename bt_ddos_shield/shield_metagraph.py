@@ -105,7 +105,7 @@ class ShieldMetagraph(Metagraph):
             raise ValueError('Block argument is valid only when sync is True')
 
     def _init_certificate(self) -> None:
-        certificate_path: str = os.getenv('VALIDATOR_CERTIFICATE_PATH', './validator_cert.pem')
+        certificate_path: str = os.getenv('VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem')
         try:
             coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
