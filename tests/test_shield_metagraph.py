@@ -45,7 +45,6 @@ class TestValidator:
         try:
             metagraph: ShieldMetagraph = ShieldMetagraph(
                 wallet=shield_settings.validator_wallet.instance,
-                certificate_path=shield_settings.validator_cert_path,
                 subtensor=shield_settings.subtensor.create_client(),
                 netuid=shield_settings.netuid,
             )

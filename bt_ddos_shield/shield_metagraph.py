@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -66,7 +67,6 @@ class ShieldMetagraph(Metagraph):
     def __init__(
         self,
         wallet: bittensor_wallet.Wallet,
-        certificate_path: str,
         netuid: int,
         network: str | None = None,
         lite: bool = True,
@@ -97,14 +97,15 @@ class ShieldMetagraph(Metagraph):
         self.manifest_manager = manifest_manager or self.create_default_manifest_manager(
             self.event_processor, self.encryption_manager
         )
-        self._init_certificate(certificate_path)
+        self._init_certificate()
 
         if sync:
             self.sync(block=block, lite=lite, subtensor=subtensor)
         elif block is not None:
             raise ValueError('Block argument is valid only when sync is True')
 
-    def _init_certificate(self, certificate_path: str):
+    def _init_certificate(self) -> None:
+        certificate_path: str = os.getenv('VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem')
         try:
             coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)

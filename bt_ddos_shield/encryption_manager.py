@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Generic, NamedTuple, TypeVar
 
 import ecies
 from coincurve.keys import PrivateKey as CoincurvePrivateKey
@@ -31,7 +31,7 @@ class EncryptionCertificate(NamedTuple):
 CertType = TypeVar('CertType')
 
 
-class AbstractEncryptionManager[CertType](ABC):
+class AbstractEncryptionManager(Generic[CertType], ABC):
     """
     Abstract base class for manager handling manifest file encryption.
     """

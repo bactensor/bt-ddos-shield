@@ -4,11 +4,13 @@ import argparse
 import asyncio
 import logging
 import re
+import signal
 import sys
 import threading
 from abc import ABC, abstractmethod
 from queue import Queue
 from time import sleep
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -45,7 +47,6 @@ from bt_ddos_shield.validators_manager import AbstractValidatorsManager, Bittens
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from types import MappingProxyType
 
 
 class MinerShieldOptions(BaseModel):
@@ -149,7 +150,7 @@ class MinerShield:
         When shield is running, user can schedule tasks to be processed by worker.
         """
         if self.worker_thread is not None:
-            # already started
+            # Already started, do nothing
             return
 
         self.finishing = False
@@ -163,18 +164,24 @@ class MinerShield:
         """
         Disable shield. It stops worker thread after finishing current task. Function blocks until worker is stopped.
         """
+        if self.worker_thread is None:
+            # Not working, do nothing
+            return
+
         self._add_task(MinerShieldDisableTask())
 
         self.finishing = True
         self.ticker.set()
 
-        if self.worker_thread is not None:
-            self.worker_thread.join()
-            self.worker_thread = None
+        logging.info('Stopping worker thread')
+        self.worker_thread.join()
+        self.worker_thread = None
 
         # Clear tasks possibly added after MinerShieldDisableTask and before setting finishing to True to allow
         # ticker_thread to finish.
         self._clear_tasks()
+
+        logging.info('Stopping ticker thread')
 
         if self.ticker_thread is not None:
             self.ticker_thread.join()
@@ -186,12 +193,15 @@ class MinerShield:
         # (until self.ticker_thread.join()) before switching context back to ticker_thread.
         self._clear_tasks()
 
+        logging.info('Shield stopped')
+
     def ban_validator(self, validator_hotkey: Hotkey):
         """
         Ban a validator by its hotkey. Task will be executed by worker. It will update manifest file and publish info
         about new file version to blockchain.
         """
         self._add_task(MinerShieldBanValidatorTask(validator_hotkey))
+        self.task_queue.join()
 
     def unban_validator(self, validator_hotkey: Hotkey):
         """
@@ -199,6 +209,7 @@ class MinerShield:
         about new file version to blockchain.
         """
         self._add_task(MinerShieldUnbanValidatorTask(validator_hotkey))
+        self.task_queue.join()
 
     def _add_task(self, task: AbstractMinerShieldTask):
         """
@@ -740,7 +751,7 @@ class MinerShieldFactory:
         )
 
 
-def run_shield() -> int:
+def run_shield() -> int:  # type: ignore  # This ignore is needed to silence invalid PyCharm IDE warning
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     parser = argparse.ArgumentParser(description='MinerShield')
     subparsers = parser.add_subparsers(dest='command', help='Subcommands')
@@ -760,15 +771,19 @@ def run_shield() -> int:
     settings: ShieldSettings = ShieldSettings()  # type: ignore
     miner_shield: MinerShield = MinerShieldFactory.create_miner_shield(settings)
 
-    if args.command == 'clean':
-        logging.info('Cleaning shield objects')
-        miner_shield.address_manager.clean_all()
-        logging.info('All objects cleaned')
-        return 0
-
-    assert args.command in {None, 'start', 'ban', 'unban'}
-
     try:
+        if args.command == 'clean':
+            logging.info('Cleaning shield objects')
+            miner_shield.address_manager.clean_all()
+            empty_manifest: Manifest = miner_shield.manifest_manager.create_manifest(
+                MappingProxyType({}), MappingProxyType({})
+            )
+            miner_shield.manifest_manager.upload_manifest(empty_manifest)
+            logging.info('All objects cleaned, manifest set to empty')
+            return 0
+
+        assert args.command in {None, 'start', 'ban', 'unban'}
+
         logging.info('Starting shield')
         miner_shield.enable()
 
@@ -778,19 +793,30 @@ def run_shield() -> int:
         elif args.command == 'unban':
             logging.info(f'Unbanning validator with hotkey: {args.hotkey}')
             miner_shield.unban_validator(args.hotkey)
+        else:
+            logging.info('Shield started, press Ctrl+C to stop')
 
-        logging.info('Shield started, press Ctrl+C to stop')
-        threading.Event().wait()
-        return -1
+            stop_event = threading.Event()
+
+            def handle_sigterm(_signum, _frame):
+                logging.info('SIGTERM received, stopping shield')
+                stop_event.set()
+
+            signal.signal(signal.SIGTERM, handle_sigterm)
+
+            stop_event.wait()
     except KeyboardInterrupt:
         logging.info('Keyboard interrupt, stopping shield')
-        miner_shield.disable()
-        settings.subtensor.client.close()
-        return 0
     except MinerShieldException:
         logging.exception('Error during enabling shield')
         return 1
+    finally:
+        miner_shield.disable()
+        settings.subtensor.client.close()
+    return 0
 
 
 if __name__ == '__main__':
-    sys.exit(run_shield())
+    ret: int = run_shield()
+    logging.info(f'Exiting process with return code {ret}')
+    sys.exit(ret)
