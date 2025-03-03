@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 from pydantic import Field
 
@@ -25,5 +27,6 @@ class ShieldTestSettings(ShieldSettings):
 def shield_settings():
     settings: ShieldTestSettings = ShieldTestSettings()  # type: ignore
     settings.options.retry_limit = 1  # Do not retry forever as tests can hang
+    os.environ['VALIDATOR_CERTIFICATE_PATH'] = settings.validator_cert_path
     yield settings
     settings.subtensor.client.close()

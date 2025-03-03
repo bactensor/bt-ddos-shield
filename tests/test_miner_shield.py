@@ -155,7 +155,6 @@ class TestMinerShield:
 
         metagraph: ShieldMetagraph = ShieldMetagraph(
             wallet=validator_wallet,
-            certificate_path=shield_settings.validator_cert_path,
             subtensor=shield_settings.subtensor.create_client(),
             netuid=shield_settings.netuid,
         )
