@@ -199,18 +199,25 @@ pip install bt-ddos-shield-client
 ```
 
 In your validator code replace 
-
 ```
-metagraph = subtensor.metagraph(NETUID)
+metagraph = subtensor.metagraph(netuid)
 ```
-
 with
-
 ```
-from bt_ddos_shield_client import ShieldMetagraph
+from bt_ddos_shield import ShieldMetagraph
 
-metagraph = ShieldMetagraph(NETUID, wallet, subtensor)
-GRZESIU I HAVE NO CLUE IF THIS IS RIGHT, PLEASE FIX THE IMPORT OR WHATEVER
+metagraph = ShieldMetagraph(wallet, netuid, subtensor=subtensor)
+```
+
+Or if you are creating metagraph is such way
+```
+metagraph = Metagraph(netuid, network)
+```
+then replace it with
+```
+from bt_ddos_shield import ShieldMetagraph
+
+metagraph = ShieldMetagraph(wallet, netuid, network)
 ```
 
 ### Advanced usage:
@@ -219,7 +226,8 @@ GRZESIU I HAVE NO CLUE IF THIS IS RIGHT, PLEASE FIX THE IMPORT OR WHATEVER
 
 Upon first call of `ShieldMetagraph`, by default, a cert-key pair will be created, saved on disk and pushed to the metagraph. If for 
 whatever reason one needs to provide their own pregenerated cert-key pair (for example when moving to a new validator node), make sure to put the
-cert and key files on the server and provide `GRZESIU I HAVE NO CLUE WHAT THE NAME OF THIS ENV VAR IS` env var when starting the new validator instance.
+cert and key files on the server and provide `VALIDATOR_SHIELD_CERTIFICATE_PATH` env var when starting the new validator instance.
+Default value for this env var is `./validator_cert.pem`.
 
 ### Implementation details:
 
