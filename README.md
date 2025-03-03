@@ -5,15 +5,18 @@
 [![License](https://img.shields.io/github/license/bactensor/bt-ddos-shield)](https://github.com/bactensor/bt-ddos-shield/blob/main/LICENSE)
 
 BT DDoS Shield is a solution designed for **Bittensor subnet owners who want to protect miners from Distributed Denial-of-Service (DDoS)** attacks and foster honest competition.
-The basic principle of the shield is: creating multiple addresses for miners - one for each validator - as opposed to the usual public ip of miners in the metagraph.
-These addresses are communicated to validators using Knowledge Commitments and encrypted using ECIES (Elliptic Curve Integrated Encryption Scheme) keys published by validators.
-This creates a secure and a permissionless way of distributing miner connection details to validators. 
-On top of that, all axon communications are encrypted using SSL/TLS.
-The prerequisite for using this shield in a subnet is modifying the validator code by changing the stock `metagraph` from `bittensor` library
-with a drop-in replacement `bt_ddos_shield_client.ShieldMetagraph`.
-Each miner is then responsible for running the shield server to secure their infra. Unshielded miners will still be reachable by their default public addresses published to the metagraph.
 
-By replacing costly, traditional DDoS protection methods like WAF and Cloudflare,
+The basic principle behind the shield is to assign multiple addresses to miners - one for each validator - **instead of exposing the miner's public IP in the metagraph**. 
+These addresses are communicated to validators using Knowledge Commitments and encrypted with ECIES 
+([Elliptic Curve Integrated Encryption Scheme](https://github.com/ecies/py)) keys published by the validators. 
+This creates **a secure, permissionless method of distributing miner connection details**.
+
+To use the shield in a subnet, the validator code must be modified by replacing the standard `metagraph` from the `bittensor` 
+library with the drop-in replacement `bt_ddos_shield_client.ShieldMetagraph`. 
+Each miner is then responsible for running the shield server to secure their infrastructure. 
+Unshielded miners will still be reachable by their default public addresses published to the metagraph.
+
+By replacing costly, traditional DDoS protection methods like WAF and Cloudflare, 
 BT DDoS Shield offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
 
 ## Product Highlights
