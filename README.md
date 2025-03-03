@@ -13,7 +13,7 @@ This creates **a secure, permissionless method of distributing miner connection 
 
 To use the shield in a subnet, the validator code must be modified by replacing the standard `metagraph` from the `bittensor` 
 library with the drop-in replacement `bt_ddos_shield_client.ShieldMetagraph`. 
-Each miner is then responsible for running the shield server to secure their infrastructure. 
+**Each miner is then responsible for running the shield server** to secure their infrastructure. 
 Unshielded miners will still be reachable by their default public addresses published to the metagraph.
 
 By replacing costly, traditional DDoS protection methods like WAF and Cloudflare, 
@@ -24,20 +24,9 @@ BT DDoS Shield offers a scalable and **cost-effective solution for subnets handl
 BT DDoS Shield delivers a secure, decentralized, and scalable solution that:
 
 - **Eliminates vulnerabilities:** Keeps sensitive IP addresses and ports off-chain, reducing the attack surface.
-- **Encrypts the handshake:** Uses encrypted communications to securely exchange connection information between miners and validators.
+- **Encrypts the handshake:** Uses ECIES ([Elliptic Curve Integrated Encryption Scheme](https://github.com/ecies/py)) 
+  to securely exchange connection information between miners and validators.
 - **Delivers cost-effective defense:** Provides a decentralized alternative to traditional DDoS protection methods, maintaining performance while minimizing attack vectors.
-
-
-## Features
-
-- **Encryption-Based Communication**
-   - Uses ECIES (Elliptic Curve Integrated Encryption Scheme) to encrypt connection details between miners and validators.
-- **Decentralized DDoS Mitigation**
-   - Removes the need for centralized DDoS protection services by distributing connection information securely across nodes.
-   - Prevents IP address exposure by sharing encrypted connection data through a decentralized network of subtensors.
-- **Secure Message Exchange**
-   - Validators can request the connection information of miners from the subtensor network. This information is validated and
-     decrypted locally using the validator's private key.
 
 ## Getting Started
 
