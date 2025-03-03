@@ -73,32 +73,32 @@ The shield server is distributed as docker image. Below are instructions on how 
 # Shielded server details (only EC2 instance now)
 
 # Either AWS_MINER_INSTANCE_ID or AWS_MINER_INSTANCE_IP (private IP of EC2 server) must be provided
-AWS_MINER_INSTANCE_ID=
+AWS_MINER_INSTANCE_ID=i-0123456789abcdef0
 # AWS_MINER_INSTANCE_IP=
 
 # Axon port of the miner
-MINER_INSTANCE_PORT=
+MINER_INSTANCE_PORT=80
 
 
 # AWS credentials
 
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION_NAME=
-AWS_S3_BUCKET_NAME=
-AWS_ROUTE53_HOSTED_ZONE_ID=
+AWS_ACCESS_KEY_ID=AKIA0123456789ABCDEF
+AWS_SECRET_ACCESS_KEY=+55aBcDefghijklmnopqrstuvwxyz12345678ABC
+AWS_REGION_NAME=eu-north-1
+AWS_S3_BUCKET_NAME=shield_bucket
+AWS_ROUTE53_HOSTED_ZONE_ID=Z0123456789ABCDEFGHIJ
 
 
 # Bittensor configuration
 
-SUBTENSOR__NETWORK=
-NETUID=
+SUBTENSOR__NETWORK=finney
+NETUID=1
 
 
 # Wallet location
 
-WALLET__NAME=
-WALLET__HOTKEY=
+WALLET__NAME=bt_ddos_shield
+WALLET__HOTKEY=miner
 ```
 
 2. Create `docker-compose.yml` configuration file with this content (Make sure to replace `/YOUR/PATH/TO...` with the right path below):
