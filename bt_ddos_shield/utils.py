@@ -14,9 +14,9 @@ if TYPE_CHECKING:
     from botocore.client import BaseClient
     from route53.connection import Route53Connection
 
-type Hotkey = str
-type PublicKey = str
-type PrivateKey = str
+Hotkey = str
+PublicKey = str
+PrivateKey = str
 
 
 @dataclass
