@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
     import bittensor
     from async_substrate_interface.sync_substrate import QueryMapResult
+    from bittensor import Balance, MetagraphInfo
 
     from bt_ddos_shield.utils import Hotkey, PublicKey
 
@@ -64,6 +65,14 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
     Validators Manager using Bittensor Neurons' Certificates.
     """
 
+    # Having total stake of 1000 alpha tokens is needed to set weights, and it is minimal value for shield to treat
+    # neuron as validator. It is simple heuristic, which can be not valid for all subnets, but as for now is sufficient.
+    MIN_VALIDATOR_STAKE = 1000
+
+    # Only top 64 neurons are treat by Subtensor as validators. It is a heuristic, which can be not valid for all
+    # subnets, but as for now is sufficient.
+    VALIDATORS_COUNT_THRESHOLD = 64
+
     subtensor: bittensor.Subtensor
     netuid: int
     validators: frozenset[Hotkey]
@@ -88,8 +97,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
         if self.validators:
             validators = self.validators
         else:
-            neurons: list[bittensor.NeuronInfoLite] = self.subtensor.neurons_lite(self.netuid)
-            validators = frozenset(neuron.hotkey for neuron in neurons if self.is_validator(neuron))
+            validators = self.get_validators_from_metagraph()
 
         self.certificates = self.fetch_certificates(validators)
 
@@ -115,9 +123,14 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
             and certificate.algorithm == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
         }
 
-    @classmethod
-    def is_validator(cls, neuron: bittensor.NeuronInfoLite) -> bool:
+    def get_validators_from_metagraph(self) -> frozenset[Hotkey]:
         """
-        Determine whether provided Neuron is a Validator or not.
+        Default logic for determining validators set.
         """
-        return neuron.validator_permit
+        info: MetagraphInfo | None = self.subtensor.get_metagraph_info(self.netuid)
+        assert info is not None, 'Can be None only if Subnet netuid is invalid'
+        sorted_neurons: list[tuple[Hotkey, Balance]] = sorted(
+            zip(info.hotkeys, info.total_stake, strict=True), key=lambda x: x[1].tao, reverse=True
+        )
+        top_neurons: list[tuple[Hotkey, Balance]] = sorted_neurons[: self.VALIDATORS_COUNT_THRESHOLD]
+        return frozenset(hotkey for hotkey, stake in top_neurons if stake.tao >= self.MIN_VALIDATOR_STAKE)
