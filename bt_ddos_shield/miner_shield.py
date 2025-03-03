@@ -751,7 +751,7 @@ class MinerShieldFactory:
         )
 
 
-def run_shield() -> int:
+def run_shield() -> int:  # type: ignore  # This ignore is needed to silence invalid PyCharm IDE warning
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     parser = argparse.ArgumentParser(description='MinerShield')
     subparsers = parser.add_subparsers(dest='command', help='Subcommands')
