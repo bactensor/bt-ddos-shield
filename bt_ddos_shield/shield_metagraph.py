@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from bittensor import Subtensor
 from bittensor.core.metagraph import Metagraph
 
 from bt_ddos_shield.blockchain_manager import (
@@ -80,7 +81,7 @@ class ShieldMetagraph(Metagraph):
         options: ShieldMetagraphOptions | None = None,
     ):
         if subtensor is None:
-            subtensor = bittensor.Subtensor(network=network)
+            subtensor = Subtensor(network=network)
         super().__init__(
             netuid=netuid,
             lite=lite,
