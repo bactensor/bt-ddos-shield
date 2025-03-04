@@ -38,7 +38,9 @@ class MemoryManifestManager(AbstractManifestManager):
         self.stored_file = data
         self.put_counter += 1
 
-    async def _get_manifest_file(self, http_session: aiohttp.ClientSession, url: str | None) -> bytes | None:
+    async def _get_manifest_file(
+        self, http_session: aiohttp.ClientSession, manifest_owner_hotkey: Hotkey | None, url: str | None
+    ) -> bytes | None:
         if self.stored_file is None or url != self._manifest_url:
             return None
         return self.stored_file
@@ -80,18 +82,20 @@ class TestManifestManager:
             manifest_manager._put_manifest_file(data)
             manifest_url: str = manifest_manager.get_manifest_url()
             retrieved_data: bytes | None = event_loop.run_until_complete(
-                manifest_manager._get_manifest_file(http_session, manifest_url)
+                manifest_manager._get_manifest_file(http_session, None, manifest_url)
             )
             assert retrieved_data == data
             assert (
-                event_loop.run_until_complete(manifest_manager._get_manifest_file(http_session, manifest_url + 'xxx'))
+                event_loop.run_until_complete(
+                    manifest_manager._get_manifest_file(http_session, None, manifest_url + 'xxx')
+                )
                 is None
             )
 
             other_data: bytes = b'other_data'
             manifest_manager._put_manifest_file(other_data)
             retrieved_data = event_loop.run_until_complete(
-                manifest_manager._get_manifest_file(http_session, manifest_url)
+                manifest_manager._get_manifest_file(http_session, None, manifest_url)
             )
             assert retrieved_data == other_data
 
@@ -101,7 +105,7 @@ class TestManifestManager:
                 event_processor=PrintingMinerShieldEventProcessor(),
             )
             retrieved_data = event_loop.run_until_complete(
-                validator_manifest_manager._get_manifest_file(http_session, manifest_url)
+                validator_manifest_manager._get_manifest_file(http_session, None, manifest_url)
             )
             assert retrieved_data == other_data
         finally:

@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from bittensor import Subtensor
 from bittensor.core.metagraph import Metagraph
 
 from bt_ddos_shield.blockchain_manager import (
@@ -79,6 +80,8 @@ class ShieldMetagraph(Metagraph):
         manifest_manager: ReadOnlyManifestManager | None = None,
         options: ShieldMetagraphOptions | None = None,
     ):
+        if subtensor is None:
+            subtensor = Subtensor(network=network)
         super().__init__(
             netuid=netuid,
             lite=lite,
@@ -92,7 +95,7 @@ class ShieldMetagraph(Metagraph):
         self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
         self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
         self.blockchain_manager = blockchain_manager or self.create_default_blockchain_manager(
-            subtensor, netuid, wallet, self.event_processor
+            self.subtensor, netuid, wallet, self.event_processor
         )
         self.manifest_manager = manifest_manager or self.create_default_manifest_manager(
             self.event_processor, self.encryption_manager
@@ -100,7 +103,7 @@ class ShieldMetagraph(Metagraph):
         self._init_certificate()
 
         if sync:
-            self.sync(block=block, lite=lite, subtensor=subtensor)
+            self.sync(block=block, lite=lite, subtensor=self.subtensor)
         elif block is not None:
             raise ValueError('Block argument is valid only when sync is True')
 
@@ -166,7 +169,7 @@ class ShieldMetagraph(Metagraph):
                     )
                 except ManifestDeserializationException as e:
                     self.event_processor.event(
-                        'Error while getting shield address for miner {hotkey}', exception=e, axon=axon.hotkey
+                        'Error while getting shield address for miner {hotkey}', exception=e, hotkey=axon.hotkey
                     )
                     continue
                 if shield_address is not None:
