@@ -79,6 +79,8 @@ class ShieldMetagraph(Metagraph):
         manifest_manager: ReadOnlyManifestManager | None = None,
         options: ShieldMetagraphOptions | None = None,
     ):
+        if subtensor is None:
+            subtensor = bittensor.Subtensor(network=network)
         super().__init__(
             netuid=netuid,
             lite=lite,
