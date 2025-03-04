@@ -166,7 +166,7 @@ class ShieldMetagraph(Metagraph):
                     )
                 except ManifestDeserializationException as e:
                     self.event_processor.event(
-                        'Error while getting shield address for miner {hotkey}', exception=e, axon=axon.hotkey
+                        'Error while getting shield address for miner {hotkey}', exception=e, hotkey=axon.hotkey
                     )
                     continue
                 if shield_address is not None:
