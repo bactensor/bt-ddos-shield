@@ -39,7 +39,7 @@ class MemoryManifestManager(AbstractManifestManager):
         self.put_counter += 1
 
     async def _get_manifest_file(
-        self, http_session: aiohttp.ClientSession, hotkey: Hotkey | None, url: str | None
+        self, http_session: aiohttp.ClientSession, manifest_owner_hotkey: Hotkey | None, url: str | None
     ) -> bytes | None:
         if self.stored_file is None or url != self._manifest_url:
             return None

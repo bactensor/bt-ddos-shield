@@ -203,9 +203,18 @@ class ReadOnlyManifestManager(ABC):
     async def _get_manifest_file(
         self,
         http_session: aiohttp.ClientSession,
-        hotkey: Hotkey | None,
+        manifest_owner_hotkey: Hotkey | None,
         url: str | None,
     ) -> bytes | None:
+        """
+        Get manifest file.
+        Args:
+            http_session: aiohttp session
+            manifest_owner_hotkey: Hotkey of the owner of the manifest file. Used for logging purposes.
+            url: URL of the manifest file. If it is None, there is no manifest for given neuron, but it makes code
+                cleaner if we just run this method with None param than filter out Nones as we are building dictionary
+                of results.
+        """
         if url is None:
             return None
 
@@ -221,9 +230,9 @@ class ReadOnlyManifestManager(ABC):
                 # REMARK: S3 returns 403 Forbidden if file does not exist in bucket.
                 self.event_processor.event(
                     'Manifest file not found for hotkey={hotkey}, url={url}, status code={status_code}',
+                    hotkey=manifest_owner_hotkey,
                     url=url,
                     status_code=e.status,
-                    hotkey=hotkey,
                 )
                 return None
             raise ManifestDownloadException(f'HTTP error when downloading file from {url}: {e}') from e
@@ -233,15 +242,15 @@ class ReadOnlyManifestManager(ABC):
     async def _get_manifest_file_with_retry(
         self,
         http_session: aiohttp.ClientSession,
-        hotkey: Hotkey,
+        manifest_owner_hotkey: Hotkey,
         url: str | None,
     ) -> bytes | None:
         try:
-            return await self._get_manifest_file(http_session, hotkey, url)
+            return await self._get_manifest_file(http_session, manifest_owner_hotkey, url)
         except ManifestDownloadException:
             # Retry once
             time.sleep(1)
-            return await self._get_manifest_file(http_session, hotkey, url)
+            return await self._get_manifest_file(http_session, manifest_owner_hotkey, url)
 
     async def _get_manifest_files(self, urls: dict[Hotkey, str | None]) -> dict[Hotkey, bytes | None]:
         """
