@@ -92,7 +92,7 @@ class ShieldMetagraph(Metagraph):
         self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
         self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
         self.blockchain_manager = blockchain_manager or self.create_default_blockchain_manager(
-            subtensor, netuid, wallet, self.event_processor
+            self.subtensor, netuid, wallet, self.event_processor
         )
         self.manifest_manager = manifest_manager or self.create_default_manifest_manager(
             self.event_processor, self.encryption_manager
@@ -100,7 +100,7 @@ class ShieldMetagraph(Metagraph):
         self._init_certificate()
 
         if sync:
-            self.sync(block=block, lite=lite, subtensor=subtensor)
+            self.sync(block=block, lite=lite, subtensor=self.subtensor)
         elif block is not None:
             raise ValueError('Block argument is valid only when sync is True')
 
