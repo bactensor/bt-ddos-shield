@@ -59,9 +59,9 @@ server or by configuring security groups in AWS via AWS panel (EC2 instance secu
   * registered via AWS; or
   * via another registrar, a Route 53 hosted zone created for it, and name servers configured to match those of the Route 53 hosted zone     
 * Hosted zone id from the previous step, can be obtained from `aws route53 list-hosted-zones --query "HostedZones[].{Name:Name,Id:Id}" --output table `
-* S3 with public read
+* S3 bucket with public read and ACLs enabled
 * Miner's server needs to respond to ELB health checks. This can be done by configuring server to respond with 200 status
-to `GET /` request on server's traffic port.
+to `GET /` request on server's traffic port. Also, server security group should allow traffic from ELB.
 * Miner hotkey - the shield server process will need access to it.
 
 ### Running `bt-ddos-shield-server` Docker image
