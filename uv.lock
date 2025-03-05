@@ -333,6 +333,7 @@ source = { editable = "." }
 dependencies = [
     { name = "bittensor", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "boto3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "bt-decode", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "eciespy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pydantic", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pydantic-settings", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -370,6 +371,7 @@ type-check = [
 requires-dist = [
     { name = "bittensor", specifier = "~=9.0.3" },
     { name = "boto3", specifier = "~=1.36.21" },
+    { name = "bt-decode", specifier = "==0.5.0" },
     { name = "eciespy", specifier = "~=0.4.2" },
     { name = "pydantic", specifier = "~=2.10.6" },
     { name = "pydantic-settings", specifier = "~=2.7.1" },
