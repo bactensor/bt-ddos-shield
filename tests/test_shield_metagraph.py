@@ -65,11 +65,15 @@ class TestValidator:
             assert not shield.run
             shield.address_manager.clean_all()
 
-    def test_deepcopy(self, shield_settings: ShieldTestSettings):
+    def test_copy(self, shield_settings: ShieldTestSettings):
         metagraph: ShieldMetagraph = ShieldMetagraph(
             wallet=shield_settings.validator_wallet.instance,
             subtensor=shield_settings.subtensor.create_client(),
             netuid=shield_settings.netuid,
         )
+
         metagraph_copy: ShieldMetagraph = copy.deepcopy(metagraph)
+        assert metagraph_copy.axons == metagraph.axons
+
+        metagraph_copy = copy.copy(metagraph)
         assert metagraph_copy.axons == metagraph.axons
