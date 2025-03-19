@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import os
 import time
 from dataclasses import dataclass
@@ -59,7 +60,6 @@ class ShieldMetagraph(Metagraph):
     certificate: EncryptionCertificate
     """ Certificate used for encryption of addresses generated for Validator by Miners. """
     event_processor: AbstractMinerShieldEventProcessor
-
     encryption_manager: AbstractEncryptionManager
     blockchain_manager: AbstractBlockchainManager
     manifest_manager: ReadOnlyManifestManager
@@ -127,6 +127,31 @@ class ShieldMetagraph(Metagraph):
             time.sleep(3)
             self.blockchain_manager.upload_public_key(self.certificate.public_key)
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        new_instance = cls.__new__(cls)
+        memo[id(self)] = new_instance
+
+        ignored_fields = {
+            # Ignored also in Metagraph.__deepcopy__:
+            'subtensor',
+            # Ignored in this class:
+            'wallet',
+            'certificate',
+            'event_processor',
+            'encryption_manager',
+            'blockchain_manager',
+            'manifest_manager',
+        }
+
+        for key, value in self.__dict__.items():
+            if key in ignored_fields:
+                setattr(new_instance, key, None)  # Set fields to None to be compatible with Metagraph.__deepcopy__
+            else:
+                setattr(new_instance, key, copy.deepcopy(value, memo))
+
+        return new_instance
+
     @classmethod
     def create_default_encryption_manager(cls):
         return ECIESEncryptionManager()
@@ -154,7 +179,7 @@ class ShieldMetagraph(Metagraph):
             event_processor=event_processor,
         )
 
-    def sync(self, block: int | None = None, lite: bool = True, subtensor: bittensor.Subtensor | None = None):
+    def sync(self, block: int | None = None, lite: bool | None = None, subtensor: bittensor.Subtensor | None = None):
         super().sync(block=block, lite=lite, subtensor=subtensor)
         hotkeys: list[str] = self.hotkeys
         urls: dict[Hotkey, str | None] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))

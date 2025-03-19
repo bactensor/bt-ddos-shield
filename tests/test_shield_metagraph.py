@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING
 
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
@@ -63,3 +64,20 @@ class TestValidator:
             shield.disable()
             assert not shield.run
             shield.address_manager.clean_all()
+
+    def test_copy(self, shield_settings: ShieldTestSettings):
+        metagraph: ShieldMetagraph = ShieldMetagraph(
+            wallet=shield_settings.validator_wallet.instance,
+            subtensor=shield_settings.subtensor.create_client(),
+            netuid=shield_settings.netuid,
+        )
+
+        metagraph_copy: ShieldMetagraph = copy.deepcopy(metagraph)
+        assert metagraph_copy.axons == metagraph.axons
+        assert metagraph.subtensor is not None
+        assert metagraph_copy.subtensor is None, 'Metagraph class ignores subtensor field during deepcopy'
+
+        metagraph_copy = copy.copy(metagraph)
+        assert metagraph_copy.axons == metagraph.axons
+        assert metagraph.subtensor is not None
+        assert metagraph_copy.subtensor is None, 'Metagraph class ignores subtensor field during copy'

@@ -163,9 +163,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             # Raw data is hex-encoded and prefixed with '0x'.
             # return bytes.fromhex(field[data_type][2:])
             return bytes(field[data_type][0])
-        except TypeError:
-            return None
-        except LookupError:
+        except (TypeError, LookupError):
             return None
 
     def put_metadata(self, data: bytes):
