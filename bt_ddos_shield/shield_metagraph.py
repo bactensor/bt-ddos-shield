@@ -146,7 +146,7 @@ class ShieldMetagraph(Metagraph):
 
         for key, value in self.__dict__.items():
             if key in ignored_fields:
-                setattr(new_instance, key, None)
+                setattr(new_instance, key, None)  # Set fields to None to be compatible with Metagraph.__deepcopy__
             else:
                 setattr(new_instance, key, copy.deepcopy(value, memo))
 
@@ -179,7 +179,7 @@ class ShieldMetagraph(Metagraph):
             event_processor=event_processor,
         )
 
-    def sync(self, block: int | None = None, lite: bool = True, subtensor: bittensor.Subtensor | None = None):
+    def sync(self, block: int | None = None, lite: bool | None = None, subtensor: bittensor.Subtensor | None = None):
         super().sync(block=block, lite=lite, subtensor=subtensor)
         hotkeys: list[str] = self.hotkeys
         urls: dict[Hotkey, str | None] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))
