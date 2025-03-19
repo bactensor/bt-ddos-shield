@@ -74,6 +74,10 @@ class TestValidator:
 
         metagraph_copy: ShieldMetagraph = copy.deepcopy(metagraph)
         assert metagraph_copy.axons == metagraph.axons
+        assert metagraph.subtensor is not None
+        assert metagraph_copy.subtensor is None, 'Metagraph class ignores subtensor field during deepcopy'
 
         metagraph_copy = copy.copy(metagraph)
         assert metagraph_copy.axons == metagraph.axons
+        assert metagraph.subtensor is not None
+        assert metagraph_copy.subtensor is None, 'Metagraph class ignores subtensor field during copy'
