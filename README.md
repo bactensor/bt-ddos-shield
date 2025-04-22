@@ -16,7 +16,6 @@ library with the drop-in replacement `bt_ddos_shield_client.ShieldMetagraph`.
 **Each miner is then responsible for running the shield server** to secure their infrastructure. 
 Unshielded miners will still be reachable by their default public addresses published to the metagraph.
 
-By replacing costly, traditional DDoS protection methods like WAF and Cloudflare, 
 BT DDoS Shield offers a scalable and **cost-effective solution for subnets handling large volumes of data**.
 
 ## Product Highlights
