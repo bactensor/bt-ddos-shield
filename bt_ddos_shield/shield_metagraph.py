@@ -41,6 +41,12 @@ class ShieldMetagraphOptions:
     from shield.
     """
 
+    disable_uploading_certificate: bool = False
+    """
+    Special option for testing purposes. If True, certificate will not be uploaded to blockchain in ShieldMetagraph
+    constructor.
+    """
+
 
 class ShieldMetagraph(Metagraph):
     """
@@ -100,7 +106,9 @@ class ShieldMetagraph(Metagraph):
         self.manifest_manager = manifest_manager or self.create_default_manifest_manager(
             self.event_processor, self.encryption_manager
         )
-        self._init_certificate()
+
+        if not self.options.disable_uploading_certificate:
+            self._init_certificate()
 
         if sync:
             self.sync(block=block, lite=lite, subtensor=self.subtensor)
