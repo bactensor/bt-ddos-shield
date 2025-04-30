@@ -41,6 +41,14 @@ class ShieldMetagraphOptions:
     from shield.
     """
 
+    certificate_path: str | None = None
+    """
+    Path to file where certificate is stored. If file does not exist, new certificate will be generated and saved to
+    this file. If file exists, certificate will be loaded from it. If this path is not set, it will be loaded from
+    environment variable VALIDATOR_SHIELD_CERTIFICATE_PATH. If both are not set, default path './validator_cert.pem'
+    will be used.
+    """
+
     disable_uploading_certificate: bool = False
     """
     Special option for testing purposes. If True, certificate will not be uploaded to blockchain in ShieldMetagraph
@@ -56,9 +64,6 @@ class ShieldMetagraph(Metagraph):
     To use this class in your code just replace your Metagraph instance with ShieldMetagraph instance. If you were
     using subtensor.metagraph() before, you should now use constructor with sync param set to True and other params
     set appropriately.
-
-    certificate_path argument is path to file where certificate is stored. If file does not exist, new certificate
-    will be generated and saved to this file. If file exists, certificate will be loaded from it.
     """
 
     wallet: bittensor_wallet.Wallet
@@ -116,7 +121,9 @@ class ShieldMetagraph(Metagraph):
             raise ValueError('Block argument is valid only when sync is True')
 
     def _init_certificate(self) -> None:
-        certificate_path: str = os.getenv('VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem')
+        certificate_path: str = self.options.certificate_path or os.getenv(
+            'VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem'
+        )
         try:
             coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
