@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import functools
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -110,3 +112,35 @@ def decode_subtensor_certificate_info(subtensor_certificate_info: dict[str, Any]
     hex_data: str = bytes(data).hex()
     hex_data = hex_algorithm + hex_data  # Prefix cert data with algorithm as it is desired format
     return SubtensorCertificate(algorithm, hex_data)
+
+
+def run_async_in_thread(async_fn) -> Any:
+    """
+    Function to run an async function in a background thread with its own event loop.
+    Allows calling it from sync code and blocks until result is ready.
+    """
+    try:
+        asyncio.get_running_loop()
+        # If exception was not raised, we already have running loop and needs to schedule execution to thread...
+    except RuntimeError:
+        # ... but if we don't have a running loop, we can run the async function directly
+        return asyncio.run(async_fn)
+
+    result = None
+    exception = None
+
+    def thread_runner():
+        try:
+            nonlocal result
+            result = asyncio.run(async_fn)
+        except Exception as e:
+            nonlocal exception
+            exception = e
+
+    thread = threading.Thread(target=thread_runner)
+    thread.start()
+    thread.join()
+
+    if exception:
+        raise exception
+    return result

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import copy
 import os
 import time
@@ -23,6 +22,7 @@ from bt_ddos_shield.manifest_manager import (
     ManifestDeserializationException,
     ReadOnlyManifestManager,
 )
+from bt_ddos_shield.utils import run_async_in_thread
 
 if TYPE_CHECKING:
     import bittensor
@@ -182,8 +182,11 @@ class ShieldMetagraph(Metagraph):
     def sync(self, block: int | None = None, lite: bool | None = None, subtensor: bittensor.Subtensor | None = None):
         super().sync(block=block, lite=lite, subtensor=subtensor)
         hotkeys: list[str] = self.hotkeys
-        urls: dict[Hotkey, str | None] = asyncio.run(self.blockchain_manager.get_manifest_urls(hotkeys))
-        manifests: dict[Hotkey, Manifest | None] = asyncio.run(self.manifest_manager.get_manifests(urls))
+
+        # Use run_async_in_thread hack, because this function can be called from inside currently running event loop
+        urls: dict[Hotkey, str | None] = run_async_in_thread(self.blockchain_manager.get_manifest_urls(hotkeys))
+        manifests: dict[Hotkey, Manifest | None] = run_async_in_thread(self.manifest_manager.get_manifests(urls))
+
         own_hotkey: Hotkey = self.wallet.hotkey.ss58_address
         for axon in self.axons:
             manifest: Manifest | None = manifests.get(axon.hotkey)

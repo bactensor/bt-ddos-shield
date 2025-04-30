@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 from typing import TYPE_CHECKING
 
@@ -64,6 +65,12 @@ class TestValidator:
             shield.disable()
             assert not shield.run
             shield.address_manager.clean_all()
+
+    def test_full_flow_in_async_context(self, shield_settings: ShieldTestSettings):
+        async def async_wrapper():
+            self.test_full_flow(shield_settings)
+
+        asyncio.run(async_wrapper())
 
     def test_copy(self, shield_settings: ShieldTestSettings):
         metagraph: ShieldMetagraph = ShieldMetagraph(
