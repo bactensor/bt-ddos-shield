@@ -4,6 +4,7 @@ import asyncio
 import copy
 from typing import TYPE_CHECKING
 
+from bt_ddos_shield.address_manager import AwsAddressManager
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.state_manager import SQLAlchemyMinerShieldStateManager
@@ -40,6 +41,9 @@ class TestValidator:
         assert isinstance(shield.validators_manager, BittensorValidatorsManager)
         validators_manager: BittensorValidatorsManager = shield.validators_manager
 
+        assert isinstance(shield.address_manager, AwsAddressManager)
+        address_manager: AwsAddressManager = shield.address_manager
+
         shield.enable()
         assert shield.run
         shield.task_queue.join()  # Wait for full shield initialization - should create empty manifest
@@ -60,7 +64,7 @@ class TestValidator:
             metagraph.sync()
             shielded_miner_axon: AxonInfo = next(axon for axon in metagraph.axons if axon.hotkey == miner_hotkey)
             assert shielded_miner_axon.ip != miner_axon.ip
-            assert shielded_miner_axon.port == shield_settings.miner_instance_port
+            assert shielded_miner_axon.port == address_manager.ELB_LISTENING_PORT
         finally:
             shield.disable()
             assert not shield.run

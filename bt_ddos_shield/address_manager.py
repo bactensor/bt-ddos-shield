@@ -218,6 +218,8 @@ class AwsAddressManager(AbstractAddressManager):
     HOSTED_ZONE_ID_STATE_KEY: str = 'aws_hosted_zone_id'
     SHIELDED_SERVER_STATE_KEY: str = 'aws_shielded_server'
 
+    ELB_LISTENING_PORT: int = 80
+
     AWS_OPERATION_MAX_RETRIES: int = 20
     """ How many retries should be done for AWS operations, which need long time until can be processed. """
     AWS_OPERATION_RETRY_DELAY_SEC: int = 9
@@ -331,7 +333,7 @@ class AwsAddressManager(AbstractAddressManager):
         return ShieldAddress(
             address_id=subdomain,
             address=new_address_domain,
-            port=self.shielded_server_data.server_location.port,
+            port=self.ELB_LISTENING_PORT,
         )
 
     @classmethod
@@ -695,7 +697,7 @@ class AwsAddressManager(AbstractAddressManager):
             self.elb_client.create_listener(
                 LoadBalancerArn=elb_id,
                 Protocol='HTTP',
-                Port=80,
+                Port=self.ELB_LISTENING_PORT,
                 DefaultActions=[{'Type': 'forward', 'TargetGroupArn': target_group_id}],
             )
             self.state_manager.add_address_manager_created_object(AwsObjectTypes.ELB.value, elb_id)
