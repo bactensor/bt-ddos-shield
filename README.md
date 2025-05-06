@@ -193,27 +193,27 @@ docker-compose run bt-ddos-shield-server clean
 
 ### Usage instructions:
 
-```
+```bash
 pip install bt-ddos-shield-client
 ```
 
 In your validator code replace 
-```
+```python3
 metagraph = subtensor.metagraph(netuid)
 ```
 with
-```
+```python3
 from bt_ddos_shield import ShieldMetagraph
 
 metagraph = ShieldMetagraph(wallet, netuid, subtensor=subtensor)
 ```
 
 Or if you are creating metagraph is such way
-```
+```python3
 metagraph = Metagraph(netuid, network)
 ```
 then replace it with
-```
+```python3
 from bt_ddos_shield import ShieldMetagraph
 
 metagraph = ShieldMetagraph(wallet, netuid, network)
