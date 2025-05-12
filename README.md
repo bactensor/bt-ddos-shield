@@ -53,7 +53,35 @@ server or by configuring security groups in AWS via AWS panel (EC2 instance secu
 
 ### Prerequisites
 
-* AWS account 
+* AWS account with given privileges:
+  * `ec2:DescribeInstances`
+  * `ec2:DescribeVpcs`
+  * `ec2:DescribeAvailabilityZones`
+  * `ec2:CreateSubnet`
+  * `ec2:DeleteSubnet`
+  * `ec2:DescribeSubnets`
+  * `ec2:CreateSecurityGroup`
+  * `ec2:DeleteSecurityGroup`
+  * `ec2:AuthorizeSecurityGroupIngress`
+  * `wafv2:CreateWebACL`
+  * `wafv2:DeleteWebACL`
+  * `wafv2:GetWebACL`
+  * `wafv2:UpdateWebACL`
+  * `wafv2:AssociateWebACL`
+  * `wafv2:DisassociateWebACL`
+  * `elasticloadbalancing:CreateLoadBalancer`
+  * `elasticloadbalancing:DeleteLoadBalancer`
+  * `elasticloadbalancing:DescribeLoadBalancers`
+  * `elasticloadbalancing:CreateListener`
+  * `elasticloadbalancing:CreateTargetGroup`
+  * `elasticloadbalancing:DeleteTargetGroup`
+  * `elasticloadbalancing:RegisterTargets`
+  * `elasticloadbalancing:DeregisterTargets`
+  * `route53:ListHostedZones`
+  * `route53:ChangeResourceRecordSets`
+  * `route53:ListResourceRecordSets`
+  * `route53:GetHostedZone`
+  * `s3:PutObject`
 * A domain, either 
   * registered via AWS; or
   * via another registrar, a Route 53 hosted zone created for it, and name servers configured to match those of the Route 53 hosted zone     
@@ -219,14 +247,18 @@ from bt_ddos_shield import ShieldMetagraph
 metagraph = ShieldMetagraph(wallet, netuid, network)
 ```
 
+If you are running Validator in Docker, make sure to mount volume to the container for storing certificate generated for
+encrypting addresses - see [Encryption key and cert](#encryption-key-and-cert) for more information. If you are mounting
+directory with wallet to the container, you can use same volume for the certificate.
+
 ### Advanced usage:
 
 #### Encryption key and cert
 
-Upon first call of `ShieldMetagraph`, by default, a cert-key pair will be created, saved on disk and pushed to the metagraph. If for 
+Upon first call of `ShieldMetagraph`, by default, a cert-key pair will be created, saved on disk and pushed to the Subtensor. If for
 whatever reason one needs to provide their own pregenerated cert-key pair (for example when moving to a new validator node), make sure to put the
-cert and key files on the server and provide `VALIDATOR_SHIELD_CERTIFICATE_PATH` env var when starting the new validator instance.
-Default value for this env var is `./validator_cert.pem`.
+cert and key files on the server and provide `VALIDATOR_SHIELD_CERTIFICATE_PATH` env var (or use certificate_path option in options passed
+via constructor) when starting the new validator instance. Default value for this env var is `./validator_cert.pem`.
 
 ### Implementation details:
 
