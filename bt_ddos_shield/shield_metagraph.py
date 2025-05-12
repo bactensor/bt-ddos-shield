@@ -112,8 +112,7 @@ class ShieldMetagraph(Metagraph):
             self.event_processor, self.encryption_manager
         )
 
-        if not self.options.disable_uploading_certificate:
-            self._init_certificate()
+        self._init_certificate()
 
         if sync:
             self.sync(block=block, lite=lite, subtensor=self.subtensor)
@@ -135,12 +134,13 @@ class ShieldMetagraph(Metagraph):
             self.encryption_manager.save_certificate(coincurve_cert, certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
 
-        try:
-            self.blockchain_manager.upload_public_key(self.certificate.public_key)
-        except BlockchainManagerException:
-            # Retry once
-            time.sleep(3)
-            self.blockchain_manager.upload_public_key(self.certificate.public_key)
+        if not self.options.disable_uploading_certificate:
+            try:
+                self.blockchain_manager.upload_public_key(self.certificate.public_key)
+            except BlockchainManagerException:
+                # Retry once
+                time.sleep(3)
+                self.blockchain_manager.upload_public_key(self.certificate.public_key)
 
     def __deepcopy__(self, memo):
         cls = self.__class__
