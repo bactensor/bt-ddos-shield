@@ -247,9 +247,9 @@ from bt_ddos_shield import ShieldMetagraph
 metagraph = ShieldMetagraph(wallet, netuid, network)
 ```
 
-If you are running Validator in Docker, make sure to mount volume to the container for storing certificate generated for
-encrypting addresses - see [Encryption key and cert](#encryption-key-and-cert) for more information. If you are mounting
-directory with wallet to the container, you can use same volume for the certificate.
+If you are running Validator in Docker, make sure to mount a volume for storing certificate generated for
+encrypting addresses to not regenerate it on each run - see [Encryption key and cert](#encryption-key-and-cert) for more
+information. If you are mounting a volume with wallet to the container, you can use the same volume for the certificate.
 
 ### Advanced usage:
 
