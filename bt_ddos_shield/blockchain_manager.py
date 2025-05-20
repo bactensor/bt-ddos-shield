@@ -94,10 +94,18 @@ class AbstractBlockchainManager(ABC):
         """Returns public key for wallet owner."""
         pass
 
+    async def get_own_public_key_async(self) -> PublicKey | None:
+        """Async verson of get_own_public_key."""
+        raise NotImplementedError
+
     @abstractmethod
     def upload_public_key(self, public_key: PublicKey):
         """Uploads public key to blockchain for wallet owner."""
         pass
+
+    async def upload_public_key_async(self, public_key: PublicKey):
+        """Async version of upload_public_key."""
+        raise NotImplementedError
 
 
 class BittensorBlockchainManager(AbstractBlockchainManager):
