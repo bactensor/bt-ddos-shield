@@ -29,15 +29,12 @@ def miner_shield(shield_settings: ShieldTestSettings):
         validators,
     )
 
-    assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
-
-    shield.state_manager.clear_tables()
-
     assert isinstance(shield.address_manager, AwsAddressManager)
+    assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)    
     assert isinstance(shield.validators_manager, BittensorValidatorsManager)
 
+    shield.state_manager.clear_tables()
     shield.enable()
-
     assert shield.run
 
     # Wait for full shield initialization - should create empty manifest
@@ -46,9 +43,7 @@ def miner_shield(shield_settings: ShieldTestSettings):
     yield shield
 
     shield.disable()
-
     assert not shield.run
-
     shield.address_manager.clean_all()
 
 
