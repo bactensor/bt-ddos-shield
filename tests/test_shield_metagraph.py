@@ -30,7 +30,7 @@ def miner_shield(shield_settings: ShieldTestSettings):
     )
 
     assert isinstance(shield.address_manager, AwsAddressManager)
-    assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)    
+    assert isinstance(shield.state_manager, SQLAlchemyMinerShieldStateManager)
     assert isinstance(shield.validators_manager, BittensorValidatorsManager)
 
     shield.state_manager.clear_tables()
