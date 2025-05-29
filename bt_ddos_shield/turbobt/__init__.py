@@ -1,4 +1,4 @@
-from .client import ShieldedBittensor
+from .shielded_bittensor import ShieldedBittensor
 
 __all__ = [
     "ShieldedBittensor",
