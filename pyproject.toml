@@ -16,6 +16,11 @@ dependencies = [
     "sqlalchemy~=2.0.36",
 ]
 
+[project.optional-dependencies]
+turbobt = [
+    "turbobt~=0.0.3",
+]
+
 [tool.uv]
 prerelease = "disallow"
 environments = ["sys_platform == 'linux'", "sys_platform == 'darwin'"]
@@ -25,7 +30,10 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["bt_ddos_shield"]
+packages = [
+    "bt_ddos_shield",
+    "bt_ddos_shield.turbobt",
+]
 
 [tool.pytest.ini_options]
 addopts = "-s" # Shield tests run for a long time and user should see what is happening
@@ -33,6 +41,7 @@ addopts = "-s" # Shield tests run for a long time and user should see what is ha
 [dependency-groups]
 test = [
     "pytest~=8.3.4",
+    "pytest-asyncio~=1.0.0",
 ]
 format = [
     "ruff~=0.9.3",
