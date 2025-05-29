@@ -9,7 +9,6 @@ import turbobt.subnet
 
 from bt_ddos_shield.client import ShieldClient
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
-from bt_ddos_shield.manifest_manager import ManifestDeserializationException
 from bt_ddos_shield.turbobt.blockchain_manager import TurboBittensorBlockchainManager
 
 if typing.TYPE_CHECKING:
@@ -74,13 +73,10 @@ class ShieldedSubnetReference(turbobt.subnet.SubnetReference):
 
     async def list_neurons(self, *args, **kwargs) -> list[turbobt.neuron.Neuron]:
         neurons = await super().list_neurons(*args, **kwargs)
-
-        manifests_urls = await self.client.ddos_shield.blockchain_manager.get_manifest_urls([
-            neuron.hotkey for neuron in neurons
+        manifests = await self.client.ddos_shield.get_manifests([
+            neuron.hotkey
+            for neuron in neurons
         ])
-        manifests = await self.client.ddos_shield.manifest_manager.get_manifests(
-            manifests_urls,
-        )
 
         for neuron in neurons:
             manifest = manifests.get(neuron.hotkey)
@@ -88,19 +84,10 @@ class ShieldedSubnetReference(turbobt.subnet.SubnetReference):
             if not manifest:
                 continue
 
-            try:
-                shield_address = self.client.ddos_shield.manifest_manager.get_address_for_validator(
-                    manifest,
-                    self.client.wallet.hotkey.ss58_address,
-                    self.client.ddos_shield.certificate.private_key,
-                )
-            except ManifestDeserializationException as e:
-                self.client.event_processor.event(
-                    'Error while getting shield address for miner {hotkey}',
-                    exception=e,
-                    hotkey=neuron.hotkey,
-                )
-                continue
+            shield_address = self.client.ddos_shield.get_address(
+                self.client.wallet.hotkey.ss58_address,
+                manifest,
+            )
 
             if shield_address is None:
                 continue
