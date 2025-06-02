@@ -358,7 +358,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = "~=1.0.1" },
     { name = "route53", specifier = "~=1.0.1" },
     { name = "sqlalchemy", specifier = "~=2.0.36" },
-    { name = "turbobt", marker = "extra == 'turbobt'", specifier = "~=0.0.4" },
+    { name = "turbobt", marker = "extra == 'turbobt'", specifier = "~=0.0.5" },
 ]
 provides-extras = ["turbobt"]
 
@@ -1643,7 +1643,7 @@ wheels = [
 
 [[package]]
 name = "turbobt"
-version = "0.0.4"
+version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bittensor-commit-reveal", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -1653,9 +1653,9 @@ dependencies = [
     { name = "websockets", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "xxhash", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/78/c4/fcc01a3e4ac62d6e5dffc125a334c58009ef3ab4ef78e658191f87b000f9/turbobt-0.0.4.tar.gz", hash = "sha256:02c50c7da4f957efdaed90c2cad0844d4b08e0b109a9bc01b1d3933864264847", size = 114461, upload-time = "2025-05-30T08:18:19.203Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/2c/3748a8bfbd3afc258ba47612dd3803f78522d47b5960b57523e0375edabf/turbobt-0.0.5.tar.gz", hash = "sha256:81d26f96bbaf46d567da68014c329a6fd056c27a363337a2c3958a8fdbb81181", size = 114493, upload-time = "2025-06-02T14:16:57.868Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/87/f109aa2914780b90ade74acc9dda26edbebc0ae6b55f21c52b0d7069d33f/turbobt-0.0.4-py3-none-any.whl", hash = "sha256:2db98fec0d737ec85f6ed973549d560be32c7e30b2e9a8afbbc49c4435f29054", size = 37058, upload-time = "2025-05-30T08:18:16.877Z" },
+    { url = "https://files.pythonhosted.org/packages/84/17/073355e0b61532883639bd99d65e399895cfb6c4f2f83cc2b13ddc0049ad/turbobt-0.0.5-py3-none-any.whl", hash = "sha256:6be4dab65ed7a1c723f1fa2391c2e3ad736c8d6069ffc36155dde8d7e13002e8", size = 37105, upload-time = "2025-06-02T14:16:55.813Z" },
 ]
 
 [[package]]
