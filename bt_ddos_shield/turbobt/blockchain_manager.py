@@ -46,7 +46,7 @@ class TurboBittensorBlockchainManager(AbstractBlockchainManager):
             return None
 
         certificate['public_key'] = [
-            certificate['public_key'].encode(),
+            bytes.fromhex(certificate['public_key'][2:]),
         ]
 
         decoded_certificate = decode_subtensor_certificate_info(certificate)
