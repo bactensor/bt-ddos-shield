@@ -84,7 +84,7 @@ class TurboBittensorBlockchainManager(AbstractBlockchainManager):
             port = 1
             protocol = 0
 
-            if neuron and neuron.axon_info:
+            if neuron and neuron.axon_info and str(neuron.axon_info.ip) != '0.0.0.0':
                 ip = str(neuron.axon_info.ip or ip)
                 port = neuron.axon_info.port or port
                 protocol = neuron.axon_info.protocol or protocol
