@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -48,7 +47,7 @@ class AbstractBlockchainManager(ABC):
             serialized_urls: dict[Hotkey, bytes | None] = await self.get_metadata(hotkeys)
         except BlockchainManagerException:
             # Retry once
-            time.sleep(3)
+            await asyncio.sleep(3)
             serialized_urls = await self.get_metadata(hotkeys)
         deserialized_urls: dict[Hotkey, str | None] = {}
         for hotkey, serialized_url in serialized_urls.items():
