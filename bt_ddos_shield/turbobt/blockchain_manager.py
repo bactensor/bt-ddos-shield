@@ -58,11 +58,7 @@ class TurboBittensorBlockchainManager(AbstractBlockchainManager):
 
     async def get_metadata(self, hotkeys: Iterable[Hotkey]) -> dict[Hotkey, bytes | None]:
         commitments = await self.subnet.commitments.fetch()
-        commitments = {
-            key: value
-            for key, value in commitments.items()
-            if key in hotkeys
-        }
+        commitments = {key: value for key, value in commitments.items() if key in hotkeys}
 
         for key in hotkeys:
             if key not in commitments:

@@ -27,7 +27,7 @@ from bt_ddos_shield.utils import run_async_in_thread
 if TYPE_CHECKING:
     import bittensor
     import bittensor_wallet
-    from coincurve.keys import PrivateKey as CoincurvePrivateKey
+    from ecies.keys import PrivateKey as EciesPrivateKey
 
     from bt_ddos_shield.utils import Hotkey, PublicKey
 
@@ -124,7 +124,7 @@ class ShieldMetagraph(Metagraph):
             'VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem'
         )
         try:
-            coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
+            coincurve_cert: EciesPrivateKey = self.encryption_manager.load_certificate(certificate_path)
             self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
             public_key: PublicKey | None = self.blockchain_manager.get_own_public_key()
             if self.certificate.public_key == public_key:

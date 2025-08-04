@@ -352,7 +352,7 @@ type-check = [
 requires-dist = [
     { name = "bittensor", specifier = "~=9.3.0" },
     { name = "boto3", specifier = "~=1.36.21" },
-    { name = "eciespy", specifier = "~=0.4.2" },
+    { name = "eciespy", specifier = "~=0.4.6" },
     { name = "pydantic", specifier = "~=2.10.6" },
     { name = "pydantic-settings", specifier = "~=2.7.1" },
     { name = "python-dotenv", specifier = "~=1.0.1" },
@@ -592,15 +592,16 @@ wheels = [
 
 [[package]]
 name = "eciespy"
-version = "0.4.4"
+version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "coincurve", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pycryptodome", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "typing-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8f/2f/fc9837edd0e7c1701f7675bfdf60141d01e336abb5793996f4a48fa7c4f7/eciespy-0.4.4.tar.gz", hash = "sha256:dfd3832314a8c2ba9c8b7c1b79990f5849fb29e7ad1fd842e17984ac4b1bec11", size = 9464, upload-time = "2025-03-10T15:30:10.417Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/39/d1/29e6cab7060dd41d8f8cada139da58d843f3f4a950e3747691c56c196fd3/eciespy-0.4.6.tar.gz", hash = "sha256:aa981bf3da70de8cdca477ab65e9c9e2d133fd60ec84fa9d3187999bcb958f9c", size = 12373, upload-time = "2025-07-21T05:28:14.913Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/6c/44e3777272a352e0c725b49d0566c4c215d0e1b9d3a5f59c1f6a00933650/eciespy-0.4.4-py3-none-any.whl", hash = "sha256:5f09954122b83afadf34d317b72d3c61dec0daecda94617cc3274d11c8b563af", size = 11468, upload-time = "2025-03-10T15:30:09.522Z" },
+    { url = "https://files.pythonhosted.org/packages/36/d2/a1ffc809daae895ba6abfcbcdc2336f72169150ed6538d24c328392c4deb/eciespy-0.4.6-py3-none-any.whl", hash = "sha256:5329e6f4a79e67eb060f03474fa04ebc76da1a277ff9cec0a71a5f7f4efdfd01", size = 15107, upload-time = "2025-07-21T05:28:13.499Z" },
 ]
 
 [[package]]

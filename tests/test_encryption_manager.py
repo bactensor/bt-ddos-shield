@@ -13,7 +13,7 @@ from bt_ddos_shield.encryption_manager import (
 )
 
 if TYPE_CHECKING:
-    from coincurve.keys import PrivateKey as CoincurvePrivateKey
+    from ecies.keys import PrivateKey as EciesPrivateKey
 
 # Sample test data
 valid_test_data = b'encrypted_address'
@@ -74,10 +74,10 @@ class TestEncryptionManager:
         Test saving and loading a certificate to/from disk.
         """
         path: str = 'certificate_test.pem'
-        certificate: CoincurvePrivateKey = self.encryption_manager.generate_certificate()
+        certificate: EciesPrivateKey = self.encryption_manager.generate_certificate()
         try:
             self.encryption_manager.save_certificate(certificate, path)
-            loaded_certificate: CoincurvePrivateKey = self.encryption_manager.load_certificate(path)
+            loaded_certificate: EciesPrivateKey = self.encryption_manager.load_certificate(path)
             assert certificate.to_hex() == loaded_certificate.to_hex()
             serialized_cert: EncryptionCertificate = self.encryption_manager.serialize_certificate(loaded_certificate)
             encrypted_data = self.encryption_manager.encrypt(
