@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import enum
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Generic, Literal, NamedTuple, TypeVar
 
 import ecies
-from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 from ecies.keys import PrivateKey as EciesPrivateKey
+from ecies.config import Config
 
 
 if TYPE_CHECKING:
@@ -24,6 +25,17 @@ class EncryptionError(EncryptionManagerException):
 
 class DecryptionError(EncryptionManagerException):
     pass
+
+
+class CertificateAlgorithmEnum(enum.IntEnum):
+    """
+    Certificate algorithm.
+
+    Currently only EdDSA using ed25519 curve is supported.
+    """
+
+    ED25519 = 1
+    """ EdDSA using ed25519 curve """
 
 
 class EncryptionCertificate(NamedTuple):
@@ -86,47 +98,50 @@ class AbstractEncryptionManager(Generic[CertType], ABC):
         pass
 
 
-class CertificateAlgorithmEnum(enum.IntEnum):
-    """Values are taken from coincurve.keys.PublicKey.__init__ method."""
-
-    ECDSA_SECP256K1_UNCOMPRESSED = 4
-    """ ECDSA using secp256k1 curve (uncompressed version) """
-
-
 class ECIESEncryptionManager(AbstractEncryptionManager[EciesPrivateKey]):
     """
-    Encryption manager implementation using ECIES algorithm. Public and private keys are Coincurve (secp256k1) keys
+    Encryption manager implementation using ECIES algorithm. Public and private keys are ed25519 keys
     in hex format.
     """
 
+    CURVE: Literal['ed25519'] = 'ed25519'
+
     def encrypt(self, public_key: PublicKey, data: bytes) -> bytes:
         try:
-            return ecies.encrypt(public_key, data)
+            assert public_key.startswith('01')  # ED25519 = 1 in hex
+            # Remove the algorithm identifier before passing to ecies.encrypt
+            raw_public_key = public_key[2:]  # Skip the first byte (algorithm identifier)
+            # Create a config with ed25519 as the elliptic curve
+            config = Config(elliptic_curve=self.CURVE)
+            return ecies.encrypt(raw_public_key, data, config=config)
         except Exception as e:
             raise EncryptionError(f'Encryption failed: {e}') from e
 
     def decrypt(self, private_key: PrivateKey, data: bytes) -> bytes:
         try:
-            return ecies.decrypt(private_key, data)
+            config = Config(elliptic_curve=self.CURVE)
+            return ecies.decrypt(private_key, data, config=config)
         except Exception as e:
             raise DecryptionError(f'Decryption failed: {e}') from e
 
     @classmethod
     def generate_certificate(cls) -> EciesPrivateKey:
-        return EciesPrivateKey('secp256k1')
+        return EciesPrivateKey(cls.CURVE)
 
     @classmethod
     def serialize_certificate(cls, certificate: EciesPrivateKey) -> EncryptionCertificate:
         private_key: str = certificate.to_hex()
-        public_key: bytes = certificate.public_key.to_bytes(compressed=False)
-        assert public_key[0] == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
+        raw_public_key: bytes = certificate.public_key.to_bytes()
+        # Prepend the ED25519 algorithm identifier
+        public_key = bytes([CertificateAlgorithmEnum.ED25519]) + raw_public_key
+
         return EncryptionCertificate(private_key, public_key.hex())
 
     @classmethod
     def save_certificate(cls, certificate: EciesPrivateKey, path: str):
         # Convert hex private key to cryptography private key
         private_key_bytes = bytes.fromhex(certificate.to_hex())
-        private_key = ec.derive_private_key(int.from_bytes(private_key_bytes, byteorder='big'), ec.SECP256K1())
+        private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
 
         # Serialize to PEM format
         pem_data = private_key.private_bytes(
@@ -140,17 +155,9 @@ class ECIESEncryptionManager(AbstractEncryptionManager[EciesPrivateKey]):
 
     @classmethod
     def load_certificate(cls, path: str) -> EciesPrivateKey:
-        # Load PEM private key
         with open(path, 'rb') as f:
             private_key = serialization.load_pem_private_key(f.read(), password=None)
 
-        # Convert to hex format for EciesPrivateKey
-        if not isinstance(private_key, ec.EllipticCurvePrivateKey):
-            raise ValueError('The loaded key is not an elliptic curve private key')
-
-        private_numbers = private_key.private_numbers()
-        private_value = private_numbers.private_value
-        private_bytes = private_value.to_bytes(32, byteorder='big')
+        private_bytes = private_key.private_bytes_raw()
         private_hex = private_bytes.hex()
-
-        return EciesPrivateKey.from_hex('secp256k1', private_hex)
+        return EciesPrivateKey.from_hex(cls.CURVE, private_hex)

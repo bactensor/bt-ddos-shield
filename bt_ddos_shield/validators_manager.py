@@ -120,7 +120,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
             for hotkey, certificate in certificates.items()
             if hotkey in validators
             and certificate is not None
-            and certificate.algorithm == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
+            and certificate.algorithm == CertificateAlgorithmEnum.ED25519
         }
 
     def get_validators_from_metagraph(self) -> frozenset[Hotkey]:
