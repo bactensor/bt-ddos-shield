@@ -5,6 +5,7 @@ import typing
 import turbobt
 
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager, BlockchainManagerException
+from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
 from bt_ddos_shield.utils import decode_subtensor_certificate_info
 
 if typing.TYPE_CHECKING:
@@ -69,10 +70,14 @@ class TurboBittensorBlockchainManager(AbstractBlockchainManager):
     def put_metadata(self, data: bytes):
         raise NotImplementedError
 
-    def upload_public_key(self, public_key: PublicKey):
+    def upload_public_key(
+        self, public_key: PublicKey, algorithm: CertificateAlgorithmEnum = CertificateAlgorithmEnum.ED25519
+    ):
         raise NotImplementedError
 
-    async def upload_public_key_async(self, public_key: PublicKey) -> None:
+    async def upload_public_key_async(
+        self, public_key: PublicKey, algorithm: CertificateAlgorithmEnum = CertificateAlgorithmEnum.ED25519
+    ) -> None:
         try:
             neuron = await self.subnet.get_neuron(self.get_hotkey())
 
@@ -85,10 +90,12 @@ class TurboBittensorBlockchainManager(AbstractBlockchainManager):
                 port = neuron.axon_info.port or port
                 protocol = neuron.axon_info.protocol or protocol
 
+            certificate_data: bytes = bytes([algorithm]) + bytes.fromhex(public_key)
+
             await self.subnet.neurons.serve(
                 ip,
                 port,
-                certificate=bytes.fromhex(public_key),
+                certificate=certificate_data,
                 wallet=self.wallet,
             )
         except Exception as e:

@@ -90,11 +90,15 @@ class ShieldClient:
             return
 
         try:
-            await self.blockchain_manager.upload_public_key_async(self.certificate.public_key)
+            await self.blockchain_manager.upload_public_key_async(
+                self.certificate.public_key, self.certificate.algorithm
+            )
         except BlockchainManagerException:
             # Retry once
             await asyncio.sleep(3)
-            await self.blockchain_manager.upload_public_key_async(self.certificate.public_key)
+            await self.blockchain_manager.upload_public_key_async(
+                self.certificate.public_key, self.certificate.algorithm
+            )
 
     async def get_manifests(
         self,

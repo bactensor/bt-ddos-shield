@@ -76,6 +76,7 @@ class TestEncryptionManager:
             loaded_certificate: EncryptionCertificate = self.encryption_manager.load_certificate(path)
             assert certificate.private_key == loaded_certificate.private_key
             assert certificate.public_key == loaded_certificate.public_key
+            assert certificate.algorithm == loaded_certificate.algorithm
 
             encrypted_data = self.encryption_manager.encrypt(
                 public_key=loaded_certificate.public_key, data=valid_test_data

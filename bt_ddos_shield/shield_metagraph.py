@@ -15,10 +15,10 @@ from bt_ddos_shield.blockchain_manager import (
     BlockchainManagerException,
 )
 from bt_ddos_shield.encryption_manager import (
-    AbstractEncryptionManager, 
-    ECIESEncryptionManager, 
+    AbstractEncryptionManager,
+    ECIESEncryptionManager,
     EncryptionCertificate,
-    PublicKey
+    PublicKey,
 )
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
@@ -138,11 +138,11 @@ class ShieldMetagraph(Metagraph):
 
         if not self.options.disable_uploading_certificate:
             try:
-                self.blockchain_manager.upload_public_key(self.certificate.public_key)
+                self.blockchain_manager.upload_public_key(self.certificate.public_key, self.certificate.algorithm)
             except BlockchainManagerException:
                 # Retry once
                 time.sleep(3)
-                self.blockchain_manager.upload_public_key(self.certificate.public_key)
+                self.blockchain_manager.upload_public_key(self.certificate.public_key, self.certificate.algorithm)
 
     def __deepcopy__(self, memo):
         cls = self.__class__

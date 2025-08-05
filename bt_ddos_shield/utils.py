@@ -106,10 +106,8 @@ def decode_subtensor_certificate_info(subtensor_certificate_info: dict[str, Any]
     except (KeyError, TypeError):
         # This should not happen as Subtensor should return data in expected format
         return None
-    hex_algorithm: str = format(algorithm, '02x')
-    hex_data: str = bytes(data).hex()
-    hex_data = hex_algorithm + hex_data  # Prefix cert data with algorithm as it is desired format
-    return SubtensorCertificate(algorithm, hex_data)
+
+    return SubtensorCertificate(algorithm, bytes(data).hex())
 
 
 def run_async_in_thread(async_fn) -> Any:
