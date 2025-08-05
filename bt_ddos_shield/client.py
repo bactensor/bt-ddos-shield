@@ -77,16 +77,14 @@ class ShieldClient:
         )
 
         try:
-            certificate = self.encryption_manager.load_certificate(certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(certificate)
+            self.certificate = self.encryption_manager.load_certificate(certificate_path)
             public_key = await self.blockchain_manager.get_own_public_key_async()
 
             if self.certificate.public_key == public_key:
                 return
         except FileNotFoundError:
-            certificate = self.encryption_manager.generate_certificate()
-            self.encryption_manager.save_certificate(certificate, certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(certificate)
+            self.certificate = self.encryption_manager.generate_certificate()
+            self.encryption_manager.save_certificate(self.certificate, certificate_path)
 
         if self.options.disable_uploading_certificate:
             return

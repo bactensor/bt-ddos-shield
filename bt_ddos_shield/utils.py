@@ -17,8 +17,6 @@ if TYPE_CHECKING:
     from route53.connection import Route53Connection
 
 Hotkey = str
-PublicKey = str
-PrivateKey = str
 
 
 @dataclass

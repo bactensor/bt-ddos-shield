@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import enum
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Literal, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Generic, Literal, NamedTuple, TypeVar, TypeAlias
 
 import ecies
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from ecies.keys import PrivateKey as EciesPrivateKey
 from ecies.config import Config
-
-
-if TYPE_CHECKING:
-    from bt_ddos_shield.utils import PrivateKey, PublicKey
 
 
 class EncryptionManagerException(Exception):
@@ -25,6 +21,11 @@ class EncryptionError(EncryptionManagerException):
 
 class DecryptionError(EncryptionManagerException):
     pass
+
+
+# Type aliases for encryption keys
+PrivateKey: TypeAlias = str
+PublicKey: TypeAlias = str
 
 
 class CertificateAlgorithmEnum(enum.IntEnum):
@@ -75,15 +76,7 @@ class AbstractEncryptionManager(Generic[CertType], ABC):
 
     @classmethod
     @abstractmethod
-    def serialize_certificate(cls, certificate: CertType) -> EncryptionCertificate:
-        """
-        Serialize certificate public and private key.
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
-    def save_certificate(cls, certificate: CertType, path: str):
+    def save_certificate(cls, certificate: CertType, path: str) -> None:
         """
         Save certificate to disk.
         """
@@ -98,7 +91,7 @@ class AbstractEncryptionManager(Generic[CertType], ABC):
         pass
 
 
-class ECIESEncryptionManager(AbstractEncryptionManager[EciesPrivateKey]):
+class ECIESEncryptionManager(AbstractEncryptionManager[EncryptionCertificate]):
     """
     Encryption manager implementation using ECIES algorithm. Public and private keys are ed25519 keys
     in hex format.
@@ -108,10 +101,8 @@ class ECIESEncryptionManager(AbstractEncryptionManager[EciesPrivateKey]):
 
     def encrypt(self, public_key: PublicKey, data: bytes) -> bytes:
         try:
-            assert public_key.startswith('01')  # ED25519 = 1 in hex
             # Remove the algorithm identifier before passing to ecies.encrypt
-            raw_public_key = public_key[2:]  # Skip the first byte (algorithm identifier)
-            # Create a config with ed25519 as the elliptic curve
+            raw_public_key = public_key[2:]
             config = Config(elliptic_curve=self.CURVE)
             return ecies.encrypt(raw_public_key, data, config=config)
         except Exception as e:
@@ -125,22 +116,19 @@ class ECIESEncryptionManager(AbstractEncryptionManager[EciesPrivateKey]):
             raise DecryptionError(f'Decryption failed: {e}') from e
 
     @classmethod
-    def generate_certificate(cls) -> EciesPrivateKey:
-        return EciesPrivateKey(cls.CURVE)
-
-    @classmethod
-    def serialize_certificate(cls, certificate: EciesPrivateKey) -> EncryptionCertificate:
-        private_key: str = certificate.to_hex()
-        raw_public_key: bytes = certificate.public_key.to_bytes()
+    def generate_certificate(cls) -> EncryptionCertificate:
+        ecies_private_key = EciesPrivateKey(cls.CURVE)
+        private_key: str = ecies_private_key.to_hex()
+        raw_public_key: bytes = ecies_private_key.public_key.to_bytes()
         # Prepend the ED25519 algorithm identifier
         public_key = bytes([CertificateAlgorithmEnum.ED25519]) + raw_public_key
 
         return EncryptionCertificate(private_key, public_key.hex())
 
     @classmethod
-    def save_certificate(cls, certificate: EciesPrivateKey, path: str):
+    def save_certificate(cls, certificate: EncryptionCertificate, path: str) -> None:
         # Convert hex private key to cryptography private key
-        private_key_bytes = bytes.fromhex(certificate.to_hex())
+        private_key_bytes = bytes.fromhex(certificate.private_key)
         private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
 
         # Serialize to PEM format
@@ -154,10 +142,17 @@ class ECIESEncryptionManager(AbstractEncryptionManager[EciesPrivateKey]):
             f.write(pem_data)
 
     @classmethod
-    def load_certificate(cls, path: str) -> EciesPrivateKey:
+    def load_certificate(cls, path: str) -> EncryptionCertificate:
         with open(path, 'rb') as f:
             private_key = serialization.load_pem_private_key(f.read(), password=None)
 
         private_bytes = private_key.private_bytes_raw()
         private_hex = private_bytes.hex()
-        return EciesPrivateKey.from_hex(cls.CURVE, private_hex)
+
+        # Create EciesPrivateKey to get the public key
+        ecies_private_key = EciesPrivateKey.from_hex(cls.CURVE, private_hex)
+        raw_public_key: bytes = ecies_private_key.public_key.to_bytes()
+        # Prepend the ED25519 algorithm identifier
+        public_key = bytes([CertificateAlgorithmEnum.ED25519]) + raw_public_key
+
+        return EncryptionCertificate(private_hex, public_key.hex())

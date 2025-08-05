@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
-
 import pytest
 
 from bt_ddos_shield.encryption_manager import (
@@ -11,9 +9,6 @@ from bt_ddos_shield.encryption_manager import (
     EncryptionCertificate,
     EncryptionError,
 )
-
-if TYPE_CHECKING:
-    from ecies.keys import PrivateKey as EciesPrivateKey
 
 # Sample test data
 valid_test_data = b'encrypted_address'
@@ -27,7 +22,8 @@ class TestEncryptionManager:
     """
 
     encryption_manager = ECIESEncryptionManager()
-    private_key, public_key = encryption_manager.serialize_certificate(encryption_manager.generate_certificate())
+    certificate = encryption_manager.generate_certificate()
+    private_key, public_key = certificate.private_key, certificate.public_key
 
     def test_encrypt_data_valid(self):
         """
@@ -74,17 +70,18 @@ class TestEncryptionManager:
         Test saving and loading a certificate to/from disk.
         """
         path: str = 'certificate_test.pem'
-        certificate: EciesPrivateKey = self.encryption_manager.generate_certificate()
+        certificate: EncryptionCertificate = self.encryption_manager.generate_certificate()
         try:
             self.encryption_manager.save_certificate(certificate, path)
-            loaded_certificate: EciesPrivateKey = self.encryption_manager.load_certificate(path)
-            assert certificate.to_hex() == loaded_certificate.to_hex()
-            serialized_cert: EncryptionCertificate = self.encryption_manager.serialize_certificate(loaded_certificate)
+            loaded_certificate: EncryptionCertificate = self.encryption_manager.load_certificate(path)
+            assert certificate.private_key == loaded_certificate.private_key
+            assert certificate.public_key == loaded_certificate.public_key
+
             encrypted_data = self.encryption_manager.encrypt(
-                public_key=serialized_cert.public_key, data=valid_test_data
+                public_key=loaded_certificate.public_key, data=valid_test_data
             )
             decrypted_data = self.encryption_manager.decrypt(
-                private_key=serialized_cert.private_key, data=encrypted_data
+                private_key=loaded_certificate.private_key, data=encrypted_data
             )
             assert decrypted_data == valid_test_data
         finally:

@@ -15,7 +15,8 @@ from bt_ddos_shield.state_manager import (
 from bt_ddos_shield.utils import ShieldAddress
 
 if TYPE_CHECKING:
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.encryption_manager import PublicKey
+    from bt_ddos_shield.utils import Hotkey
     from tests.conftest import ShieldTestSettings
 
 

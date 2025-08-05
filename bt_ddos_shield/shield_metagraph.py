@@ -14,7 +14,12 @@ from bt_ddos_shield.blockchain_manager import (
     BittensorBlockchainManager,
     BlockchainManagerException,
 )
-from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager, EncryptionCertificate
+from bt_ddos_shield.encryption_manager import (
+    AbstractEncryptionManager, 
+    ECIESEncryptionManager, 
+    EncryptionCertificate,
+    PublicKey
+)
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
@@ -27,9 +32,8 @@ from bt_ddos_shield.utils import run_async_in_thread
 if TYPE_CHECKING:
     import bittensor
     import bittensor_wallet
-    from ecies.keys import PrivateKey as EciesPrivateKey
 
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 @dataclass
@@ -124,15 +128,13 @@ class ShieldMetagraph(Metagraph):
             'VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem'
         )
         try:
-            coincurve_cert: EciesPrivateKey = self.encryption_manager.load_certificate(certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
+            self.certificate = self.encryption_manager.load_certificate(certificate_path)
             public_key: PublicKey | None = self.blockchain_manager.get_own_public_key()
             if self.certificate.public_key == public_key:
                 return
         except FileNotFoundError:
-            coincurve_cert = self.encryption_manager.generate_certificate()
-            self.encryption_manager.save_certificate(coincurve_cert, certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
+            self.certificate = self.encryption_manager.generate_certificate()
+            self.encryption_manager.save_certificate(self.certificate, certificate_path)
 
         if not self.options.disable_uploading_certificate:
             try:

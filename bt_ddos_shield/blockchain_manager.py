@@ -21,7 +21,8 @@ if TYPE_CHECKING:
     from bittensor.core.chain_data.neuron_info import NeuronInfo
 
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.encryption_manager import PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 class BlockchainManagerException(Exception):

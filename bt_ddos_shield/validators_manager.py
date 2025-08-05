@@ -17,7 +17,8 @@ if TYPE_CHECKING:
     from async_substrate_interface.sync_substrate import QueryMapResult
     from bittensor import Balance, MetagraphInfo
 
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.encryption_manager import PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 class AbstractValidatorsManager(ABC):
