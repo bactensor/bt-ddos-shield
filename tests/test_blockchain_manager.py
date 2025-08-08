@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from bt_ddos_shield.blockchain_manager import (
     AbstractBlockchainManager,
 )
+from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -39,5 +40,7 @@ class MemoryBlockchainManager(AbstractBlockchainManager):
     def get_own_public_key(self) -> PublicKey:
         return 'public_key'
 
-    def upload_public_key(self, public_key: PublicKey):
+    def upload_public_key(
+        self, public_key: PublicKey, algorithm: CertificateAlgorithmEnum = CertificateAlgorithmEnum.ED25519
+    ):
         pass

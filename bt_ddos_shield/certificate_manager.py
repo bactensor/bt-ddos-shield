@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, Literal, TypeAlias, TypeVar
+from typing import Generic, Literal, TypeAlias, TypeVar, cast
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -103,9 +103,12 @@ class EDDSACertificateManager(AbstractCertificateManager[Certificate]):
     @classmethod
     def load_certificate(cls, path: str) -> Certificate:
         with open(path, 'rb') as f:
-            private_key = f.read()
+            private_key_raw = f.read()
 
-        private_key_bytes = serialization.load_pem_private_key(private_key, password=None).private_bytes_raw()
+        private_key = cast(
+            'ed25519.Ed25519PrivateKey', serialization.load_pem_private_key(private_key_raw, password=None)
+        )
+        private_key_bytes = private_key.private_bytes_raw()
         ecies_private_key = EciesPrivateKey.from_hex(cls._CURVE, private_key_bytes.hex())
 
         return Certificate(
