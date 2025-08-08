@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import os
-import pytest
 
 from bt_ddos_shield.certificate_manager import (
-    EDDSACertificateManager,
     Certificate,
+    EDDSACertificateManager,
 )
 
 

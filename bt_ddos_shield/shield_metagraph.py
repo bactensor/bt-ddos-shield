@@ -14,14 +14,14 @@ from bt_ddos_shield.blockchain_manager import (
     BittensorBlockchainManager,
     BlockchainManagerException,
 )
+from bt_ddos_shield.certificate_manager import (
+    Certificate,
+    EDDSACertificateManager,
+    PublicKey,
+)
 from bt_ddos_shield.encryption_manager import (
     AbstractEncryptionManager,
     ECIESEncryptionManager,
-)
-from bt_ddos_shield.certificate_manager import (
-    EDDSACertificateManager,
-    Certificate,
-    PublicKey,
 )
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (

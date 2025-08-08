@@ -42,12 +42,13 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.certificate_manager import PublicKey
 from bt_ddos_shield.utils import AWSClientFactory, Hotkey, ShieldAddress, SubtensorSettings, WalletSettings
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from bt_ddos_shield.certificate_manager import PublicKey
 
 
 class MinerShieldOptions(BaseModel):

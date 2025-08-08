@@ -3,12 +3,11 @@ from __future__ import annotations
 import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar, TypeAlias, Literal
+from typing import Generic, Literal, TypeAlias, TypeVar
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from ecies.keys import PrivateKey as EciesPrivateKey
-
 
 CertificateType = TypeVar('CertificateType')
 

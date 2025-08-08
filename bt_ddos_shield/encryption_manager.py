@@ -6,7 +6,7 @@ from typing import Generic, Literal, TypeVar
 import ecies
 from ecies.config import Config
 
-from bt_ddos_shield.certificate_manager import PrivateKey, PublicKey, Certificate
+from bt_ddos_shield.certificate_manager import PrivateKey, PublicKey
 
 
 class EncryptionManagerException(Exception):

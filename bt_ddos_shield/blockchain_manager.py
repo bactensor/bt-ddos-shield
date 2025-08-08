@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     from bittensor.core.chain_data.axon_info import AxonInfo
     from bittensor.core.chain_data.neuron_info import NeuronInfo
 
-    from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
     from bt_ddos_shield.certificate_manager import PublicKey
+    from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
     from bt_ddos_shield.utils import Hotkey
 
 

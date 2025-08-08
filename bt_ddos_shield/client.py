@@ -5,7 +5,7 @@ import os
 import typing
 
 from bt_ddos_shield.blockchain_manager import BlockchainManagerException
-from bt_ddos_shield.certificate_manager import EDDSACertificateManager, Certificate
+from bt_ddos_shield.certificate_manager import Certificate, EDDSACertificateManager
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,

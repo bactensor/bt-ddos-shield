@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
+from bt_ddos_shield.certificate_manager import (
+    EDDSACertificateManager,
+)
 from bt_ddos_shield.encryption_manager import (
     DecryptionError,
     ECIESEncryptionManager,
     EncryptionError,
-)
-from bt_ddos_shield.certificate_manager import (
-    EDDSACertificateManager,
 )
 
 # Sample test data
