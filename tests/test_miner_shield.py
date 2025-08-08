@@ -4,6 +4,7 @@ import asyncio
 from time import sleep
 from typing import TYPE_CHECKING
 
+from bt_ddos_shield.certificate_manager import EDDSACertificateManager
 from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
@@ -24,13 +25,13 @@ if TYPE_CHECKING:
     from bt_ddos_shield.address_manager import AbstractAddressManager
     from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager
     from bt_ddos_shield.manifest_manager import AbstractManifestManager, Manifest
-    from bt_ddos_shield.encryption_manager import PublicKey
+    from bt_ddos_shield.certificate_manager import PublicKey
     from bt_ddos_shield.utils import Hotkey
     from tests.conftest import ShieldTestSettings
 
 
 def generate_test_public_key() -> PublicKey:
-    return ECIESEncryptionManager.generate_certificate().public_key
+    return EDDSACertificateManager.generate_certificate().public_key
 
 
 class TestMinerShield:

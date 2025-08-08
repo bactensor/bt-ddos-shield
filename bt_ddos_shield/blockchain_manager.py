@@ -11,7 +11,7 @@ from bittensor.core.extrinsics.serving import (
     serve_extrinsic,
 )
 
-from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
+from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
 from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from bittensor.core.chain_data.neuron_info import NeuronInfo
 
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-    from bt_ddos_shield.encryption_manager import PublicKey
+    from bt_ddos_shield.certificate_manager import PublicKey
     from bt_ddos_shield.utils import Hotkey
 
 

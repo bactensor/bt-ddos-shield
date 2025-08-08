@@ -10,7 +10,7 @@ from bt_ddos_shield.blockchain_manager import (
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from bt_ddos_shield.encryption_manager import PublicKey
+    from bt_ddos_shield.certificate_manager import PublicKey
     from bt_ddos_shield.utils import Hotkey
 
 
