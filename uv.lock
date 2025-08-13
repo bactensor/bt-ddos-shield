@@ -171,7 +171,7 @@ wheels = [
 
 [[package]]
 name = "bittensor"
-version = "9.8.3"
+version = "9.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -198,9 +198,9 @@ dependencies = [
     { name = "uvicorn", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "wheel", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/14/02/fc5bb3e97abf7cb76b7688a87a13dc6aa407404c81dc1b9341bf75c37dcd/bittensor-9.8.3.tar.gz", hash = "sha256:7c4682399037bd8aa8f68d427d43f4c219b6002c6b2e5fe07411c2a2443240ad", size = 270669, upload-time = "2025-07-18T18:07:20.339Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/32/a89e25e973ff5c4a42011d22453a26a86a90a4d0e93d6d56a356f7015338/bittensor-9.9.0.tar.gz", hash = "sha256:4bff5ac33ba77ddb414d34d4c717210a648380afb2a4ad32edb65e212b3fc561", size = 273691, upload-time = "2025-08-12T17:09:21.513Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/91/31/98c0745756c9a1cbbc1803c680de4a98b13ca14615252e5817c63b7844cc/bittensor-9.8.3-py3-none-any.whl", hash = "sha256:4f28da5813cc91de8df9b0eefce6c4d31adb41bf42405a97a097636599e9f9b3", size = 322581, upload-time = "2025-07-18T18:07:18.515Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/18/cd3c4317866c4a3fcac64389ef6a395095413c9737e4299b3005a480a719/bittensor-9.9.0-py3-none-any.whl", hash = "sha256:79b54026f4e464611c862ad85031c44bc2576221c16ca759279908dcda9f5e35", size = 325232, upload-time = "2025-08-12T17:09:19.934Z" },
 ]
 
 [[package]]
@@ -350,7 +350,7 @@ type-check = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bittensor", specifier = "~=9.8.0" },
+    { name = "bittensor", specifier = "~=9.9.0" },
     { name = "boto3", specifier = "~=1.36.21" },
     { name = "eciespy", specifier = "~=0.4.2" },
     { name = "pydantic", specifier = "~=2.10.6" },
