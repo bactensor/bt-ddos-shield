@@ -18,9 +18,10 @@ if TYPE_CHECKING:
 
     from mypy_boto3_s3 import S3Client
 
+    from bt_ddos_shield.certificate_manager import PrivateKey, PublicKey
     from bt_ddos_shield.encryption_manager import AbstractEncryptionManager
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-    from bt_ddos_shield.utils import AWSClientFactory, Hotkey, PrivateKey, PublicKey, ShieldAddress
+    from bt_ddos_shield.utils import AWSClientFactory, Hotkey, ShieldAddress
 
 
 class ManifestManagerException(Exception):

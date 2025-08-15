@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from async_substrate_interface.types import ScaleObj
 from bittensor.core.chain_data import decode_account_id
 
-from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
+from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
 from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
 
 if TYPE_CHECKING:
@@ -17,7 +17,8 @@ if TYPE_CHECKING:
     from async_substrate_interface.sync_substrate import QueryMapResult
     from bittensor import Balance, MetagraphInfo
 
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.certificate_manager import PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 class AbstractValidatorsManager(ABC):
@@ -120,7 +121,7 @@ class BittensorValidatorsManager(AbstractValidatorsManager):
             for hotkey, certificate in certificates.items()
             if hotkey in validators
             and certificate is not None
-            and certificate.algorithm == CertificateAlgorithmEnum.ECDSA_SECP256K1_UNCOMPRESSED
+            and certificate.algorithm == CertificateAlgorithmEnum.ED25519
         }
 
     def get_validators_from_metagraph(self) -> frozenset[Hotkey]:

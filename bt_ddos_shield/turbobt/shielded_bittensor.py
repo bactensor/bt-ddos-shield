@@ -73,10 +73,7 @@ class ShieldedSubnetReference(turbobt.subnet.SubnetReference):
 
     async def list_neurons(self, *args, **kwargs) -> list[turbobt.neuron.Neuron]:
         neurons = await super().list_neurons(*args, **kwargs)
-        manifests = await self.client.ddos_shield.get_manifests([
-            neuron.hotkey
-            for neuron in neurons
-        ])
+        manifests = await self.client.ddos_shield.get_manifests([neuron.hotkey for neuron in neurons])
 
         for neuron in neurons:
             manifest = manifests.get(neuron.hotkey)
