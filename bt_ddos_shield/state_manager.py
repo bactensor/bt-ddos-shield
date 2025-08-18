@@ -23,7 +23,8 @@ from bt_ddos_shield.utils import ShieldAddress
 if TYPE_CHECKING:
     from sqlalchemy.engine import url
 
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.certificate_manager import PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 class MinerShieldState:

@@ -11,6 +11,7 @@ from bittensor.core.extrinsics.serving import (
     serve_extrinsic,
 )
 
+from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
 from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
 
 if TYPE_CHECKING:
@@ -20,8 +21,9 @@ if TYPE_CHECKING:
     from bittensor.core.chain_data.axon_info import AxonInfo
     from bittensor.core.chain_data.neuron_info import NeuronInfo
 
+    from bt_ddos_shield.certificate_manager import PublicKey
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 class BlockchainManagerException(Exception):
@@ -99,11 +101,15 @@ class AbstractBlockchainManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def upload_public_key(self, public_key: PublicKey):
+    def upload_public_key(
+        self, public_key: PublicKey, algorithm: CertificateAlgorithmEnum = CertificateAlgorithmEnum.ED25519
+    ):
         """Uploads public key to blockchain for wallet owner."""
         pass
 
-    async def upload_public_key_async(self, public_key: PublicKey):
+    async def upload_public_key_async(
+        self, public_key: PublicKey, algorithm: CertificateAlgorithmEnum = CertificateAlgorithmEnum.ED25519
+    ):
         """Async version of upload_public_key."""
         raise NotImplementedError
 
@@ -209,7 +215,9 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             return None
         return decoded_certificate.hex_data
 
-    def upload_public_key(self, public_key: PublicKey):
+    def upload_public_key(
+        self, public_key: PublicKey, algorithm: CertificateAlgorithmEnum = CertificateAlgorithmEnum.ED25519
+    ):
         try:
             # As for now there is no method for uploading only certificate to Subtensor, so we need to use
             # serve_extrinsic function. Because of that we need to get current neuron info to not overwrite existing
@@ -230,7 +238,7 @@ class BittensorBlockchainManager(AbstractBlockchainManager):
             # and modulo 256 as it is u8 field) to not modify any real data.
             new_placeholder1: int = 0 if axon_info is None else (axon_info.placeholder1 + 1) % 256
             # certificate param is of str type in library, but actually we need to pass bytes there
-            certificate_data: bytes = bytes.fromhex(public_key)
+            certificate_data: bytes = bytes([algorithm]) + bytes.fromhex(public_key)
 
             serve_extrinsic(
                 self.subtensor,

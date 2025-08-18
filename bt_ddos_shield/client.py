@@ -5,7 +5,8 @@ import os
 import typing
 
 from bt_ddos_shield.blockchain_manager import BlockchainManagerException
-from bt_ddos_shield.encryption_manager import ECIESEncryptionManager, EncryptionCertificate
+from bt_ddos_shield.certificate_manager import Certificate, EDDSACertificateManager
+from bt_ddos_shield.encryption_manager import ECIESEncryptionManager
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
     Manifest,
@@ -25,8 +26,9 @@ if typing.TYPE_CHECKING:
 
 class ShieldClient:
     blockchain_manager: AbstractBlockchainManager
-    certificate: EncryptionCertificate
+    certificate: Certificate
     encryption_manager: AbstractEncryptionManager
+    certificate_manager: EDDSACertificateManager
     event_processor: AbstractMinerShieldEventProcessor
     manifest_manager: ReadOnlyManifestManager
     options: ShieldMetagraphOptions
@@ -39,6 +41,7 @@ class ShieldClient:
         event_processor: AbstractMinerShieldEventProcessor,
         blockchain_manager: AbstractBlockchainManager,
         encryption_manager: AbstractEncryptionManager | None = None,
+        certificate_manager: EDDSACertificateManager | None = None,
         manifest_manager: ReadOnlyManifestManager | None = None,
         options: ShieldMetagraphOptions | None = None,
     ):
@@ -47,6 +50,7 @@ class ShieldClient:
         self.options = options or ShieldMetagraphOptions()
         self.event_processor = event_processor
         self.blockchain_manager = blockchain_manager
+        self.certificate_manager = certificate_manager or self.create_default_certificate_manager()
         self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
         self.manifest_manager = manifest_manager or self.create_default_manifest_manager(
             self.event_processor,
@@ -58,6 +62,10 @@ class ShieldClient:
 
     async def __aexit__(self, *args, **kwargs):
         pass
+
+    @classmethod
+    def create_default_certificate_manager(cls):
+        return EDDSACertificateManager()
 
     @classmethod
     def create_default_encryption_manager(cls):
@@ -77,26 +85,28 @@ class ShieldClient:
         )
 
         try:
-            certificate = self.encryption_manager.load_certificate(certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(certificate)
+            self.certificate = self.certificate_manager.load_certificate(certificate_path)
             public_key = await self.blockchain_manager.get_own_public_key_async()
 
             if self.certificate.public_key == public_key:
                 return
         except FileNotFoundError:
-            certificate = self.encryption_manager.generate_certificate()
-            self.encryption_manager.save_certificate(certificate, certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(certificate)
+            self.certificate = self.certificate_manager.generate_certificate()
+            self.certificate_manager.save_certificate(self.certificate, certificate_path)
 
         if self.options.disable_uploading_certificate:
             return
 
         try:
-            await self.blockchain_manager.upload_public_key_async(self.certificate.public_key)
+            await self.blockchain_manager.upload_public_key_async(
+                self.certificate.public_key, self.certificate.algorithm
+            )
         except BlockchainManagerException:
             # Retry once
             await asyncio.sleep(3)
-            await self.blockchain_manager.upload_public_key_async(self.certificate.public_key)
+            await self.blockchain_manager.upload_public_key_async(
+                self.certificate.public_key, self.certificate.algorithm
+            )
 
     async def get_manifests(
         self,

@@ -14,7 +14,15 @@ from bt_ddos_shield.blockchain_manager import (
     BittensorBlockchainManager,
     BlockchainManagerException,
 )
-from bt_ddos_shield.encryption_manager import AbstractEncryptionManager, ECIESEncryptionManager, EncryptionCertificate
+from bt_ddos_shield.certificate_manager import (
+    Certificate,
+    EDDSACertificateManager,
+    PublicKey,
+)
+from bt_ddos_shield.encryption_manager import (
+    AbstractEncryptionManager,
+    ECIESEncryptionManager,
+)
 from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor, PrintingMinerShieldEventProcessor
 from bt_ddos_shield.manifest_manager import (
     JsonManifestSerializer,
@@ -27,9 +35,8 @@ from bt_ddos_shield.utils import run_async_in_thread
 if TYPE_CHECKING:
     import bittensor
     import bittensor_wallet
-    from coincurve.keys import PrivateKey as CoincurvePrivateKey
 
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 @dataclass
@@ -68,10 +75,11 @@ class ShieldMetagraph(Metagraph):
 
     wallet: bittensor_wallet.Wallet
     """ Validator's wallet. """
-    certificate: EncryptionCertificate
+    certificate: Certificate
     """ Certificate used for encryption of addresses generated for Validator by Miners. """
     event_processor: AbstractMinerShieldEventProcessor
     encryption_manager: AbstractEncryptionManager
+    certificate_manager: EDDSACertificateManager
     blockchain_manager: AbstractBlockchainManager
     manifest_manager: ReadOnlyManifestManager
     options: ShieldMetagraphOptions
@@ -87,6 +95,7 @@ class ShieldMetagraph(Metagraph):
         subtensor: bittensor.Subtensor | None = None,
         event_processor: AbstractMinerShieldEventProcessor | None = None,
         encryption_manager: AbstractEncryptionManager | None = None,
+        certificate_manager: EDDSACertificateManager | None = None,
         blockchain_manager: AbstractBlockchainManager | None = None,
         manifest_manager: ReadOnlyManifestManager | None = None,
         options: ShieldMetagraphOptions | None = None,
@@ -105,6 +114,7 @@ class ShieldMetagraph(Metagraph):
         self.options = options or ShieldMetagraphOptions()
         self.event_processor = event_processor or PrintingMinerShieldEventProcessor()
         self.encryption_manager = encryption_manager or self.create_default_encryption_manager()
+        self.certificate_manager = certificate_manager or self.create_default_certificate_manager()
         self.blockchain_manager = blockchain_manager or self.create_default_blockchain_manager(
             self.subtensor, netuid, wallet, self.event_processor
         )
@@ -124,23 +134,21 @@ class ShieldMetagraph(Metagraph):
             'VALIDATOR_SHIELD_CERTIFICATE_PATH', './validator_cert.pem'
         )
         try:
-            coincurve_cert: CoincurvePrivateKey = self.encryption_manager.load_certificate(certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
+            self.certificate = self.certificate_manager.load_certificate(certificate_path)
             public_key: PublicKey | None = self.blockchain_manager.get_own_public_key()
             if self.certificate.public_key == public_key:
                 return
         except FileNotFoundError:
-            coincurve_cert = self.encryption_manager.generate_certificate()
-            self.encryption_manager.save_certificate(coincurve_cert, certificate_path)
-            self.certificate = self.encryption_manager.serialize_certificate(coincurve_cert)
+            self.certificate = self.certificate_manager.generate_certificate()
+            self.certificate_manager.save_certificate(self.certificate, certificate_path)
 
         if not self.options.disable_uploading_certificate:
             try:
-                self.blockchain_manager.upload_public_key(self.certificate.public_key)
+                self.blockchain_manager.upload_public_key(self.certificate.public_key, self.certificate.algorithm)
             except BlockchainManagerException:
                 # Retry once
                 time.sleep(3)
-                self.blockchain_manager.upload_public_key(self.certificate.public_key)
+                self.blockchain_manager.upload_public_key(self.certificate.public_key, self.certificate.algorithm)
 
     def __deepcopy__(self, memo):
         cls = self.__class__
@@ -155,6 +163,7 @@ class ShieldMetagraph(Metagraph):
             'certificate',
             'event_processor',
             'encryption_manager',
+            'certificate_manager',
             'blockchain_manager',
             'manifest_manager',
         }
@@ -170,6 +179,10 @@ class ShieldMetagraph(Metagraph):
     @classmethod
     def create_default_encryption_manager(cls):
         return ECIESEncryptionManager()
+
+    @classmethod
+    def create_default_certificate_manager(cls):
+        return EDDSACertificateManager()
 
     @classmethod
     def create_default_manifest_manager(
