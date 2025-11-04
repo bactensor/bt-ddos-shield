@@ -12,7 +12,11 @@ from bittensor.core.extrinsics.serving import (
 )
 
 from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
-from bt_ddos_shield.utils import SubtensorCertificate, decode_subtensor_certificate_info
+from bt_ddos_shield.utils import (
+    SubtensorCertificate,
+    decode_subtensor_certificate_info,
+    extract_commitment_url,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -69,7 +73,9 @@ class AbstractBlockchainManager(ABC):
         """
         own_hotkey: Hotkey = self.get_hotkey()
         urls: dict[Hotkey, str | None] = await self.get_manifest_urls([own_hotkey])
-        return urls.get(own_hotkey)
+        raw_value = urls.get(own_hotkey)
+        url, _, _ = extract_commitment_url(raw_value)
+        return url
 
     @abstractmethod
     def put_metadata(self, data: bytes):

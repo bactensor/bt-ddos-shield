@@ -140,3 +140,54 @@ def run_async_in_thread(async_fn) -> Any:
     if exception:
         raise exception
     return result
+
+
+COMMITMENT_PREFIX = '<D:'
+COMMITMENT_SUFFIX = '>'
+LEGACY_COMMITMENT_PREFIXES = ('http://', 'https://')
+
+
+def wrap_commitment_payload(url: str) -> str:
+    """
+    Wrap URL in Shield commitment envelope.
+    """
+    return f'{COMMITMENT_PREFIX}{url}{COMMITMENT_SUFFIX}'
+
+
+def extract_commitment_url(commitment: str | None) -> tuple[str | None, str, bool]:
+    """
+    Extract Shield URL and remaining commitment data.
+
+    Returns:
+        tuple:
+            - extracted URL or None if not present,
+            - remaining commitment string (without Shield envelope),
+            - bool flag indicating if legacy plain URL format was detected.
+    """
+    if not commitment:
+        return None, '', False
+
+    envelope_start = commitment.find(COMMITMENT_PREFIX)
+    if envelope_start != -1:
+        envelope_end = commitment.find(COMMITMENT_SUFFIX, envelope_start + len(COMMITMENT_PREFIX))
+        if envelope_end != -1:
+            url = commitment[envelope_start + len(COMMITMENT_PREFIX) : envelope_end]
+            rest = commitment[:envelope_start] + commitment[envelope_end + len(COMMITMENT_SUFFIX) :]
+            return url, rest, False
+
+    for prefix in LEGACY_COMMITMENT_PREFIXES:
+        if commitment.startswith(prefix):
+            delimiter_pos = commitment.find('<', len(prefix))
+            if delimiter_pos == -1:
+                return commitment, '', True
+            return commitment[:delimiter_pos], commitment[delimiter_pos:], True
+
+    return None, commitment, False
+
+
+def merge_commitment_url(url: str, rest: str = '') -> str:
+    """
+    Merge Shield URL with preserved commitment data.
+    """
+    envelope = wrap_commitment_payload(url)
+    return f'{envelope}{rest}'

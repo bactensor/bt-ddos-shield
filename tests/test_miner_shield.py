@@ -9,6 +9,7 @@ from bt_ddos_shield.event_processor import PrintingMinerShieldEventProcessor
 from bt_ddos_shield.miner_shield import MinerShield, MinerShieldFactory, MinerShieldOptions
 from bt_ddos_shield.shield_metagraph import ShieldMetagraph
 from bt_ddos_shield.state_manager import MinerShieldState, SQLAlchemyMinerShieldStateManager
+from bt_ddos_shield.utils import extract_commitment_url, wrap_commitment_payload
 from bt_ddos_shield.validators_manager import (
     BittensorValidatorsManager,
     MemoryValidatorsManager,
@@ -123,6 +124,10 @@ class TestMinerShield:
             manifest_url: str = self.manifest_manager.get_manifest_url()
             manifest: Manifest = asyncio.run(self.manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
+            raw_commitment = asyncio.run(self.blockchain_manager.get_manifest_urls([self.MINER_HOTKEY]))[
+                self.MINER_HOTKEY
+            ]
+            assert raw_commitment == wrap_commitment_payload(manifest_url)
             assert asyncio.run(self.blockchain_manager.get_own_manifest_url()) == manifest_url
             assert self.blockchain_manager.put_counter == 1
         finally:
@@ -183,7 +188,10 @@ class TestMinerShield:
             manifest: Manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping.keys() == state.validators_addresses.keys()
             urls: dict[Hotkey, str | None] = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
-            assert urls[miner_hotkey] == manifest_url
+            extracted_url, rest, is_legacy = extract_commitment_url(urls[miner_hotkey])
+            assert extracted_url == manifest_url
+            assert rest == ''
+            assert not is_legacy
 
             reloaded_state: MinerShieldState = state_manager.get_state(reload=True)
             assert reloaded_state == state
@@ -199,7 +207,10 @@ class TestMinerShield:
             manifest = asyncio.run(manifest_manager.get_manifest(manifest_url))
             assert manifest.encrypted_url_mapping == {}
             urls = asyncio.run(blockchain_manager.get_manifest_urls([miner_hotkey]))
-            assert urls[miner_hotkey] == manifest_url
+            extracted_url, rest, is_legacy = extract_commitment_url(urls[miner_hotkey])
+            assert extracted_url == manifest_url
+            assert rest == ''
+            assert not is_legacy
 
             reloaded_state = state_manager.get_state(reload=True)
             assert reloaded_state == state

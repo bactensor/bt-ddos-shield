@@ -42,7 +42,15 @@ from bt_ddos_shield.state_manager import (
     MinerShieldState,
     SQLAlchemyMinerShieldStateManager,
 )
-from bt_ddos_shield.utils import AWSClientFactory, Hotkey, ShieldAddress, SubtensorSettings, WalletSettings
+from bt_ddos_shield.utils import (
+    AWSClientFactory,
+    Hotkey,
+    ShieldAddress,
+    SubtensorSettings,
+    WalletSettings,
+    extract_commitment_url,
+    merge_commitment_url,
+)
 from bt_ddos_shield.validators_manager import AbstractValidatorsManager, BittensorValidatorsManager
 
 if TYPE_CHECKING:
@@ -506,11 +514,16 @@ class MinerShield:
         Publish info about current manifest file to blockchain if it is not already there.
         """
         expected_url: str = self.manifest_manager.get_manifest_url()
-        current_url: str | None = asyncio.run(self.blockchain_manager.get_own_manifest_url())
-        if current_url == expected_url:
+        own_hotkey: Hotkey = self.blockchain_manager.get_hotkey()
+        raw_commitments: dict[Hotkey, str | None] = asyncio.run(self.blockchain_manager.get_manifest_urls([own_hotkey]))
+        current_commitment: str | None = raw_commitments.get(own_hotkey)
+        current_url, rest, is_legacy = extract_commitment_url(current_commitment)
+
+        if current_url == expected_url and not is_legacy:
             self._event('Manifest address already published')
         else:
-            self.blockchain_manager.put_manifest_url(expected_url)
+            merged_commitment: str = merge_commitment_url(expected_url, rest)
+            self.blockchain_manager.put_manifest_url(merged_commitment)
             self._event('Manifest published')
 
     def _event(self, template: str, exception: Exception | None = None, **kwargs):
