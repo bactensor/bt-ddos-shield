@@ -5,7 +5,7 @@ import typing
 import turbobt
 
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager, BlockchainManagerException
-from bt_ddos_shield.encryption_manager import CertificateAlgorithmEnum
+from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
 from bt_ddos_shield.utils import decode_subtensor_certificate_info
 
 if typing.TYPE_CHECKING:
