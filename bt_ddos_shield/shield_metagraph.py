@@ -30,7 +30,7 @@ from bt_ddos_shield.manifest_manager import (
     ManifestDeserializationException,
     ReadOnlyManifestManager,
 )
-from bt_ddos_shield.utils import run_async_in_thread
+from bt_ddos_shield.utils import extract_commitment_url, run_async_in_thread
 
 if TYPE_CHECKING:
     import bittensor
@@ -212,8 +212,17 @@ class ShieldMetagraph(Metagraph):
         hotkeys: list[str] = self.hotkeys
 
         # Use run_async_in_thread hack, because this function can be called from inside currently running event loop
-        urls: dict[Hotkey, str | None] = run_async_in_thread(self.blockchain_manager.get_manifest_urls(hotkeys))
-        manifests: dict[Hotkey, Manifest | None] = run_async_in_thread(self.manifest_manager.get_manifests(urls))
+        raw_commitments: dict[Hotkey, str | None] = run_async_in_thread(
+            self.blockchain_manager.get_manifest_urls(hotkeys)
+        )
+        manifest_urls: dict[Hotkey, str | None] = {}
+        for hotkey in hotkeys:
+            commitment_value: str | None = raw_commitments.get(hotkey)
+            url, _, _ = extract_commitment_url(commitment_value)
+            manifest_urls[hotkey] = url
+        manifests: dict[Hotkey, Manifest | None] = run_async_in_thread(
+            self.manifest_manager.get_manifests(manifest_urls)
+        )
 
         own_hotkey: Hotkey = self.wallet.hotkey.ss58_address
         for axon in self.axons:

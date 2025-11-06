@@ -14,6 +14,7 @@ from bt_ddos_shield.manifest_manager import (
     ReadOnlyManifestManager,
 )
 from bt_ddos_shield.shield_metagraph import ShieldMetagraphOptions
+from bt_ddos_shield.utils import extract_commitment_url
 
 if typing.TYPE_CHECKING:
     import bittensor_wallet
@@ -112,8 +113,13 @@ class ShieldClient:
         self,
         hotkeys: typing.Iterable[Hotkey],
     ) -> dict[Hotkey, Manifest | None]:
-        manifests_urls = await self.blockchain_manager.get_manifest_urls(hotkeys)
-        manifests = await self.manifest_manager.get_manifests(manifests_urls)
+        raw_commitments = await self.blockchain_manager.get_manifest_urls(hotkeys)
+        manifest_urls: dict[Hotkey, str | None] = {}
+        for hotkey in hotkeys:
+            commitment_value = raw_commitments.get(hotkey)
+            url, _, _ = extract_commitment_url(commitment_value)
+            manifest_urls[hotkey] = url
+        manifests = await self.manifest_manager.get_manifests(manifest_urls)
 
         return manifests
 
