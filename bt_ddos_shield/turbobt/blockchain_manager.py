@@ -5,7 +5,7 @@ import typing
 import turbobt
 
 from bt_ddos_shield.blockchain_manager import AbstractBlockchainManager, BlockchainManagerException
-from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum
+from bt_ddos_shield.certificate_manager import CertificateAlgorithmEnum, PublicKey
 from bt_ddos_shield.utils import decode_subtensor_certificate_info
 
 if typing.TYPE_CHECKING:
@@ -14,7 +14,7 @@ if typing.TYPE_CHECKING:
     import bittensor_wallet
 
     from bt_ddos_shield.event_processor import AbstractMinerShieldEventProcessor
-    from bt_ddos_shield.utils import Hotkey, PublicKey
+    from bt_ddos_shield.utils import Hotkey
 
 
 class TurboBittensorBlockchainManager(AbstractBlockchainManager):
