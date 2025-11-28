@@ -5,7 +5,6 @@ import base64
 import functools
 import hashlib
 import json
-import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from http import HTTPStatus
@@ -250,7 +249,7 @@ class ReadOnlyManifestManager(ABC):
             return await self._get_manifest_file(http_session, manifest_owner_hotkey, url)
         except ManifestDownloadException:
             # Retry once
-            time.sleep(1)
+            await asyncio.sleep(1)
             return await self._get_manifest_file(http_session, manifest_owner_hotkey, url)
 
     async def _get_manifest_files(self, urls: dict[Hotkey, str | None]) -> dict[Hotkey, bytes | None]:
