@@ -19,7 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 turbobt = [
-    "turbobt~=0.2.1",
+    "turbobt~=0.3.1",
 ]
 
 [tool.uv]
