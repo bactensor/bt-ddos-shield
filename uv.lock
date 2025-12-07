@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11.0"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -360,7 +360,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = "~=1.0.1" },
     { name = "route53", specifier = "~=1.0.1" },
     { name = "sqlalchemy", specifier = "~=2.0.36" },
-    { name = "turbobt", marker = "extra == 'turbobt'", specifier = "~=0.2.1" },
+    { name = "turbobt", marker = "extra == 'turbobt'", specifier = "~=0.3.0" },
 ]
 provides-extras = ["turbobt"]
 
@@ -1611,19 +1611,20 @@ wheels = [
 
 [[package]]
 name = "turbobt"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bittensor-drand", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "bittensor-wallet", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "eciespy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "httpx", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "scalecodec", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "websockets", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "xxhash", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/a4/57e3000ab07bd2668f0437e142e3f7289498f6d63aa3e5288f7af7af7110/turbobt-0.2.1.tar.gz", hash = "sha256:84322eee6fdf80b07c4efa37ae984acfc5f0e6e94947e3a1b124a3f27b279819", size = 144525, upload-time = "2025-08-12T13:13:34.99Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8e/97/f3cf8241225201e4b381186f31aac3c0ec8ac03d8a52488b07473161921b/turbobt-0.3.0.tar.gz", hash = "sha256:3e97686b17b2f2479a8ec46f3d47be9134e1eac56082b643a75085eea77c6156", size = 136327, upload-time = "2025-10-01T10:17:39.612Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/e4/da8946128ffe3b3f4991abbebbf21409b47fc547460f4acc0a13a35c83aa/turbobt-0.2.1-py3-none-any.whl", hash = "sha256:f7ef0226254fe62ec6107ef5060c788d378ddf1b8803b1bfe726d30180f3c560", size = 59682, upload-time = "2025-08-12T13:13:30.313Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/1a/59135a675de8d3b5c437f1abd74e2b3f6148b5bd43a40f2b39c589d982e4/turbobt-0.3.0-py3-none-any.whl", hash = "sha256:256acf27160d45dc655d506a1e4889c57ddc7b50332cc7540442514d633f272f", size = 43581, upload-time = "2025-10-01T10:17:37.938Z" },
 ]
 
 [[package]]
